@@ -306,7 +306,7 @@ def criar_roupa(d):
 
 
 def listar_testes():
-    desde = (date.today() - timedelta(days=14)).isoformat()
+    desde = (date.today() - timedelta(days=90)).isoformat()
     with db() as con:
         rows = con.execute(
             """SELECT t.*,

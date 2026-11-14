@@ -106,6 +106,38 @@
   .foto.vazia { display: grid; place-content: center; color: var(--suave); }
   .foto.vazia svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.6; }
 
+  /* calendario e grelha de aulas */
+  :root { --teste: #d9c35a; }
+  .inteiro { grid-column: 1 / -1; }
+  .cal-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-titulo { font-size: 20px; font-weight: 700; }
+  .cal-seta { width: 38px; height: 38px; border-radius: 10px; border: 0; background: var(--campo); color: var(--txt);
+              font-size: 22px; cursor: pointer; }
+  .calendario { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+  .calendario .sem { font-size: 12px; font-weight: 600; color: var(--suave); padding: 4px 0; }
+  .calendario button { border: 0; background: none; color: var(--txt); border-radius: 12px; padding: 8px 0 6px;
+                       font-size: 16px; font-weight: 500; cursor: pointer; font-family: inherit; min-height: 52px;
+                       font-variant-numeric: tabular-nums; }
+  .calendario button.fora { visibility: hidden; }
+  .calendario button.tem-teste { background: var(--teste); color: #1a1a1a; font-weight: 700; }
+  .calendario button.hoje { box-shadow: inset 0 0 0 2px var(--txt); }
+  .calendario button.escolhido { box-shadow: inset 0 0 0 2px var(--acento); }
+  .calendario .pontos { display: flex; gap: 3px; justify-content: center; height: 8px; margin-top: 4px; }
+  .calendario .pontos i { width: 6px; height: 6px; border-radius: 50%; }
+  .cal-legenda { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; color: var(--suave); margin-top: 12px; }
+  .cal-legenda i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .grelha-aulas { overflow-x: auto; }
+  .grelha-aulas table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 15px; table-layout: fixed; }
+  .grelha-aulas th { font-size: 13px; font-weight: 600; color: var(--suave); padding: 8px 4px; }
+  .grelha-aulas th.agora-col { color: var(--acento); }
+  .grelha-aulas td { border-top: 0.5px solid var(--linha); border-left: 0.5px solid var(--linha); text-align: center;
+                     padding: 6px 4px; font-weight: 600; height: 42px; }
+  .grelha-aulas td.horas { font: 12px/1.35 ui-monospace, Menlo, monospace; color: var(--suave); font-weight: 400; border-left: 0; width: 58px; }
+  .grelha-aulas td.aula { background: color-mix(in srgb, var(--acento) 7%, transparent); }
+  .grelha-aulas td.aula.agora { background: color-mix(in srgb, var(--acento) 28%, transparent); }
+  .grelha-aulas tr.pausa td { height: 14px; padding: 0; background: var(--campo); border-left: 0; }
+  .grelha-aulas col.c-horas { width: 62px; }
+
   /* cronometro de estudo */
   .cronometro { text-align: center; padding: 6px 0 4px; }
   .cronometro .tempo { font-size: 72px; font-weight: 200; letter-spacing: -2px; font-variant-numeric: tabular-nums; line-height: 1.05; }
@@ -358,6 +390,23 @@
 
   <!-- HORARIO -->
   <section id="horario">
+    <div class="card inteiro">
+      <h2>Testes e estudo</h2>
+      <div class="cal-topo">
+        <button class="cal-seta" data-mes="-1" aria-label="Mês anterior">‹</button>
+        <div class="cal-titulo" id="cal-titulo"></div>
+        <button class="cal-seta" data-mes="1" aria-label="Mês seguinte">›</button>
+      </div>
+      <div class="calendario" id="calendario"></div>
+      <div class="cal-legenda">
+        <span><i style="background:var(--teste)"></i>teste</span>
+        <span><i style="background:var(--txt)"></i>estudar</span>
+        <span><i style="background:var(--perigo)"></i>falta</span>
+        <span><i style="background:var(--ok)"></i>estudei</span>
+      </div>
+      <ul id="cal-detalhe" style="margin-top:12px"></ul>
+    </div>
+    <div class="card inteiro"><h2>Aulas</h2><div class="grelha-aulas" id="grelha-aulas"></div></div>
     <div class="card">
       <h2>Novo bloco fixo</h2>
       <form id="f-bloco">
@@ -780,7 +829,7 @@ function desenharEstudo() {
       <div class="info">${e.data === hoje ? "hoje" : fmtData(e.data)} · ${NOTAS[e.correu]} · ${esc(e.materia)}</div>
       ${e.duvidas ? `<div class="duvida">Dúvida: ${esc(e.duvidas)}</div>` : ""}</div>
     <button class="x" data-apagar="diario/${e.id}" title="Apagar">×</button></li>`).join("") || vazio("Sem sessões.");
-  $("#lista-testes").innerHTML = testes.map(t => {
+  $("#lista-testes").innerHTML = testes.filter(t => diasAte(t.data) >= -14).map(t => {
     const n = diasAte(t.data);
     const pouco = n >= 0 && n <= 3 && t.minutos_estudados < 60;
     return `<li class="${n < 0 ? "passado" : ""}"><div class="meio">
@@ -819,12 +868,109 @@ function desenharRoupa() {
     $("#roupa-tipos").innerHTML = r.tipos.map(t => `<option value="${t}">${NOME_TIPO[t]}</option>`).join("");
 }
 
+// ---------- HORARIO: calendario dos testes e grelha das aulas ----------
+let mesCal = new Date(); mesCal.setDate(1);
+let diaEscolhido = null;
+const MESES_CURTOS = { "Matemática": "Mat", "Português": "Port", "Inglês": "Ing", "História": "His", "Geografia": "Geo",
+  "Ciências Naturais": "CN", "Físico-Química": "CFQ", "Educação Física": "EF", "Educação Visual": "EV", "Espanhol": "Esp",
+  "Francês": "Fr", "Cidadania e Desenvolvimento": "CD" };
+const curto = n => MESES_CURTOS[n] || n;
+
+function marcasDoCalendario() {
+  // dia -> { testes: [], estudei: [], estudar: bool }
+  const m = {};
+  const pega = d => (m[d] ||= { testes: [], sessoes: [], estudar: false });
+  (dados.testes || []).forEach(t => {
+    pega(t.data).testes.push(t);
+    for (let i = 1; i <= 3; i++) { // os 3 dias antes de cada teste sao para estudar
+      const d = new Date(t.data + "T12:00"); d.setDate(d.getDate() - i);
+      pega(isoDe(d)).estudar = true;
+    }
+  });
+  (dados.diario90?.entradas || []).forEach(e => pega(e.data).sessoes.push(e));
+  return m;
+}
+
+function desenharCalendario() {
+  const marcas = marcasDoCalendario(), hoje = hojeISO();
+  const tit = mesCal.toLocaleDateString("pt-PT", { month: "long", year: "numeric" });
+  $("#cal-titulo").textContent = tit[0].toUpperCase() + tit.slice(1);
+  const inicio = (mesCal.getDay() + 6) % 7, nDias = new Date(mesCal.getFullYear(), mesCal.getMonth() + 1, 0).getDate();
+  let html = ["S", "T", "Q", "Q", "S", "S", "D"].map(d => `<div class="sem">${d}</div>`).join("");
+  for (let i = 0; i < inicio; i++) html += `<button class="fora" tabindex="-1"></button>`;
+  for (let dia = 1; dia <= nDias; dia++) {
+    const iso = isoDe(new Date(mesCal.getFullYear(), mesCal.getMonth(), dia));
+    const mk = marcas[iso] || { testes: [], sessoes: [], estudar: false };
+    const pontos = [];
+    if (mk.sessoes.length) pontos.push("var(--ok)");
+    else if (mk.estudar && iso < hoje) pontos.push("var(--perigo)");
+    else if (mk.estudar) pontos.push(mk.testes.length ? "#1a1a1a" : "var(--txt)");
+    const cls = [mk.testes.length ? "tem-teste" : "", iso === hoje ? "hoje" : "", iso === diaEscolhido ? "escolhido" : ""].join(" ");
+    html += `<button class="${cls}" data-dia-cal="${iso}">${dia}<div class="pontos">${pontos.map(c => `<i style="background:${c}"></i>`).join("")}</div></button>`;
+  }
+  $("#calendario").innerHTML = html;
+
+  const d = diaEscolhido && (marcas[diaEscolhido] || { testes: [], sessoes: [], estudar: false });
+  if (!d) { $("#cal-detalhe").innerHTML = vazio("Toca num dia para veres o que tem."); return; }
+  const linhas = [
+    ...d.testes.map(t => `<li><span class="bolinha" style="background:var(--teste)"></span><div class="meio">
+      <div class="titulo">Teste de ${esc(t.disciplina)}</div><div class="info">${t.materia ? esc(t.materia) + " · " : ""}estudaste ${horas(t.minutos_estudados)}</div></div></li>`),
+    ...d.sessoes.map(e => `<li><span class="bolinha" style="background:var(--ok)"></span><div class="meio">
+      <div class="titulo">${esc(e.disciplina)} · ${horas(e.minutos)}</div><div class="info">${esc(e.materia)}</div></div></li>`)];
+  if (!d.sessoes.length && d.estudar) linhas.push(`<li><span class="bolinha" style="background:${diaEscolhido < hojeISO() ? "var(--perigo)" : "var(--txt)"}"></span>
+    <div class="meio"><div class="titulo">${diaEscolhido < hojeISO() ? "Era dia de estudar e não estudaste" : "Dia de estudar para o teste"}</div></div></li>`);
+  $("#cal-detalhe").innerHTML = linhas.join("") || vazio(`Nada no dia ${fmtData(diaEscolhido)}.`);
+}
+document.querySelectorAll(".cal-seta").forEach(b => b.onclick = () => {
+  mesCal.setMonth(mesCal.getMonth() + +b.dataset.mes); desenharCalendario();
+});
+$("#calendario").onclick = e => {
+  const b = e.target.closest("[data-dia-cal]"); if (!b) return;
+  diaEscolhido = diaEscolhido === b.dataset.diaCal ? null : b.dataset.diaCal; desenharCalendario();
+};
+
+function desenharGrelhaAulas() {
+  const aulas = dados.horario.filter(b => b.area === "escola" && b.dia < 7);
+  if (!aulas.length) { $("#grelha-aulas").innerHTML = `<div class="vazio">Adiciona as tuas aulas em baixo, com a área Escola, e a grelha aparece aqui.</div>`; return; }
+  const dias = [0, 1, 2, 3, 4].concat([5, 6].filter(d => aulas.some(a => a.dia === d)));
+  const tempos = [...new Set(aulas.flatMap(a => [a.inicio, a.fim]))].sort();
+  const faixas = tempos.slice(0, -1).map((t, i) => [t, tempos[i + 1]]);
+  const agora = horaAgora(), hojeD = diaSemana();
+  const ocupado = {}; // "dia|i" -> ja coberto por rowspan
+  let html = `<table><colgroup><col class="c-horas">${dias.map(() => "<col>").join("")}</colgroup>
+    <tr><th></th>${dias.map(d => `<th class="${d === hojeD ? "agora-col" : ""}">${DIAS[d].slice(0, 3)}</th>`).join("")}</tr>`;
+  faixas.forEach(([ini, fim], i) => {
+    const vazia = !aulas.some(a => a.inicio <= ini && a.fim >= fim);
+    const minutos = t => +t.slice(0, 2) * 60 + +t.slice(3);
+    if (vazia) { // intervalos curtos nao aparecem; a pausa de almoco sim
+      if (minutos(fim) - minutos(ini) >= 30) html += `<tr class="pausa"><td colspan="${dias.length + 1}"></td></tr>`;
+      return;
+    }
+    html += `<tr><td class="horas">${ini}<br>${fim}</td>`;
+    dias.forEach(d => {
+      if (ocupado[d + "|" + i]) return;
+      const a = aulas.find(a => a.dia === d && a.inicio <= ini && a.fim >= fim);
+      if (!a) { html += `<td></td>`; return; }
+      let span = 1;
+      while (faixas[i + span] && a.fim >= faixas[i + span][1]) {
+        ocupado[d + "|" + (i + span)] = true; span++;
+      }
+      const ativa = d === hojeD && a.inicio <= agora && agora < a.fim;
+      html += `<td class="aula${ativa ? " agora" : ""}" rowspan="${span}" title="${esc(a.titulo)} ${a.inicio}-${a.fim}">${esc(curto(a.titulo))}</td>`;
+    });
+    html += `</tr>`;
+  });
+  $("#grelha-aulas").innerHTML = html + "</table>";
+}
+
 // ---------- desenhar tudo ----------
 async function atualizar() {
-  const [tarefas, horario, reg7, reg1, diario, roupa, testes] = await Promise.all([
+  const [tarefas, horario, reg7, reg1, diario, roupa, testes, diario90] = await Promise.all([
     api("/api/tarefas"), api("/api/horario"), api("/api/registo?dias=7"), api("/api/registo?dias=1"),
-    api("/api/diario?dias=30"), api("/api/roupa"), api("/api/testes")]);
-  dados = { tarefas, horario, reg7, reg1, diario, roupa, testes };
+    api("/api/diario?dias=30"), api("/api/roupa"), api("/api/testes"), api("/api/diario?dias=120")]);
+  dados = { tarefas, horario, reg7, reg1, diario, roupa, testes, diario90 };
+  desenharCalendario();
+  desenharGrelhaAulas();
   const hoje = hojeISO();
 
   desenharInicio();
