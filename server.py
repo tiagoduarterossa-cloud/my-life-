@@ -23,6 +23,8 @@ DB_PATH = Path(os.environ.get("VIDA_DB", BASE / "vida.db"))
 STATIC = BASE / "static"
 PORT = int(os.environ.get("VIDA_PORT", "8080"))
 
+TIPOS_ROUPA = ["t-shirt", "camisola", "sweat", "casaco", "calcas", "calcoes", "desporto", "calcado", "outro"]
+ESTADOS_ROUPA = ["arrumada", "para lavar", "emprestada"]
 AREAS = ["escola", "dropshipping", "programar", "encriptar", "musica", "desporto", "outro"]
 
 
@@ -52,6 +54,24 @@ def init_db():
                 fim TEXT NOT NULL,
                 titulo TEXT NOT NULL,
                 area TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS diario (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                data TEXT NOT NULL,
+                disciplina TEXT NOT NULL,
+                minutos INTEGER NOT NULL,
+                materia TEXT NOT NULL,                 -- o que estudei
+                correu INTEGER NOT NULL DEFAULT 3,     -- 1 mal ... 5 muito bem
+                duvidas TEXT,                          -- o que ficou por perceber
+                registo_id INTEGER                     -- entrada ligada no registo de tempo
+            );
+            CREATE TABLE IF NOT EXISTS roupa (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                tipo TEXT NOT NULL,
+                cor TEXT,
+                local TEXT,                            -- onde esta guardada
+                estado TEXT NOT NULL DEFAULT 'arrumada'
             );
             CREATE TABLE IF NOT EXISTS registo (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -181,9 +201,76 @@ def criar_registo(d):
         )
 
 
-def apagar(tabela, rid):
-    assert tabela in ("tarefas", "horario", "registo")
+def listar_diario(dias):
+    desde = (date.today() - timedelta(days=dias - 1)).isoformat()
     with db() as con:
+        entradas = con.execute(
+            "SELECT * FROM diario WHERE data >= ? ORDER BY data DESC, id DESC", (desde,)
+        ).fetchall()
+        por_disciplina = con.execute(
+            """SELECT disciplina, SUM(minutos) AS minutos, ROUND(AVG(correu), 1) AS media
+               FROM diario WHERE data >= ? GROUP BY disciplina ORDER BY minutos DESC""",
+            (desde,),
+        ).fetchall()
+    return {"entradas": [dict(r) for r in entradas],
+            "disciplinas": [dict(r) for r in por_disciplina]}
+
+
+def criar_diario(d):
+    m = int(d.get("minutos") or 0)
+    if not 1 <= m <= 24 * 60:
+        raise Erro("minutos tem de estar entre 1 e 1440")
+    c = int(d.get("correu") or 3)
+    if c not in range(1, 6):
+        raise Erro("'correu' tem de ser de 1 a 5")
+    dia = data_ok(d.get("data"), "data") or date.today().isoformat()
+    disc = texto(d, "disciplina", maximo=60)
+    with db() as con:
+        # o estudo conta automaticamente no registo de tempo, na area escola
+        cur = con.execute(
+            "INSERT INTO registo (data, area, minutos, nota) VALUES (?,?,?,?)",
+            (dia, "escola", m, f"Estudo: {disc}"),
+        )
+        con.execute(
+            """INSERT INTO diario (data, disciplina, minutos, materia, correu, duvidas, registo_id)
+               VALUES (?,?,?,?,?,?,?)""",
+            (dia, disc, m, texto(d, "materia", maximo=500), c,
+             texto(d, "duvidas", obrigatorio=False, maximo=500), cur.lastrowid),
+        )
+
+
+def listar_roupa():
+    with db() as con:
+        rows = con.execute("SELECT * FROM roupa ORDER BY tipo, nome").fetchall()
+    return [dict(r) for r in rows]
+
+
+def criar_roupa(d):
+    if d.get("tipo") not in TIPOS_ROUPA:
+        raise Erro("tipo de roupa invalido")
+    with db() as con:
+        con.execute(
+            "INSERT INTO roupa (nome, tipo, cor, local) VALUES (?,?,?,?)",
+            (texto(d, "nome", maximo=100), d["tipo"],
+             texto(d, "cor", obrigatorio=False, maximo=40),
+             texto(d, "local", obrigatorio=False, maximo=100)),
+        )
+
+
+def estado_roupa(rid, d):
+    if d.get("estado") not in ESTADOS_ROUPA:
+        raise Erro("estado invalido")
+    with db() as con:
+        con.execute("UPDATE roupa SET estado = ? WHERE id = ?", (d["estado"], rid))
+
+
+def apagar(tabela, rid):
+    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa")
+    with db() as con:
+        if tabela == "diario":
+            row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
+            if row and row["registo_id"]:
+                con.execute("DELETE FROM registo WHERE id = ?", (row["registo_id"],))
         con.execute(f"DELETE FROM {tabela} WHERE id = ?", (rid,))
 
 
@@ -242,11 +329,30 @@ class Handler(BaseHTTPRequestHandler):
                     criar_registo(self.corpo_json())
                     return self.enviar(201, {"ok": True})
 
+            if caminho == "/api/diario":
+                if metodo == "GET":
+                    dias = max(1, min(int(query.get("dias", 30)), 365))
+                    return self.enviar(200, listar_diario(dias))
+                if metodo == "POST":
+                    criar_diario(self.corpo_json())
+                    return self.enviar(201, {"ok": True})
+            if caminho == "/api/roupa":
+                if metodo == "GET":
+                    return self.enviar(200, {"pecas": listar_roupa(), "tipos": TIPOS_ROUPA,
+                                             "estados": ESTADOS_ROUPA})
+                if metodo == "POST":
+                    criar_roupa(self.corpo_json())
+                    return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/roupa/(\d+)/estado", caminho)
+            if m and metodo == "POST":
+                estado_roupa(int(m[1]), self.corpo_json())
+                return self.enviar(200, {"ok": True})
+
             m = re.fullmatch(r"/api/tarefas/(\d+)/alternar", caminho)
             if m and metodo == "POST":
                 alternar_tarefa(int(m[1]))
                 return self.enviar(200, {"ok": True})
-            m = re.fullmatch(r"/api/(tarefas|horario|registo)/(\d+)", caminho)
+            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa)/(\d+)", caminho)
             if m and metodo == "DELETE":
                 apagar(m[1], int(m[2]))
                 return self.enviar(200, {"ok": True})

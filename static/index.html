@@ -2,74 +2,121 @@
 <html lang="pt">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icone-192.png">
+<link rel="apple-touch-icon" href="/icone-192.png">
 <title>A minha central</title>
 <style>
   :root {
-    --bg: #f6f5f2; --card: #ffffff; --txt: #1d1d1f; --suave: #6b6b70; --linha: #e4e2dd;
-    --acento: #2f6fdb; --perigo: #c8412f; --ok: #2e8b57;
-    --escola: #2f6fdb; --dropshipping: #d98a1c; --programar: #7a4fd1; --encriptar: #1f9a8a;
-    --musica: #d1477a; --desporto: #3b9a3b; --outro: #8a8a8a;
+    --bg: #f2f2f7; --card: #ffffff; --campo: #f2f2f7; --txt: #000000; --suave: #8e8e93; --linha: #e5e5ea;
+    --acento: #007aff; --perigo: #ff3b30; --ok: #34c759; --vidro: rgba(249, 249, 249, 0.82);
+    --escola: #007aff; --dropshipping: #ff9500; --programar: #af52de; --encriptar: #30b0c7;
+    --musica: #ff2d55; --desporto: #34c759; --outro: #8e8e93;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #141416; --card: #1f1f23; --txt: #ececf0; --suave: #9a9aa3; --linha: #2e2e34; }
+    :root { --bg: #000000; --card: #1c1c1e; --campo: #2c2c2e; --txt: #ffffff; --suave: #8e8e93; --linha: #38383a;
+            --acento: #0a84ff; --perigo: #ff453a; --vidro: rgba(22, 22, 24, 0.82);
+            --escola: #0a84ff; --dropshipping: #ff9f0a; --programar: #bf5af2; --encriptar: #40c8e0;
+            --musica: #ff375f; --desporto: #30d158; }
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         background: var(--bg); color: var(--txt); font-size: 16px; }
-  header { padding: 18px 16px 8px; max-width: 720px; margin: auto; }
-  header h1 { margin: 0; font-size: 22px; }
-  header p { margin: 4px 0 0; color: var(--suave); font-size: 14px; }
-  nav { display: flex; gap: 6px; padding: 8px 16px; max-width: 720px; margin: auto;
-        position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  nav button { flex: 1; padding: 10px 4px; border: 1px solid var(--linha); background: var(--card);
-               color: var(--txt); border-radius: 10px; font-size: 14px; cursor: pointer; }
-  nav button.ativo { background: var(--acento); color: #fff; border-color: var(--acento); }
-  main { max-width: 720px; margin: auto; padding: 8px 16px 60px; }
-  section { display: none; } section.ativo { display: block; }
-  .card { background: var(--card); border: 1px solid var(--linha); border-radius: 14px;
-          padding: 14px; margin-bottom: 14px; }
-  .card h2 { font-size: 16px; margin: 0 0 10px; }
-  form { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--txt); font-size: 17px; letter-spacing: -0.2px;
+         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+         -webkit-font-smoothing: antialiased; padding-bottom: 96px; }
+  header { padding: 28px 20px 10px; max-width: 760px; margin: auto; }
+  header p { margin: 0 0 2px; color: var(--suave); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.2px; }
+  header h1 { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.8px; }
+
+  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; justify-content: space-around;
+        padding: 6px 4px calc(8px + env(safe-area-inset-bottom)); background: var(--vidro);
+        backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+        border-top: 0.5px solid var(--linha); }
+  nav button { flex: 1; max-width: 110px; background: none; border: 0; color: var(--suave); cursor: pointer;
+               display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10.5px;
+               font-weight: 500; padding: 4px 0; font-family: inherit; }
+  nav button svg { width: 25px; height: 25px; stroke: currentColor; fill: none; stroke-width: 1.8;
+                   stroke-linecap: round; stroke-linejoin: round; }
+  nav button.ativo { color: var(--acento); }
+
+  main { max-width: 760px; margin: auto; padding: 8px 16px 20px; }
+  section { display: none; } section.ativo { display: block; animation: entrar .25s ease; }
+  @keyframes entrar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .card { background: var(--card); border-radius: 14px; padding: 14px 16px; margin-bottom: 22px; }
+  .card h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--suave);
+             margin: -40px 0 18px -16px; letter-spacing: 0.1px; padding-top: 6px; }
+  .card { margin-top: 34px; }
+  form { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
   form .largo { grid-column: 1 / -1; }
-  input, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--linha);
-                  background: var(--bg); color: var(--txt); font-size: 15px; }
-  button.principal { grid-column: 1 / -1; padding: 11px; border: 0; border-radius: 8px;
-                     background: var(--acento); color: #fff; font-size: 15px; cursor: pointer; }
+  input, select, textarea { width: 100%; padding: 12px; border-radius: 10px; border: 0; background: var(--campo);
+         color: var(--txt); font-size: 17px; font-family: inherit; outline: none; -webkit-appearance: none; appearance: none; }
+  select { background-image: linear-gradient(45deg, transparent 50%, var(--suave) 50%), linear-gradient(135deg, var(--suave) 50%, transparent 50%);
+           background-position: calc(100% - 18px) 52%, calc(100% - 13px) 52%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 30px; }
+  input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 35%, transparent); }
+  textarea { resize: vertical; }
+  button.principal { grid-column: 1 / -1; padding: 14px; border: 0; border-radius: 12px; background: var(--acento);
+                     color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  button.principal:active { opacity: .7; }
   ul { list-style: none; margin: 0; padding: 0; }
-  li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--linha); }
-  li:first-child { border-top: 0; }
+  li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 0.5px solid var(--linha); }
+  li:first-child { border-top: 0; padding-top: 2px; }
+  li:last-child { padding-bottom: 2px; }
   li .meio { flex: 1; min-width: 0; }
   li .titulo { overflow-wrap: anywhere; }
-  li .info { color: var(--suave); font-size: 13px; }
+  li .info { color: var(--suave); font-size: 14px; margin-top: 1px; }
   li.feita .titulo { text-decoration: line-through; color: var(--suave); }
   .bolinha { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-  .x { border: 0; background: none; color: var(--suave); font-size: 18px; cursor: pointer; padding: 4px 8px; }
-  input[type=checkbox] { width: 22px; height: 22px; flex: none; }
+  .x { border: 0; background: none; color: var(--suave); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 6px; }
+  input[type=checkbox] { width: 24px; height: 24px; flex: none; border-radius: 50%; padding: 0; background: none;
+                         border: 2px solid var(--suave); cursor: pointer; display: grid; place-content: center; }
+  input[type=checkbox]:checked { background: var(--acento); border-color: var(--acento); }
+  input[type=checkbox]:checked::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0;
+                                        transform: translateY(-1px) rotate(45deg); }
   .atrasada { color: var(--perigo); font-weight: 600; }
-  .vazio { color: var(--suave); font-size: 14px; padding: 6px 0; }
-  .barra { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
-  .barra .nome { width: 100px; flex: none; }
-  .barra .fundo { flex: 1; height: 12px; background: var(--linha); border-radius: 6px; overflow: hidden; }
-  .barra .cheio { height: 100%; border-radius: 6px; }
-  .barra .num { width: 56px; text-align: right; color: var(--suave); flex: none; }
-  .dia h3 { font-size: 14px; margin: 12px 0 2px; color: var(--suave); }
-  .agora { outline: 2px solid var(--acento); border-radius: 8px; padding-left: 6px; }
-  #aviso { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 480px; margin: auto;
-           background: var(--perigo); color: #fff; padding: 10px 14px; border-radius: 10px; display: none; }
+  .vazio { color: var(--suave); font-size: 15px; padding: 4px 0; }
+  .barra { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 15px; }
+  .barra .nome { width: 104px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barra .fundo { flex: 1; height: 8px; background: var(--campo); border-radius: 4px; overflow: hidden; }
+  .barra .cheio { height: 100%; border-radius: 4px; }
+  .barra .num { width: 58px; text-align: right; color: var(--suave); flex: none; font-variant-numeric: tabular-nums; }
+  .dia h3 { font-size: 15px; font-weight: 600; margin: 14px 0 2px; }
+  .dia:first-child h3 { margin-top: 0; }
+  .agora { background: color-mix(in srgb, var(--acento) 12%, transparent); border-radius: 10px; padding-left: 10px; padding-right: 4px; }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filtros button { padding: 7px 13px; border-radius: 999px; border: 0; background: var(--campo); color: var(--txt);
+                    font-size: 14px; cursor: pointer; font-family: inherit; }
+  .filtros button.ativo { background: var(--acento); color: #fff; }
+  .etiqueta { font-size: 13px; padding: 5px 10px; border-radius: 999px; border: 0; background: var(--campo);
+              color: var(--suave); cursor: pointer; white-space: nowrap; font-family: inherit; }
+  .etiqueta.lavar { background: color-mix(in srgb, var(--dropshipping) 18%, transparent); color: var(--dropshipping); }
+  .etiqueta.emprestada { background: color-mix(in srgb, var(--musica) 18%, transparent); color: var(--musica); }
+  .duvida { font-size: 14px; color: var(--dropshipping); margin-top: 3px; }
+  #aviso { position: fixed; bottom: 96px; left: 16px; right: 16px; max-width: 420px; margin: auto; text-align: center;
+           background: var(--vidro); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); color: var(--perigo);
+           padding: 12px 16px; border-radius: 14px; display: none; font-weight: 500; box-shadow: 0 8px 30px rgba(0,0,0,.15); }
+  @media (min-width: 900px) {
+    main, header { max-width: 1100px; }
+    section.ativo { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-items: start; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>A minha central</h1>
   <p id="hoje-data"></p>
+  <h1 id="titulo">Hoje</h1>
 </header>
 
 <nav>
-  <button data-tab="hoje" class="ativo">Hoje</button>
-  <button data-tab="tarefas">Tarefas</button>
-  <button data-tab="horario">Horário</button>
-  <button data-tab="tempo">Tempo</button>
+  <button data-tab="hoje" class="ativo"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg><span>Hoje</span></button>
+  <button data-tab="tarefas"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.7 2.7L16.5 9"/></svg><span>Tarefas</span></button>
+  <button data-tab="estudo"><svg viewBox="0 0 24 24"><path d="M2.5 6c3-1.5 6.5-1.5 9.5 1 3-2.5 6.5-2.5 9.5-1v13c-3-1.5-6.5-1.5-9.5 1-3-2.5-6.5-2.5-9.5-1z"/><path d="M12 7v13"/></svg><span>Estudo</span></button>
+  <button data-tab="horario"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg><span>Horário</span></button>
+  <button data-tab="tempo"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/></svg><span>Tempo</span></button>
+  <button data-tab="roupa"><svg viewBox="0 0 24 24"><path d="M8 3l4 2 4-2 5 3.5-2.5 4-2.5-1.5V21H8V9l-2.5 1.5L3 6.5z"/></svg><span>Roupa</span></button>
 </nav>
 
 <main>
@@ -98,6 +145,30 @@
     </div>
     <div class="card"><h2>Por fazer</h2><ul id="lista-tarefas"></ul></div>
     <div class="card"><h2>Feitas</h2><ul id="lista-feitas"></ul></div>
+  </section>
+
+  <!-- ESTUDO -->
+  <section id="estudo">
+    <div class="card">
+      <h2>Nova sessão de estudo</h2>
+      <form id="f-diario">
+        <input name="disciplina" placeholder="Disciplina" required maxlength="60" list="disciplinas">
+        <input type="number" name="minutos" placeholder="Minutos" min="1" max="1440" required>
+        <textarea class="largo" name="materia" rows="2" placeholder="O que estudei (matéria, exercícios, páginas)" required maxlength="500"></textarea>
+        <select name="correu">
+          <option value="5">Correu muito bem</option><option value="4">Correu bem</option>
+          <option value="3" selected>Mais ou menos</option><option value="2">Correu mal</option>
+          <option value="1">Não percebi nada</option>
+        </select>
+        <input type="date" name="data">
+        <textarea class="largo" name="duvidas" rows="2" placeholder="O que ficou por perceber? (para perguntar ao professor)" maxlength="500"></textarea>
+        <button class="principal">Guardar</button>
+      </form>
+      <datalist id="disciplinas"></datalist>
+    </div>
+    <div class="card"><h2>Últimos 30 dias por disciplina</h2><div id="estudo-disciplinas"></div></div>
+    <div class="card"><h2>Dúvidas por resolver</h2><ul id="estudo-duvidas"></ul></div>
+    <div class="card"><h2>Sessões</h2><ul id="estudo-lista"></ul></div>
   </section>
 
   <!-- HORARIO -->
@@ -134,6 +205,25 @@
     </div>
     <div class="card"><h2>Últimos 7 dias</h2><div id="totais"></div></div>
     <div class="card"><h2>Registos</h2><ul id="lista-registo"></ul></div>
+  </section>
+  <!-- ROUPA -->
+  <section id="roupa">
+    <div class="card">
+      <h2>Nova peça</h2>
+      <form id="f-roupa">
+        <input class="largo" name="nome" placeholder="Ex: Sweat cinzenta da Nike" required maxlength="100">
+        <select name="tipo" id="roupa-tipos"></select>
+        <input name="cor" placeholder="Cor" maxlength="40">
+        <input class="largo" name="local" placeholder="Onde está (ex: gaveta 2, armário esquerdo)" maxlength="100" list="locais">
+        <button class="principal">Adicionar</button>
+      </form>
+      <datalist id="locais"></datalist>
+    </div>
+    <div class="card">
+      <h2 id="roupa-resumo">As minhas roupas</h2>
+      <div class="filtros" id="roupa-filtros"></div>
+      <ul id="roupa-lista"></ul>
+    </div>
   </section>
 </main>
 
@@ -206,7 +296,59 @@ function barras(totais) {
 
 const vazio = t => `<li><span class="vazio">${t}</span></li>`;
 
+const NOTAS = ["", "não percebi nada", "correu mal", "mais ou menos", "correu bem", "muito bem"];
+let filtroRoupa = "todas";
+const NOME_TIPO = { "t-shirt": "T-shirts", camisola: "Camisolas", sweat: "Sweats", casaco: "Casacos",
+  calcas: "Calças", calcoes: "Calções", desporto: "Desporto", calcado: "Calçado", outro: "Outro" };
+
+function desenharRoupa(r) {
+  const pecas = r.pecas;
+  const lavar = pecas.filter(p => p.estado === "para lavar").length;
+  const emp = pecas.filter(p => p.estado === "emprestada").length;
+  $("#roupa-resumo").textContent = `As minhas roupas (${pecas.length})`;
+  const filtros = [["todas", "Todas"], ["para lavar", `Para lavar (${lavar})`], ["emprestada", `Emprestadas (${emp})`],
+    ...r.tipos.filter(t => pecas.some(p => p.tipo === t)).map(t => [t, NOME_TIPO[t]])];
+  $("#roupa-filtros").innerHTML = filtros.map(([k, v]) =>
+    `<button data-filtro="${k}" class="${k === filtroRoupa ? "ativo" : ""}">${v}</button>`).join("");
+  const vis = pecas.filter(p => filtroRoupa === "todas" || p.estado === filtroRoupa || p.tipo === filtroRoupa);
+  $("#roupa-lista").innerHTML = vis.map(p => {
+    const cls = p.estado === "para lavar" ? "lavar" : p.estado === "emprestada" ? "emprestada" : "";
+    return `<li><div class="meio"><div class="titulo">${esc(p.nome)}</div>
+      <div class="info">${NOME_TIPO[p.tipo]}${p.cor ? " · " + esc(p.cor) : ""}${p.local ? " · " + esc(p.local) : ""}</div></div>
+      <button class="etiqueta ${cls}" data-estado="${p.id}" data-atual="${p.estado}">${p.estado}</button>
+      <button class="x" data-apagar="roupa/${p.id}" title="Apagar">×</button></li>`;
+  }).join("") || vazio(pecas.length ? "Nada neste filtro." : "Ainda não adicionaste roupa.");
+  $("#locais").innerHTML = [...new Set(pecas.map(p => p.local).filter(Boolean))].map(l => `<option value="${esc(l)}">`).join("");
+  if (!$("#roupa-tipos").options.length)
+    $("#roupa-tipos").innerHTML = r.tipos.map(t => `<option value="${t}">${NOME_TIPO[t]}</option>`).join("");
+  desenharRoupa.ultimo = r;
+}
+
+function desenharEstudo(d) {
+  const hoje = hojeISO();
+  $("#estudo-disciplinas").innerHTML = d.disciplinas.length ? (() => {
+    const max = d.disciplinas[0].minutos;
+    return d.disciplinas.map(x => `<div class="barra"><span class="nome">${esc(x.disciplina)}</span>
+      <span class="fundo"><span class="cheio" style="display:block;width:${(x.minutos / max) * 100}%;background:var(--escola)"></span></span>
+      <span class="num">${horas(x.minutos)}</span></div>
+      <div class="info" style="margin:-4px 0 6px 108px;color:var(--suave);font-size:12px">média: ${NOTAS[Math.round(x.media)]}</div>`).join("");
+  })() : `<div class="vazio">Ainda não registaste estudo.</div>`;
+  const comDuvidas = d.entradas.filter(e => e.duvidas);
+  $("#estudo-duvidas").innerHTML = comDuvidas.map(e => `<li><div class="meio">
+    <div class="titulo">${esc(e.disciplina)}: ${esc(e.duvidas)}</div>
+    <div class="info">${e.data === hoje ? "hoje" : fmtData(e.data)} · ${esc(e.materia)}</div></div></li>`).join("") || vazio("Nenhuma. Ou percebeste tudo, ou não estás a escrever.");
+  $("#estudo-lista").innerHTML = d.entradas.map(e => `<li><span class="bolinha" style="background:var(--escola)"></span>
+    <div class="meio"><div class="titulo">${esc(e.disciplina)} · ${horas(e.minutos)}</div>
+      <div class="info">${e.data === hoje ? "hoje" : fmtData(e.data)} · ${NOTAS[e.correu]} · ${esc(e.materia)}</div>
+      ${e.duvidas ? `<div class="duvida">Dúvida: ${esc(e.duvidas)}</div>` : ""}</div>
+    <button class="x" data-apagar="diario/${e.id}" title="Apagar">×</button></li>`).join("") || vazio("Sem sessões.");
+  $("#disciplinas").innerHTML = [...new Set(d.entradas.map(e => e.disciplina))].map(x => `<option value="${esc(x)}">`).join("");
+}
+
 async function atualizar() {
+  const [diario, roupa] = await Promise.all([api("/api/diario?dias=30"), api("/api/roupa")]);
+  desenharEstudo(diario);
+  desenharRoupa(roupa);
   const [tarefas, horario, reg7, reg1] = await Promise.all([
     api("/api/tarefas"), api("/api/horario"), api("/api/registo?dias=7"), api("/api/registo?dias=1")]);
   const hoje = hojeISO();
@@ -242,12 +384,18 @@ async function atualizar() {
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("ativo"));
   b.classList.add("ativo"); $("#" + b.dataset.tab).classList.add("ativo");
+  $("#titulo").textContent = b.textContent.trim(); window.scrollTo(0, 0);
 });
 
 document.addEventListener("click", async e => {
   const alvo = e.target;
   try {
-    if (alvo.dataset.alternar) { await api(`/api/tarefas/${alvo.dataset.alternar}/alternar`, "POST"); }
+    if (alvo.dataset.filtro) { filtroRoupa = alvo.dataset.filtro; return desenharRoupa(desenharRoupa.ultimo); }
+    if (alvo.dataset.estado) {
+      const est = ["arrumada", "para lavar", "emprestada"];
+      const prox = est[(est.indexOf(alvo.dataset.atual) + 1) % est.length];
+      await api(`/api/roupa/${alvo.dataset.estado}/estado`, "POST", { estado: prox });
+    } else if (alvo.dataset.alternar) { await api(`/api/tarefas/${alvo.dataset.alternar}/alternar`, "POST"); }
     else if (alvo.dataset.apagar) {
       if (!confirm("Apagar?")) return;
       await api(`/api/${alvo.dataset.apagar}`, "DELETE");
@@ -266,12 +414,15 @@ function ligarForm(id, url, depois) {
 }
 ligarForm("#f-tarefa", "/api/tarefas", f => { f.titulo.value = ""; f.prazo.value = ""; });
 ligarForm("#f-bloco", "/api/horario", f => { f.titulo.value = ""; });
+ligarForm("#f-diario", "/api/diario", f => { f.minutos.value = ""; f.materia.value = ""; f.duvidas.value = ""; f.data.value = hojeISO(); });
+ligarForm("#f-roupa", "/api/roupa", f => { f.nome.value = ""; f.cor.value = ""; });
 ligarForm("#f-registo", "/api/registo", f => { f.minutos.value = ""; f.nota.value = ""; f.data.value = hojeISO(); });
 
 // ---------- arranque ----------
 document.querySelectorAll("select.areas").forEach(s =>
   s.innerHTML = Object.entries(NOMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join(""));
 $("#f-registo").data.value = hojeISO();
+$("#f-diario").data.value = hojeISO();
 $("#f-bloco").dia.value = diaSemana();
 $("#hoje-data").textContent = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
 atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
