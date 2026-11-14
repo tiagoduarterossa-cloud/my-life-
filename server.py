@@ -14,9 +14,11 @@ import os
 import re
 import socket
 import sqlite3
+import urllib.request
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urljoin
 
 BASE = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get("VIDA_DB", BASE / "vida.db"))
@@ -73,6 +75,17 @@ def init_db():
                 local TEXT,                            -- onde esta guardada
                 estado TEXT NOT NULL DEFAULT 'arrumada'
             );
+            CREATE TABLE IF NOT EXISTS testes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                disciplina TEXT NOT NULL,
+                data TEXT NOT NULL,
+                materia TEXT,
+                criado TEXT NOT NULL DEFAULT (date('now','localtime'))
+            );
+            CREATE TABLE IF NOT EXISTS config (
+                chave TEXT PRIMARY KEY,
+                valor TEXT
+            );
             CREATE TABLE IF NOT EXISTS registo (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 data TEXT NOT NULL,                    -- AAAA-MM-DD
@@ -82,6 +95,10 @@ def init_db():
             );
             """
         )
+        colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
+        for c in ("link", "imagem"):
+            if c not in colunas:
+                con.execute(f"ALTER TABLE roupa ADD COLUMN {c} TEXT")
 
 
 # ---------- validacao ----------
@@ -104,6 +121,15 @@ def area(d):
     if a not in AREAS:
         raise Erro("area invalida")
     return a
+
+
+def url_ok(v, campo):
+    v = (v or "").strip()
+    if not v:
+        return None
+    if not re.match(r"https?://", v, re.I) or len(v) > 1000:
+        raise Erro(f"'{campo}' tem de ser um link que comece por http:// ou https://")
+    return v
 
 
 def data_ok(v, campo):
@@ -245,16 +271,88 @@ def listar_roupa():
     return [dict(r) for r in rows]
 
 
+def imagem_do_link(link):
+    """Tenta descobrir a foto do produto (og:image) na pagina da loja."""
+    try:
+        req = urllib.request.Request(link, headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "pt-PT,pt"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            html = r.read(600_000).decode("utf-8", "ignore")
+    except Exception:
+        return None
+    for padrao in (r'<meta[^>]+property=["\']og:image(?::secure_url)?["\'][^>]*content=["\']([^"\']+)',
+                   r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*property=["\']og:image',
+                   r'<meta[^>]+name=["\']twitter:image["\'][^>]*content=["\']([^"\']+)'):
+        m = re.search(padrao, html, re.I)
+        if m:
+            img = urljoin(link, m[1].replace("&amp;", "&"))
+            return img if img.startswith(("http://", "https://")) else None
+    return None
+
+
 def criar_roupa(d):
     if d.get("tipo") not in TIPOS_ROUPA:
         raise Erro("tipo de roupa invalido")
+    link = url_ok(d.get("link"), "link")
+    imagem = url_ok(d.get("imagem"), "imagem")
+    if link and not imagem:
+        imagem = imagem_do_link(link)
     with db() as con:
         con.execute(
-            "INSERT INTO roupa (nome, tipo, cor, local) VALUES (?,?,?,?)",
+            "INSERT INTO roupa (nome, tipo, cor, local, link, imagem) VALUES (?,?,?,?,?,?)",
             (texto(d, "nome", maximo=100), d["tipo"],
              texto(d, "cor", obrigatorio=False, maximo=40),
-             texto(d, "local", obrigatorio=False, maximo=100)),
+             texto(d, "local", obrigatorio=False, maximo=100), link, imagem),
         )
+
+
+def listar_testes():
+    desde = (date.today() - timedelta(days=14)).isoformat()
+    with db() as con:
+        rows = con.execute(
+            """SELECT t.*,
+                 (SELECT COALESCE(SUM(d.minutos), 0) FROM diario d
+                   WHERE lower(trim(d.disciplina)) = lower(trim(t.disciplina))
+                     AND d.data >= t.criado AND d.data <= t.data) AS minutos_estudados
+               FROM testes t WHERE t.data >= ? ORDER BY t.data""",
+            (desde,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def criar_teste(d):
+    dia = data_ok(d.get("data"), "data")
+    if not dia:
+        raise Erro("falta a data do teste")
+    with db() as con:
+        con.execute(
+            "INSERT INTO testes (disciplina, data, materia) VALUES (?,?,?)",
+            (texto(d, "disciplina", maximo=60), dia, texto(d, "materia", obrigatorio=False, maximo=300)),
+        )
+
+
+CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim"}
+
+
+def ler_config():
+    with db() as con:
+        return {r["chave"]: r["valor"] for r in con.execute("SELECT * FROM config")}
+
+
+def gravar_config(d):
+    for k, v in d.items():
+        if k not in CHAVES_CONFIG:
+            raise Erro(f"configuracao desconhecida: {k}")
+        v = str(v).strip()[:100]
+        if v == "":
+            with db() as con:
+                con.execute("DELETE FROM config WHERE chave = ?", (k,))
+            continue
+        if k in ("ecra_inicio", "ecra_fim"):
+            hora_ok(v, k)
+        if k in ("lat", "lon"):
+            float(v)
+        with db() as con:
+            con.execute("INSERT OR REPLACE INTO config (chave, valor) VALUES (?,?)", (k, v))
 
 
 def estado_roupa(rid, d):
@@ -265,7 +363,7 @@ def estado_roupa(rid, d):
 
 
 def apagar(tabela, rid):
-    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa")
+    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes")
     with db() as con:
         if tabela == "diario":
             row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
@@ -343,6 +441,18 @@ class Handler(BaseHTTPRequestHandler):
                 if metodo == "POST":
                     criar_roupa(self.corpo_json())
                     return self.enviar(201, {"ok": True})
+            if caminho == "/api/testes":
+                if metodo == "GET":
+                    return self.enviar(200, listar_testes())
+                if metodo == "POST":
+                    criar_teste(self.corpo_json())
+                    return self.enviar(201, {"ok": True})
+            if caminho == "/api/config":
+                if metodo == "GET":
+                    return self.enviar(200, ler_config())
+                if metodo == "POST":
+                    gravar_config(self.corpo_json())
+                    return self.enviar(200, {"ok": True})
             m = re.fullmatch(r"/api/roupa/(\d+)/estado", caminho)
             if m and metodo == "POST":
                 estado_roupa(int(m[1]), self.corpo_json())
@@ -352,7 +462,7 @@ class Handler(BaseHTTPRequestHandler):
             if m and metodo == "POST":
                 alternar_tarefa(int(m[1]))
                 return self.enviar(200, {"ok": True})
-            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa)/(\d+)", caminho)
+            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes)/(\d+)", caminho)
             if m and metodo == "DELETE":
                 apagar(m[1], int(m[2]))
                 return self.enviar(200, {"ok": True})

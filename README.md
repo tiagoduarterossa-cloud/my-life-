@@ -4,12 +4,12 @@ Servidor pessoal que corre num Galaxy Tab S6 Lite antigo. Abre-se no telemóvel 
 
 Tem seis separadores, com um visual ao estilo iOS (claro ou escuro, conforme o tema do aparelho):
 
-- **Hoje**: o horário do dia (o bloco atual fica destacado), tarefas urgentes e o tempo que já registaste hoje.
+- **Início**: o ecrã principal. Relógio grande, o tempo lá fora (Open-Meteo, sem conta nem chave), o que tens agora e a seguir, o próximo teste em contagem decrescente, tarefas urgentes e o tempo de hoje. O fundo muda com a hora do dia. Na roda dentada escolhes a cidade e as horas em que o ecrã fica sempre ligado; fora dessas horas fica preto, só com o relógio.
 - **Tarefas**: tudo o que tens de fazer, com área, prioridade e prazo. As atrasadas aparecem a vermelho.
 - **Horário**: os blocos fixos da semana (aulas, treinos, almoço, estudo).
-- **Estudo**: diário de estudo. Cada sessão guarda a disciplina, o que estudaste, como correu e as dúvidas que ficaram. O tempo entra sozinho no separador Tempo, na área Escola.
+- **Estudo**: cronómetro de estudo (15, 25, 45 ou 60 min) que, ao terminar, preenche sozinho o diário com a disciplina e os minutos. Lista de testes com contagem dos dias e quanto já estudaste para cada um (conta as sessões do diário dessa disciplina). E o diário de estudo. Cada sessão guarda a disciplina, o que estudaste, como correu e as dúvidas que ficaram. O tempo entra sozinho no separador Tempo, na área Escola.
 - **Tempo**: registas quanto tempo deste a cada área e vês o total dos últimos 7 dias.
-- **Roupa**: todas as peças, onde estão guardadas e se estão arrumadas, para lavar ou emprestadas. Toca na etiqueta para mudar o estado.
+- **Roupa**: cola o link da loja e a foto aparece sozinha (se a loja deixar). Todas as peças, onde estão guardadas e se estão arrumadas, para lavar ou emprestadas. Toca na etiqueta para mudar o estado.
 
 Só usa Python, sem bibliotecas extra. Os dados ficam no ficheiro `vida.db`, dentro do tablet. Nada vai para a internet.
 
