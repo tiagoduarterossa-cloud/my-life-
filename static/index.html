@@ -64,7 +64,7 @@
   textarea { resize: vertical; }
   button.principal, button.secundario { grid-column: 1 / -1; padding: 14px; border: 0; border-radius: 12px; background: var(--acento);
                      color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; font-family: inherit; }
-  button.secundario { background: var(--campo); color: var(--acento); }
+  button.secundario, a.secundario { background: var(--campo); color: var(--acento); }
   button.principal:active, button.secundario:active { opacity: .7; }
   ul { list-style: none; margin: 0; padding: 0; }
   li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 0.5px solid var(--linha); }
@@ -167,24 +167,57 @@
     section.ativo:not(#inicio) { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-items: start; }
   }
 
-  /* ---------- tema roxo neon (o ambiente do quarto) ---------- */
-  html.tema-roxo { --acento: #9d4edd; }
-  @media (prefers-color-scheme: dark) { html.tema-roxo { --acento: #bf5af2; } }
-  .p-roxo { background:
-      radial-gradient(55% 45% at 12% 8%, rgba(157, 78, 221, .55), transparent 70%),
-      radial-gradient(45% 40% at 92% 92%, rgba(199, 80, 255, .40), transparent 70%),
-      radial-gradient(35% 30% at 85% 15%, rgba(90, 40, 200, .35), transparent 70%),
-      #06020d; animation: respirar 9s ease-in-out infinite alternate; }
+  /* ---------- temas neon: a cor vem de 3 variaveis (r, g, b) ---------- */
+  html.neon { --n1: 157, 78, 221; --n2: 199, 80, 255; --n3: 90, 40, 200; --nt: 224, 170, 255; --acento: rgb(var(--n2)); }
+  html[data-cor=azul]     { --n1: 10, 132, 255;  --n2: 64, 200, 255;  --n3: 40, 60, 220;  --nt: 170, 215, 255; }
+  html[data-cor=verde]    { --n1: 48, 209, 88;   --n2: 0, 210, 170;   --n3: 20, 120, 80;  --nt: 170, 255, 210; }
+  html[data-cor=sol]      { --n1: 255, 120, 60;  --n2: 255, 60, 140;  --n3: 200, 40, 90;  --nt: 255, 205, 170; }
+  html[data-cor=vermelho] { --n1: 255, 45, 70;   --n2: 255, 90, 90;   --n3: 130, 20, 60;  --nt: 255, 180, 185; }
+  html[data-cor=ciano]    { --n1: 0, 200, 220;   --n2: 60, 150, 255;  --n3: 0, 110, 150;  --nt: 165, 245, 255; }
+  html[data-cor=aurora]   { --n1: 157, 78, 221;  --n2: 40, 200, 255;  --n3: 255, 60, 160; --nt: 255, 255, 255; --acento: #bf5af2; }
+  .p-neon { background:
+      radial-gradient(55% 45% at 12% 8%, rgba(var(--n1), .55), transparent 70%),
+      radial-gradient(45% 40% at 92% 92%, rgba(var(--n2), .42), transparent 70%),
+      radial-gradient(35% 30% at 85% 15%, rgba(var(--n3), .38), transparent 70%),
+      #050209; animation: respirar 9s ease-in-out infinite alternate; }
+  html[data-cor=aurora] .p-neon, html[data-cor=aurora] #repouso { animation: arcoiris 40s linear infinite; }
   @keyframes respirar { from { filter: brightness(.85) saturate(1); } to { filter: brightness(1.12) saturate(1.25); } }
-  html.tema-roxo #inicio .relogio { text-shadow: 0 0 24px rgba(191, 90, 242, .75), 0 0 80px rgba(157, 78, 221, .45); }
-  html.tema-roxo .vidro { background: rgba(28, 10, 48, .45); border-color: rgba(191, 90, 242, .35);
-                          box-shadow: 0 0 32px rgba(157, 78, 221, .18), inset 0 0 0 0.5px rgba(255,255,255,.04); }
-  html.tema-roxo .horas-meteo div { background: rgba(157, 78, 221, .14); border: 0.5px solid rgba(191, 90, 242, .25); }
-  html.tema-roxo #inicio .engrenagem { background: rgba(157, 78, 221, .25); box-shadow: 0 0 18px rgba(191, 90, 242, .35); }
-  html.tema-roxo body.no-inicio nav { background: rgba(10, 3, 20, .65); border-top-color: rgba(191, 90, 242, .25); }
-  html.tema-roxo body.no-inicio nav button.ativo { color: #e0aaff; filter: drop-shadow(0 0 6px rgba(191, 90, 242, .9)); }
-  html.tema-roxo #noite { color: #2b1347; }
-  html.tema-roxo #noite p { color: #1f0d33; }
+  @keyframes arcoiris { from { filter: hue-rotate(0deg) brightness(1); } 50% { filter: hue-rotate(180deg) brightness(1.15); } to { filter: hue-rotate(360deg) brightness(1); } }
+  html.neon #inicio .relogio { text-shadow: 0 0 24px rgba(var(--n2), .75), 0 0 80px rgba(var(--n1), .45); }
+  html.neon .vidro { background: rgba(14, 6, 26, .42); border-color: rgba(var(--n2), .35);
+                     box-shadow: 0 0 32px rgba(var(--n1), .18), inset 0 0 0 0.5px rgba(255,255,255,.04); }
+  html.neon .horas-meteo div { background: rgba(var(--n1), .14); border: 0.5px solid rgba(var(--n2), .25); }
+  html.neon #inicio .engrenagem { background: rgba(var(--n1), .25); box-shadow: 0 0 18px rgba(var(--n2), .35); }
+  html.neon body.no-inicio nav { background: rgba(6, 3, 12, .65); border-top-color: rgba(var(--n2), .25); }
+  html.neon body.no-inicio nav button.ativo { color: rgb(var(--nt)); filter: drop-shadow(0 0 6px rgba(var(--n2), .9)); }
+  html.neon #noite { color: rgba(var(--n1), .28); }
+  html.neon #noite p { color: rgba(var(--n1), .18); }
+  .amostras { display: flex; flex-wrap: wrap; gap: 10px; }
+  .amostras button { width: 42px; height: 42px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0;
+                     background: var(--a); box-shadow: 0 0 0 1px var(--linha); }
+  .amostras button.ativo { border-color: var(--txt); }
+  .amostras-nomes { font-size: 13px; color: var(--suave); margin-top: 6px; min-height: 18px; }
+
+  /* ---------- modo repouso: relogio gigante quando ninguem mexe ---------- */
+  #repouso { position: fixed; inset: 0; z-index: 45; display: none; cursor: pointer; color: #fff; overflow: hidden;
+             background:
+               radial-gradient(50% 60% at 15% 20%, rgba(var(--n1, 157, 78, 221), .6), transparent 70%),
+               radial-gradient(45% 55% at 85% 80%, rgba(var(--n2, 199, 80, 255), .5), transparent 70%),
+               radial-gradient(40% 40% at 80% 10%, rgba(var(--n3, 90, 40, 200), .4), transparent 70%), #030106;
+             background-size: 160% 160%; animation: deriva 30s ease-in-out infinite alternate; }
+  @keyframes deriva { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
+  #repouso.ver { display: grid; place-content: center; text-align: center; animation-name: deriva; }
+  html[data-cor=aurora] #repouso.ver { animation: deriva 30s ease-in-out infinite alternate, arcoiris 40s linear infinite; }
+  #repouso .rel { font-size: clamp(150px, 31vw, 420px); font-weight: 100; letter-spacing: -0.05em; line-height: .9;
+                  font-variant-numeric: tabular-nums; text-shadow: 0 0 40px rgba(var(--n2, 199, 80, 255), .7), 0 0 120px rgba(var(--n1, 157, 78, 221), .5); }
+  #repouso .rel span { animation: piscar 2s steps(1) infinite; }
+  @keyframes piscar { 50% { opacity: .25; } }
+  #repouso .linha { font-size: clamp(18px, 2.6vw, 30px); font-weight: 400; opacity: .9; margin-top: 18px; display: flex;
+                    gap: 22px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  #repouso .linha svg { width: 1.6em; height: 1.6em; vertical-align: middle; }
+  #repouso .peq { font-size: clamp(15px, 1.8vw, 22px); opacity: .7; margin-top: 14px; }
+  #repouso .crono-rep { font-size: clamp(20px, 3vw, 34px); margin-top: 16px; padding: 8px 20px; border-radius: 999px;
+                        background: rgba(255,255,255,.12); display: inline-block; }
 
   /* modo noite: fora das horas do ecra */
   #noite { position: fixed; inset: 0; z-index: 50; background: #000; color: #333; display: none;
@@ -393,6 +426,12 @@
   <button data-tab="roupa"><svg viewBox="0 0 24 24"><path d="M8 3l4 2 4-2 5 3.5-2.5 4-2.5-1.5V21H8V9l-2.5 1.5L3 6.5z"/></svg><span>Roupa</span></button>
 </nav>
 
+<div id="repouso"><div>
+  <div class="rel" id="rep-rel"></div>
+  <div class="linha" id="rep-linha"></div>
+  <div class="peq" id="rep-peq"></div>
+</div></div>
+
 <div id="noite"><div class="relogio" id="noite-relogio"></div><p>Fora do horário do ecrã. Toca para acordar.</p></div>
 
 <dialog id="config">
@@ -404,11 +443,26 @@
   </form>
   <ul id="cidades" style="margin-top:6px"></ul>
   <div class="vazio" id="cidade-atual"></div>
-  <label>Tema do ecrã principal</label>
-  <div class="filtros" id="temas">
-    <button data-tema="roxo">Roxo neon</button>
-    <button data-tema="ceu">Céu (muda com a hora)</button>
+  <label>Cor do ecrã principal</label>
+  <div class="amostras" id="temas">
+    <button data-tema="roxo" data-nome="Roxo neon" style="--a:radial-gradient(circle at 30% 30%,#c77dff,#5a189a)"></button>
+    <button data-tema="azul" data-nome="Azul" style="--a:radial-gradient(circle at 30% 30%,#64d2ff,#0a3dbe)"></button>
+    <button data-tema="ciano" data-nome="Ciano" style="--a:radial-gradient(circle at 30% 30%,#7af4ff,#006e96)"></button>
+    <button data-tema="verde" data-nome="Verde" style="--a:radial-gradient(circle at 30% 30%,#7dffa8,#147850)"></button>
+    <button data-tema="sol" data-nome="Pôr do sol" style="--a:radial-gradient(circle at 30% 30%,#ffb36b,#c8285a)"></button>
+    <button data-tema="vermelho" data-nome="Vermelho" style="--a:radial-gradient(circle at 30% 30%,#ff8a8a,#82143c)"></button>
+    <button data-tema="aurora" data-nome="Aurora: muda de cor sozinho, dá com qualquer luz" style="--a:conic-gradient(#bf5af2,#28c8ff,#30d158,#ffd60a,#ff3c9f,#bf5af2)"></button>
+    <button data-tema="ceu" data-nome="Céu: muda com a hora do dia" style="--a:linear-gradient(180deg,#ffd29d,#3b82d6 60%,#173f86)"></button>
   </div>
+  <div class="amostras-nomes" id="tema-nome"></div>
+  <label>Modo repouso (relógio gigante)</label>
+  <select id="repouso-min">
+    <option value="1">Ao fim de 1 minuto sem mexer</option>
+    <option value="3">Ao fim de 3 minutos sem mexer</option>
+    <option value="5">Ao fim de 5 minutos sem mexer</option>
+    <option value="10">Ao fim de 10 minutos sem mexer</option>
+    <option value="0">Desligado</option>
+  </select>
   <label>Ecrã sempre ligado</label>
   <form id="f-horas">
     <input type="time" name="ecra_inicio" title="Das">
@@ -515,8 +569,9 @@ function tick() {
   $("#noite-relogio").textContent = hm;
   const txt = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   $("#data-grande").textContent = txt[0].toUpperCase() + txt.slice(1);
-  $("#fundo").className = "p-" + (config.tema === "ceu" ? periodo(d.getHours()) : "roxo");
+  $("#fundo").className = "p-" + (config.tema === "ceu" ? periodo(d.getHours()) : "neon");
   ecraLigado();
+  repouso(d);
   tickCrono();
 }
 
@@ -585,6 +640,7 @@ async function carregarMeteo() {
       `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=2`;
     const m = await (await fetch(url)).json();
     const c = m.current, [ic, desc] = meteoDe(c.weather_code, c.is_day);
+    meteoAgora = { graus: Math.round(c.temperature_2m), ic, desc };
     const idx = m.hourly.time.findIndex(t => t >= c.time.slice(0, 13));
     const prox = m.hourly.time.slice(idx + 1, idx + 13).map((t, i) => {
       const k = idx + 1 + i;
@@ -599,6 +655,38 @@ async function carregarMeteo() {
     $("#meteo").innerHTML = `<div class="vazio" style="color:rgba(255,255,255,.7);margin-top:16px">Sem ligação à internet para ver o tempo.</div>`;
   }
 }
+
+// modo repouso: relogio gigante ao fim de uns minutos sem ninguem mexer
+let meteoAgora = null, ultimoToque = Date.now();
+["pointerdown", "keydown", "wheel", "touchstart"].forEach(ev =>
+  document.addEventListener(ev, () => { ultimoToque = Date.now(); }, { capture: true, passive: true }));
+function repouso(d) {
+  const min = config.repouso === undefined || config.repouso === null ? 3 : +config.repouso;
+  const aberto = $("#config").open || document.activeElement?.matches("input, textarea, select");
+  const ver = min > 0 && !aberto && dentroDoHorario() !== false && Date.now() - ultimoToque > min * 60000;
+  $("#repouso").classList.toggle("ver", ver);
+  if (!ver) return;
+  const [h, m] = d.toTimeString().slice(0, 5).split(":");
+  $("#rep-rel").innerHTML = `${h}<span>:</span>${m}`;
+  const data = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+  $("#rep-linha").innerHTML = `<span>${data[0].toUpperCase() + data.slice(1)}</span>` +
+    (meteoAgora ? `<span>${meteoAgora.ic} ${meteoAgora.graus}°</span>` : "");
+  let extra = "";
+  if (dados.horario) {
+    const agora = horaAgora(), bl = dados.horario.filter(b => b.dia === diaSemana());
+    const at = bl.find(b => b.inicio <= agora && agora < b.fim), px = bl.find(b => b.inicio > agora);
+    if (at) extra = `Agora: ${esc(at.titulo)} até às ${at.fim}`;
+    else if (px) extra = `A seguir: ${esc(px.titulo)} às ${px.inicio}`;
+    const t = (dados.testes || []).find(t => diasAte(t.data) >= 0);
+    if (t) extra += `${extra ? " · " : ""}Teste de ${esc(t.disciplina)} ${textoDias(diasAte(t.data))}`;
+  }
+  if (crono) {
+    const r = restante();
+    extra += `<div><span class="crono-rep">${esc(crono.disc)} · ${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}${crono.fim ? "" : " (pausa)"}</span></div>`;
+  }
+  $("#rep-peq").innerHTML = extra;
+}
+$("#repouso").onclick = () => { ultimoToque = Date.now(); $("#repouso").classList.remove("ver"); };
 
 // ecra sempre ligado entre X e Y horas
 let wakeLock = null, acordadoAte = 0;
@@ -806,11 +894,17 @@ ligarForm("#f-registo", "/api/registo", f => { f.minutos.value = ""; f.nota.valu
 
 // tema
 function aplicarTema() {
-  const t = config.tema === "ceu" ? "ceu" : "roxo";
-  document.documentElement.classList.toggle("tema-roxo", t === "roxo");
+  const t = config.tema || "roxo";
+  document.documentElement.classList.toggle("neon", t !== "ceu");
+  document.documentElement.dataset.cor = t;
   document.querySelectorAll("#temas button").forEach(b => b.classList.toggle("ativo", b.dataset.tema === t));
+  $("#tema-nome").textContent = $(`#temas [data-tema=${t}]`)?.dataset.nome || "";
+  $("#repouso-min").value = config.repouso ?? "3";
   tick();
 }
+$("#repouso-min").onchange = async e => {
+  try { await api("/api/config", "POST", { repouso: e.target.value }); config.repouso = e.target.value; } catch (err) { aviso(err.message); }
+};
 $("#temas").onclick = async e => {
   const t = e.target.dataset.tema; if (!t) return;
   try { await api("/api/config", "POST", { tema: t }); config.tema = t; aplicarTema(); } catch (err) { aviso(err.message); }
@@ -855,7 +949,7 @@ $("#f-registo").data.value = hojeISO();
 $("#f-diario").data.value = hojeISO();
 $("#f-bloco").dia.value = diaSemana();
 $("#hoje-data").textContent = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
-document.documentElement.classList.add("tema-roxo");
+document.documentElement.classList.add("neon");
 abrirSeparador(ler("separador") || "inicio");
 mostrarCrono();
 tick(); setInterval(tick, 1000);
