@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A minha central</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --txt: #1d1d1f; --suave: #6b6b70; --linha: #e4e2dd;
+    --acento: #2f6fdb; --perigo: #c8412f; --ok: #2e8b57;
+    --escola: #2f6fdb; --dropshipping: #d98a1c; --programar: #7a4fd1; --encriptar: #1f9a8a;
+    --musica: #d1477a; --desporto: #3b9a3b; --outro: #8a8a8a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #141416; --card: #1f1f23; --txt: #ececf0; --suave: #9a9aa3; --linha: #2e2e34; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--txt); font-size: 16px; }
+  header { padding: 18px 16px 8px; max-width: 720px; margin: auto; }
+  header h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; color: var(--suave); font-size: 14px; }
+  nav { display: flex; gap: 6px; padding: 8px 16px; max-width: 720px; margin: auto;
+        position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  nav button { flex: 1; padding: 10px 4px; border: 1px solid var(--linha); background: var(--card);
+               color: var(--txt); border-radius: 10px; font-size: 14px; cursor: pointer; }
+  nav button.ativo { background: var(--acento); color: #fff; border-color: var(--acento); }
+  main { max-width: 720px; margin: auto; padding: 8px 16px 60px; }
+  section { display: none; } section.ativo { display: block; }
+  .card { background: var(--card); border: 1px solid var(--linha); border-radius: 14px;
+          padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 16px; margin: 0 0 10px; }
+  form { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+  form .largo { grid-column: 1 / -1; }
+  input, select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--linha);
+                  background: var(--bg); color: var(--txt); font-size: 15px; }
+  button.principal { grid-column: 1 / -1; padding: 11px; border: 0; border-radius: 8px;
+                     background: var(--acento); color: #fff; font-size: 15px; cursor: pointer; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--linha); }
+  li:first-child { border-top: 0; }
+  li .meio { flex: 1; min-width: 0; }
+  li .titulo { overflow-wrap: anywhere; }
+  li .info { color: var(--suave); font-size: 13px; }
+  li.feita .titulo { text-decoration: line-through; color: var(--suave); }
+  .bolinha { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .x { border: 0; background: none; color: var(--suave); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+  input[type=checkbox] { width: 22px; height: 22px; flex: none; }
+  .atrasada { color: var(--perigo); font-weight: 600; }
+  .vazio { color: var(--suave); font-size: 14px; padding: 6px 0; }
+  .barra { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 14px; }
+  .barra .nome { width: 100px; flex: none; }
+  .barra .fundo { flex: 1; height: 12px; background: var(--linha); border-radius: 6px; overflow: hidden; }
+  .barra .cheio { height: 100%; border-radius: 6px; }
+  .barra .num { width: 56px; text-align: right; color: var(--suave); flex: none; }
+  .dia h3 { font-size: 14px; margin: 12px 0 2px; color: var(--suave); }
+  .agora { outline: 2px solid var(--acento); border-radius: 8px; padding-left: 6px; }
+  #aviso { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 480px; margin: auto;
+           background: var(--perigo); color: #fff; padding: 10px 14px; border-radius: 10px; display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>A minha central</h1>
+  <p id="hoje-data"></p>
+</header>
+
+<nav>
+  <button data-tab="hoje" class="ativo">Hoje</button>
+  <button data-tab="tarefas">Tarefas</button>
+  <button data-tab="horario">Horário</button>
+  <button data-tab="tempo">Tempo</button>
+</nav>
+
+<main>
+  <!-- HOJE -->
+  <section id="hoje" class="ativo">
+    <div class="card"><h2>Horário de hoje</h2><ul id="hoje-blocos"></ul></div>
+    <div class="card"><h2>Tarefas urgentes</h2><ul id="hoje-tarefas"></ul></div>
+    <div class="card"><h2>Tempo registado hoje</h2><div id="hoje-tempo"></div></div>
+  </section>
+
+  <!-- TAREFAS -->
+  <section id="tarefas">
+    <div class="card">
+      <h2>Nova tarefa</h2>
+      <form id="f-tarefa">
+        <input class="largo" name="titulo" placeholder="O que tens de fazer?" required maxlength="200">
+        <select name="area" class="areas"></select>
+        <select name="prioridade">
+          <option value="1">Prioridade alta</option>
+          <option value="2" selected>Prioridade média</option>
+          <option value="3">Prioridade baixa</option>
+        </select>
+        <input class="largo" type="date" name="prazo">
+        <button class="principal">Adicionar</button>
+      </form>
+    </div>
+    <div class="card"><h2>Por fazer</h2><ul id="lista-tarefas"></ul></div>
+    <div class="card"><h2>Feitas</h2><ul id="lista-feitas"></ul></div>
+  </section>
+
+  <!-- HORARIO -->
+  <section id="horario">
+    <div class="card">
+      <h2>Novo bloco fixo</h2>
+      <form id="f-bloco">
+        <input class="largo" name="titulo" placeholder="Ex: Aulas, Treino, Estudo" required maxlength="200">
+        <select name="dia">
+          <option value="0">Segunda</option><option value="1">Terça</option><option value="2">Quarta</option>
+          <option value="3">Quinta</option><option value="4">Sexta</option><option value="5">Sábado</option>
+          <option value="6">Domingo</option>
+        </select>
+        <select name="area" class="areas"></select>
+        <input type="time" name="inicio" required>
+        <input type="time" name="fim" required>
+        <button class="principal">Adicionar</button>
+      </form>
+    </div>
+    <div class="card"><h2>A minha semana</h2><div id="semana"></div></div>
+  </section>
+
+  <!-- TEMPO -->
+  <section id="tempo">
+    <div class="card">
+      <h2>Registar tempo</h2>
+      <form id="f-registo">
+        <select name="area" class="areas"></select>
+        <input type="number" name="minutos" placeholder="Minutos" min="1" max="1440" required>
+        <input class="largo" name="nota" placeholder="Nota (opcional)" maxlength="200">
+        <input class="largo" type="date" name="data">
+        <button class="principal">Registar</button>
+      </form>
+    </div>
+    <div class="card"><h2>Últimos 7 dias</h2><div id="totais"></div></div>
+    <div class="card"><h2>Registos</h2><ul id="lista-registo"></ul></div>
+  </section>
+</main>
+
+<div id="aviso"></div>
+
+<script>
+const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+const NOMES = { escola: "Escola", dropshipping: "Dropshipping", programar: "Programar",
+  encriptar: "Encriptar", musica: "Música", desporto: "Desporto", outro: "Outro" };
+const cor = a => `var(--${a})`;
+const $ = s => document.querySelector(s);
+
+function hojeISO() {
+  const d = new Date();
+  return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+function diaSemana() { return (new Date().getDay() + 6) % 7; } // 0 = segunda
+function horas(min) { const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h${m ? String(m).padStart(2, "0") : ""}` : `${m}min`; }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function fmtData(iso) { const [a, m, d] = iso.split("-"); return `${d}/${m}`; }
+
+function aviso(msg) {
+  const el = $("#aviso"); el.textContent = msg; el.style.display = "block";
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => el.style.display = "none", 3500);
+}
+
+async function api(caminho, metodo = "GET", corpo) {
+  const r = await fetch(caminho, { method: metodo, headers: { "Content-Type": "application/json" },
+    body: corpo ? JSON.stringify(corpo) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || "erro no servidor");
+  return j;
+}
+
+// ---------- desenhar ----------
+function itemTarefa(t) {
+  const hoje = hojeISO();
+  let prazo = "";
+  if (t.prazo) {
+    const atrasada = !t.feita && t.prazo < hoje;
+    prazo = ` · <span class="${atrasada ? "atrasada" : ""}">${t.prazo === hoje ? "hoje" : fmtData(t.prazo)}${atrasada ? " (atrasada)" : ""}</span>`;
+  }
+  const pr = ["", "alta", "média", "baixa"][t.prioridade];
+  return `<li class="${t.feita ? "feita" : ""}">
+    <input type="checkbox" ${t.feita ? "checked" : ""} data-alternar="${t.id}">
+    <span class="bolinha" style="background:${cor(t.area)}"></span>
+    <div class="meio"><div class="titulo">${esc(t.titulo)}</div>
+      <div class="info">${NOMES[t.area]} · ${pr}${prazo}</div></div>
+    <button class="x" data-apagar="tarefas/${t.id}" title="Apagar">×</button></li>`;
+}
+
+function itemBloco(b, destacar) {
+  const agora = new Date().toTimeString().slice(0, 5);
+  const ativo = destacar && b.inicio <= agora && agora < b.fim;
+  return `<li class="${ativo ? "agora" : ""}">
+    <span class="bolinha" style="background:${cor(b.area)}"></span>
+    <div class="meio"><div class="titulo">${esc(b.titulo)}</div>
+      <div class="info">${b.inicio} - ${b.fim} · ${NOMES[b.area]}${ativo ? " · agora" : ""}</div></div>
+    <button class="x" data-apagar="horario/${b.id}" title="Apagar">×</button></li>`;
+}
+
+function barras(totais) {
+  const lista = Object.entries(totais).sort((a, b) => b[1] - a[1]);
+  if (!lista.length) return `<div class="vazio">Ainda não registaste nada.</div>`;
+  const max = lista[0][1];
+  return lista.map(([a, m]) => `<div class="barra"><span class="nome">${NOMES[a]}</span>
+    <span class="fundo"><span class="cheio" style="display:block;width:${(m / max) * 100}%;background:${cor(a)}"></span></span>
+    <span class="num">${horas(m)}</span></div>`).join("");
+}
+
+const vazio = t => `<li><span class="vazio">${t}</span></li>`;
+
+async function atualizar() {
+  const [tarefas, horario, reg7, reg1] = await Promise.all([
+    api("/api/tarefas"), api("/api/horario"), api("/api/registo?dias=7"), api("/api/registo?dias=1")]);
+  const hoje = hojeISO();
+  const daquiA3 = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+
+  // hoje
+  const blocosHoje = horario.filter(b => b.dia === diaSemana());
+  $("#hoje-blocos").innerHTML = blocosHoje.map(b => itemBloco(b, true)).join("") || vazio("Nada marcado para hoje.");
+  const urgentes = tarefas.filter(t => !t.feita && ((t.prazo && t.prazo <= daquiA3) || t.prioridade === 1));
+  $("#hoje-tarefas").innerHTML = urgentes.map(itemTarefa).join("") || vazio("Nada urgente. Bom trabalho.");
+  $("#hoje-tempo").innerHTML = barras(reg1.totais);
+
+  // tarefas
+  $("#lista-tarefas").innerHTML = tarefas.filter(t => !t.feita).map(itemTarefa).join("") || vazio("Tudo feito.");
+  $("#lista-feitas").innerHTML = tarefas.filter(t => t.feita).slice(0, 20).map(itemTarefa).join("") || vazio("Ainda nenhuma.");
+
+  // horario
+  $("#semana").innerHTML = DIAS.map((nome, i) => {
+    const bl = horario.filter(b => b.dia === i);
+    return `<div class="dia"><h3>${nome}</h3><ul>${bl.map(b => itemBloco(b, i === diaSemana())).join("") || vazio("Livre")}</ul></div>`;
+  }).join("");
+
+  // tempo
+  $("#totais").innerHTML = barras(reg7.totais);
+  $("#lista-registo").innerHTML = reg7.entradas.map(e => `<li>
+    <span class="bolinha" style="background:${cor(e.area)}"></span>
+    <div class="meio"><div class="titulo">${NOMES[e.area]} · ${horas(e.minutos)}</div>
+      <div class="info">${e.data === hoje ? "hoje" : fmtData(e.data)}${e.nota ? " · " + esc(e.nota) : ""}</div></div>
+    <button class="x" data-apagar="registo/${e.id}" title="Apagar">×</button></li>`).join("") || vazio("Sem registos.");
+}
+
+// ---------- eventos ----------
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button, section").forEach(e => e.classList.remove("ativo"));
+  b.classList.add("ativo"); $("#" + b.dataset.tab).classList.add("ativo");
+});
+
+document.addEventListener("click", async e => {
+  const alvo = e.target;
+  try {
+    if (alvo.dataset.alternar) { await api(`/api/tarefas/${alvo.dataset.alternar}/alternar`, "POST"); }
+    else if (alvo.dataset.apagar) {
+      if (!confirm("Apagar?")) return;
+      await api(`/api/${alvo.dataset.apagar}`, "DELETE");
+    } else return;
+    await atualizar();
+  } catch (err) { aviso(err.message); }
+});
+
+function ligarForm(id, url, depois) {
+  $(id).onsubmit = async e => {
+    e.preventDefault();
+    const dados = Object.fromEntries(new FormData(e.target));
+    try { await api(url, "POST", dados); depois(e.target); await atualizar(); }
+    catch (err) { aviso(err.message); }
+  };
+}
+ligarForm("#f-tarefa", "/api/tarefas", f => { f.titulo.value = ""; f.prazo.value = ""; });
+ligarForm("#f-bloco", "/api/horario", f => { f.titulo.value = ""; });
+ligarForm("#f-registo", "/api/registo", f => { f.minutos.value = ""; f.nota.value = ""; f.data.value = hojeISO(); });
+
+// ---------- arranque ----------
+document.querySelectorAll("select.areas").forEach(s =>
+  s.innerHTML = Object.entries(NOMES).map(([k, v]) => `<option value="${k}">${v}</option>`).join(""));
+$("#f-registo").data.value = hojeISO();
+$("#f-bloco").dia.value = diaSemana();
+$("#hoje-data").textContent = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
+setInterval(() => atualizar().catch(() => {}), 60000);
+</script>
+</body>
+</html>
