@@ -4,7 +4,7 @@ Servidor pessoal que corre num Galaxy Tab S6 Lite antigo. Abre-se no telemóvel 
 
 Tem seis separadores, com um visual ao estilo iOS (claro ou escuro, conforme o tema do aparelho):
 
-- **Início**: o ecrã principal. Relógio grande, o tempo lá fora (Open-Meteo, sem conta nem chave), o que tens agora e a seguir, o próximo teste em contagem decrescente, tarefas urgentes e o tempo de hoje. O fundo muda com a hora do dia. Na roda dentada escolhes a cidade e as horas em que o ecrã fica sempre ligado; fora dessas horas fica preto, só com o relógio.
+- **Início**: o ecrã principal. Relógio grande, o tempo lá fora (Open-Meteo, sem conta nem chave), o que tens agora e a seguir, o próximo teste em contagem decrescente, tarefas urgentes e o tempo de hoje. Tem dois temas: Roxo neon (a condizer com o quarto, por defeito) e Céu, em que o fundo muda com a hora do dia. Na roda dentada escolhes o tema, a cidade e as horas em que o ecrã fica sempre ligado; fora dessas horas fica preto, só com o relógio.
 - **Tarefas**: tudo o que tens de fazer, com área, prioridade e prazo. As atrasadas aparecem a vermelho.
 - **Horário**: os blocos fixos da semana (aulas, treinos, almoço, estudo).
 - **Estudo**: cronómetro de estudo (15, 25, 45 ou 60 min) que, ao terminar, preenche sozinho o diário com a disciplina e os minutos. Lista de testes com contagem dos dias e quanto já estudaste para cada um (conta as sessões do diário dessa disciplina). E o diário de estudo. Cada sessão guarda a disciplina, o que estudaste, como correu e as dúvidas que ficaram. O tempo entra sozinho no separador Tempo, na área Escola.

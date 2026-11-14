@@ -167,6 +167,25 @@
     section.ativo:not(#inicio) { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-items: start; }
   }
 
+  /* ---------- tema roxo neon (o ambiente do quarto) ---------- */
+  html.tema-roxo { --acento: #9d4edd; }
+  @media (prefers-color-scheme: dark) { html.tema-roxo { --acento: #bf5af2; } }
+  .p-roxo { background:
+      radial-gradient(55% 45% at 12% 8%, rgba(157, 78, 221, .55), transparent 70%),
+      radial-gradient(45% 40% at 92% 92%, rgba(199, 80, 255, .40), transparent 70%),
+      radial-gradient(35% 30% at 85% 15%, rgba(90, 40, 200, .35), transparent 70%),
+      #06020d; animation: respirar 9s ease-in-out infinite alternate; }
+  @keyframes respirar { from { filter: brightness(.85) saturate(1); } to { filter: brightness(1.12) saturate(1.25); } }
+  html.tema-roxo #inicio .relogio { text-shadow: 0 0 24px rgba(191, 90, 242, .75), 0 0 80px rgba(157, 78, 221, .45); }
+  html.tema-roxo .vidro { background: rgba(28, 10, 48, .45); border-color: rgba(191, 90, 242, .35);
+                          box-shadow: 0 0 32px rgba(157, 78, 221, .18), inset 0 0 0 0.5px rgba(255,255,255,.04); }
+  html.tema-roxo .horas-meteo div { background: rgba(157, 78, 221, .14); border: 0.5px solid rgba(191, 90, 242, .25); }
+  html.tema-roxo #inicio .engrenagem { background: rgba(157, 78, 221, .25); box-shadow: 0 0 18px rgba(191, 90, 242, .35); }
+  html.tema-roxo body.no-inicio nav { background: rgba(10, 3, 20, .65); border-top-color: rgba(191, 90, 242, .25); }
+  html.tema-roxo body.no-inicio nav button.ativo { color: #e0aaff; filter: drop-shadow(0 0 6px rgba(191, 90, 242, .9)); }
+  html.tema-roxo #noite { color: #2b1347; }
+  html.tema-roxo #noite p { color: #1f0d33; }
+
   /* modo noite: fora das horas do ecra */
   #noite { position: fixed; inset: 0; z-index: 50; background: #000; color: #333; display: none;
            place-content: center; text-align: center; cursor: pointer; }
@@ -385,6 +404,11 @@
   </form>
   <ul id="cidades" style="margin-top:6px"></ul>
   <div class="vazio" id="cidade-atual"></div>
+  <label>Tema do ecrã principal</label>
+  <div class="filtros" id="temas">
+    <button data-tema="roxo">Roxo neon</button>
+    <button data-tema="ceu">Céu (muda com a hora)</button>
+  </div>
   <label>Ecrã sempre ligado</label>
   <form id="f-horas">
     <input type="time" name="ecra_inicio" title="Das">
@@ -490,7 +514,7 @@ function tick() {
   $("#noite-relogio").textContent = hm;
   const txt = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   $("#data-grande").textContent = txt[0].toUpperCase() + txt.slice(1);
-  $("#fundo").className = "p-" + periodo(d.getHours());
+  $("#fundo").className = "p-" + (config.tema === "ceu" ? periodo(d.getHours()) : "roxo");
   ecraLigado();
   tickCrono();
 }
@@ -779,6 +803,18 @@ ligarForm("#f-teste", "/api/testes", f => { f.disciplina.value = ""; f.data.valu
 ligarForm("#f-roupa", "/api/roupa", f => { f.nome.value = ""; f.cor.value = ""; f.link.value = ""; f.imagem.value = ""; });
 ligarForm("#f-registo", "/api/registo", f => { f.minutos.value = ""; f.nota.value = ""; f.data.value = hojeISO(); });
 
+// tema
+function aplicarTema() {
+  const t = config.tema === "ceu" ? "ceu" : "roxo";
+  document.documentElement.classList.toggle("tema-roxo", t === "roxo");
+  document.querySelectorAll("#temas button").forEach(b => b.classList.toggle("ativo", b.dataset.tema === t));
+  tick();
+}
+$("#temas").onclick = async e => {
+  const t = e.target.dataset.tema; if (!t) return;
+  try { await api("/api/config", "POST", { tema: t }); config.tema = t; aplicarTema(); } catch (err) { aviso(err.message); }
+};
+
 // definicoes
 $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
@@ -818,11 +854,13 @@ $("#f-registo").data.value = hojeISO();
 $("#f-diario").data.value = hojeISO();
 $("#f-bloco").dia.value = diaSemana();
 $("#hoje-data").textContent = new Date().toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
+document.documentElement.classList.add("tema-roxo");
 abrirSeparador(ler("separador") || "inicio");
 mostrarCrono();
 tick(); setInterval(tick, 1000);
 (async () => {
   try { config = await api("/api/config"); } catch (e) {}
+  aplicarTema();
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);
   atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
   setInterval(() => atualizar().catch(() => {}), 60000);

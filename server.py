@@ -330,7 +330,8 @@ def criar_teste(d):
         )
 
 
-CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim"}
+CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema"}
+TEMAS = {"roxo", "ceu"}
 
 
 def ler_config():
@@ -349,6 +350,8 @@ def gravar_config(d):
             continue
         if k in ("ecra_inicio", "ecra_fim"):
             hora_ok(v, k)
+        if k == "tema" and v not in TEMAS:
+            raise Erro("tema desconhecido")
         if k in ("lat", "lon"):
             float(v)
         with db() as con:
