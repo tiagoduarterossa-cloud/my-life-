@@ -992,7 +992,7 @@ async function abrirQuarto() {
   try {
     const { iniciarQuarto } = await import("/quarto.js");
     quarto3d = await iniciarQuarto($("#quarto-caixa"), estado);
-  } catch (err) { estado("Não consegui abrir o quarto: " + err.message); }
+  } catch (err) { estado(err?.message || "Não consegui abrir o quarto."); }
   aCarregarQuarto = false;
 }
 function chipsQuarto(ativo) { ["#q-3d", "#q-planta"].forEach(id => $(id).classList.toggle("ativo", id === ativo)); }

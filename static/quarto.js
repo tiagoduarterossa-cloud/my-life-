@@ -43,11 +43,20 @@ export async function iniciarQuarto(caixa, aoMudarEstado = () => {}) {
   if (!gl.getExtension("OES_element_index_uint")) throw new Error("O tablet não suporta modelos tão grandes.");
 
   aoMudarEstado("A carregar o quarto…");
+  const FALTA = "Ainda não há quarto neste tablet. No Termux corre: python converter_quarto.py ~/storage/downloads/NOME.fbx";
+  const buscar = async (url, tipo) => {
+    const r = await fetch(url);
+    if (r.status === 404) throw new Error(FALTA);
+    if (!r.ok) throw new Error(`erro ${r.status} ao ler ${url}`);
+    return tipo === "json" ? r.json() : r.arrayBuffer();
+  };
   const [info, bin, img] = await Promise.all([
-    fetch("/quarto/quarto.json").then(r => r.json()),
-    fetch("/quarto/quarto.bin").then(r => r.arrayBuffer()),
-    new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = falha; i.src = "/quarto/quarto.jpg"; }),
+    buscar("/quarto/quarto.json", "json"),
+    buscar("/quarto/quarto.bin", "bin"),
+    new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i);
+      i.onerror = () => falha(new Error(FALTA)); i.src = "/quarto/quarto.jpg"; }),
   ]);
+  if (bin.byteLength !== info.vertices * 20 + info.indices * 4) throw new Error("Os ficheiros do quarto estão incompletos. Corre outra vez o converter_quarto.py.");
   const nV = info.vertices, nI = info.indices;
   const pos = new Float32Array(bin, 0, nV * 3);
   const uv = new Float32Array(bin, nV * 12, nV * 2);
