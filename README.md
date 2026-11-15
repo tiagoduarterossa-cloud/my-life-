@@ -89,6 +89,10 @@ O scan do quarto **nunca vai para o GitHub** (está no `.gitignore`), porque mos
 2. Passa o ficheiro `.fbx` da 3d Scanner App para a pasta Transferências do tablet
 3. `python converter_quarto.py ~/storage/downloads/NOME_DO_FICHEIRO.fbx`
 
+## Mudar de tablet sem perder os dados
+
+Tudo o que escreveste está em `vida.db`. No tablet antigo: `cp ~/central/vida.db ~/storage/downloads/`. Passa o ficheiro para o novo (Quick Share) e lá: `cp ~/storage/downloads/vida.db ~/central/`.
+
 ## Atualizar
 
 Quando houver novidades no GitHub:

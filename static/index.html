@@ -247,6 +247,7 @@
   @keyframes deriva { from { background-position: 0% 0%; } to { background-position: 100% 100%; } }
   #repouso.ver { display: grid; place-content: center; text-align: center; animation-name: deriva; }
   html[data-cor=aurora] #repouso.ver { animation: deriva 30s ease-in-out infinite alternate, arcoiris 40s linear infinite; }
+  #repouso > div { transition: transform 2s ease; }
   #repouso .rel { font-size: clamp(150px, 31vw, 420px); font-weight: 100; letter-spacing: -0.05em; line-height: .9;
                   font-variant-numeric: tabular-nums; text-shadow: 0 0 40px rgba(var(--n2, 199, 80, 255), .7), 0 0 120px rgba(var(--n1, 157, 78, 221), .5); }
   #repouso .rel span { animation: piscar 2s steps(1) infinite; }
@@ -636,6 +637,8 @@ function tick() {
   const hm = d.toTimeString().slice(0, 5);
   $("#relogio").textContent = hm;
   $("#noite-relogio").textContent = hm;
+  const mm = d.getHours() * 60 + d.getMinutes();
+  $("#noite-relogio").style.transform = `translate(${Math.round(Math.sin(mm * 2.1) * 60)}px, ${Math.round(Math.cos(mm * 1.1) * 80)}px)`;
   const txt = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
   $("#data-grande").textContent = txt[0].toUpperCase() + txt.slice(1);
   $("#fundo").className = "p-" + (config.tema === "ceu" ? periodo(d.getHours()) : "neon");
@@ -735,6 +738,9 @@ function repouso(d) {
   const ver = min > 0 && !aberto && dentroDoHorario() !== false && Date.now() - ultimoToque > min * 60000;
   $("#repouso").classList.toggle("ver", ver);
   if (!ver) return;
+  // protecao para ecras AMOLED: o conteudo muda um pouco de sitio a cada minuto, para nao "queimar"
+  const mn = d.getHours() * 60 + d.getMinutes();
+  $("#repouso > div").style.transform = `translate(${Math.round(Math.sin(mn * 1.7) * 28)}px, ${Math.round(Math.cos(mn * 1.3) * 22)}px)`;
   const [h, m] = d.toTimeString().slice(0, 5).split(":");
   $("#rep-rel").innerHTML = `${h}<span>:</span>${m}`;
   const data = d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" });
