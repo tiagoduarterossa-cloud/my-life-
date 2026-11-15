@@ -1,2 +1,6 @@
 vida.db
 __pycache__/
+
+# o scan do quarto e privado: nunca vai para o GitHub
+static/quarto/
+*.fbx

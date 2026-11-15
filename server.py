@@ -380,7 +380,7 @@ def apagar(tabela, rid):
 # ---------- HTTP ----------
 
 TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-         ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".json": "application/json"}
+         ".png": "image/png", ".jpg": "image/jpeg", ".bin": "application/octet-stream", ".svg": "image/svg+xml", ".json": "application/json"}
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -9,6 +9,7 @@ Tem seis separadores, com um visual ao estilo iOS (claro ou escuro, conforme o t
 - **Horário**: calendário do mês com os testes a amarelo e os 3 dias antes de cada teste marcados para estudar (verde se estudaste, vermelho se faltaste). Grelha das aulas igual à da escola, com a aula de agora destacada. E os blocos fixos da semana (aulas, treinos, almoço, estudo).
 - **Estudo**: cronómetro de estudo (15, 25, 45 ou 60 min) que, ao terminar, preenche sozinho o diário com a disciplina e os minutos. Lista de testes com contagem dos dias e quanto já estudaste para cada um (conta as sessões do diário dessa disciplina). E o diário de estudo. Cada sessão guarda a disciplina, o que estudaste, como correu e as dúvidas que ficaram. O tempo entra sozinho no separador Tempo, na área Escola.
 - **Tempo**: registas quanto tempo deste a cada área e vês o total dos últimos 7 dias.
+- **Quarto**: o quarto em 3D, a partir de um scan LiDAR do iPhone. Roda com um dedo, aproxima com dois. Vista 3D, planta vista de cima, teto, e a luz LED na cor do tema. O visualizador é WebGL puro, sem bibliotecas, por isso funciona sem internet.
 - **Roupa**: cola o link da loja e a foto aparece sozinha (se a loja deixar). Todas as peças, onde estão guardadas e se estão arrumadas, para lavar ou emprestadas. Toca na etiqueta para mudar o estado.
 
 Só usa Python, sem bibliotecas extra. Os dados ficam no ficheiro `vida.db`, dentro do tablet. Nada vai para a internet.
@@ -79,6 +80,14 @@ python importar_horario.py
 ```
 
 Mete as aulas todas do 8.º ano. Se correres outra vez, não duplica nada. Para mudar uma aula, apaga-a no separador Horário e adiciona a nova com a área Escola.
+
+## Quarto em 3D (privado)
+
+O scan do quarto **nunca vai para o GitHub** (está no `.gitignore`), porque mostra o quarto por dentro. Para o pôr no tablet:
+
+1. No Termux, uma vez: `termux-setup-storage` e `pkg install python-numpy python-pillow`
+2. Passa o ficheiro `.fbx` da 3d Scanner App para a pasta Transferências do tablet
+3. `python converter_quarto.py ~/storage/downloads/NOME_DO_FICHEIRO.fbx`
 
 ## Atualizar
 

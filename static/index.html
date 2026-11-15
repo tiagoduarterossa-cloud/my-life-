@@ -138,6 +138,13 @@
   .grelha-aulas tr.pausa td { height: 14px; padding: 0; background: var(--campo); border-left: 0; }
   .grelha-aulas col.c-horas { width: 62px; }
 
+  /* quarto 3D */
+  main section#quarto.ativo { display: block; }
+  .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
+  .quarto-caixa { position: relative; height: calc(100vh - 250px); min-height: 360px; border-radius: 14px; overflow: hidden;
+                  background: radial-gradient(80% 70% at 50% 40%, color-mix(in srgb, var(--acento) 22%, var(--card)), var(--card)); }
+  .quarto-estado { position: absolute; inset: 0; display: grid; place-content: center; color: var(--suave); font-size: 15px; pointer-events: none; text-align: center; padding: 20px; }
+
   /* cronometro de estudo */
   .cronometro { text-align: center; padding: 6px 0 4px; }
   .cronometro .tempo { font-size: 72px; font-weight: 200; letter-spacing: -2px; font-variant-numeric: tabular-nums; line-height: 1.05; }
@@ -443,6 +450,18 @@
     </div>
   </section>
 
+  <!-- QUARTO -->
+  <section id="quarto">
+    <div class="quarto-barra">
+      <button class="chip ativo" id="q-3d">3D</button>
+      <button class="chip" id="q-planta">Planta</button>
+      <button class="chip" id="q-teto">Mostrar teto</button>
+      <button class="chip" id="q-led">Luz LED</button>
+    </div>
+    <div class="quarto-caixa" id="quarto-caixa"><div class="quarto-estado" id="quarto-estado">Abre este separador para carregar o quarto.</div></div>
+    <p class="vazio" style="font-size:13px;margin-top:10px">Um dedo para rodar, dois dedos para aproximar. As paredes viradas para ti ficam transparentes para veres lá dentro.</p>
+  </section>
+
   <!-- ROUPA -->
   <section id="roupa">
     <div class="card">
@@ -472,6 +491,7 @@
   <button data-tab="estudo"><svg viewBox="0 0 24 24"><path d="M2.5 6c3-1.5 6.5-1.5 9.5 1 3-2.5 6.5-2.5 9.5-1v13c-3-1.5-6.5-1.5-9.5 1-3-2.5-6.5-2.5-9.5-1z"/><path d="M12 7v13"/></svg><span>Estudo</span></button>
   <button data-tab="horario"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg><span>Horário</span></button>
   <button data-tab="tempo"><svg viewBox="0 0 24 24"><path d="M4 20V11M10 20V4M16 20v-6M22 20H2"/></svg><span>Tempo</span></button>
+  <button data-tab="quarto"><svg viewBox="0 0 24 24"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5V21.5"/></svg><span>Quarto</span></button>
   <button data-tab="roupa"><svg viewBox="0 0 24 24"><path d="M8 3l4 2 4-2 5 3.5-2.5 4-2.5-1.5V21H8V9l-2.5 1.5L3 6.5z"/></svg><span>Roupa</span></button>
 </nav>
 
@@ -963,6 +983,28 @@ function desenharGrelhaAulas() {
   $("#grelha-aulas").innerHTML = html + "</table>";
 }
 
+// ---------- QUARTO 3D ----------
+let quarto3d = null, aCarregarQuarto = false;
+async function abrirQuarto() {
+  if (quarto3d || aCarregarQuarto) return;
+  aCarregarQuarto = true;
+  const estado = t => { $("#quarto-estado").textContent = t; $("#quarto-estado").hidden = !t; };
+  try {
+    const { iniciarQuarto } = await import("/quarto.js");
+    quarto3d = await iniciarQuarto($("#quarto-caixa"), estado);
+  } catch (err) { estado("Não consegui abrir o quarto: " + err.message); }
+  aCarregarQuarto = false;
+}
+function chipsQuarto(ativo) { ["#q-3d", "#q-planta"].forEach(id => $(id).classList.toggle("ativo", id === ativo)); }
+$("#q-3d").onclick = () => { quarto3d?.repor(); chipsQuarto("#q-3d"); };
+$("#q-planta").onclick = () => { quarto3d?.planta(); chipsQuarto("#q-planta"); };
+$("#q-teto").onclick = e => { const v = !e.target.classList.contains("ativo"); e.target.classList.toggle("ativo", v); quarto3d?.teto(v); };
+$("#q-led").onclick = e => {
+  const v = !e.target.classList.contains("ativo"); e.target.classList.toggle("ativo", v);
+  const rgb = getComputedStyle(document.documentElement).getPropertyValue("--n2").split(",").map(x => +x / 255);
+  quarto3d?.luz(rgb.length === 3 && !rgb.some(isNaN) ? rgb.map(c => 0.35 + c * 0.9) : [0.75, 0.45, 1.1], v ? 0.85 : 0);
+};
+
 // ---------- desenhar tudo ----------
 async function atualizar() {
   const [tarefas, horario, reg7, reg1, diario, roupa, testes, diario90] = await Promise.all([
@@ -1000,6 +1042,7 @@ function abrirSeparador(tab) {
   document.body.classList.toggle("no-inicio", tab === "inicio");
   $("#titulo").textContent = $(`nav button[data-tab=${tab}]`).textContent.trim();
   window.scrollTo(0, 0); guardar("separador", tab); ecraLigado();
+  if (tab === "quarto") abrirQuarto();
 }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => abrirSeparador(b.dataset.tab));
 
