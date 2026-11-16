@@ -235,6 +235,17 @@
   .fichas button { font-size: 12px; padding: 5px 9px; border-radius: 999px; border: 0; background: var(--campo); color: var(--acento); cursor: pointer; font-family: inherit; }
   .disp-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
 
+  /* bolha da voz: a resposta aparece em cima e some sozinha */
+  #bolha-voz { position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 50%; z-index: 47; width: min(560px, calc(100% - 32px));
+               transform: translate(-50%, -12px); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s;
+               background: var(--vidro); color: var(--txt); backdrop-filter: blur(24px) saturate(170%); -webkit-backdrop-filter: blur(24px) saturate(170%);
+               border: 0.5px solid var(--linha); border-radius: 20px; padding: 12px 16px; box-shadow: 0 12px 40px rgba(0,0,0,.3); cursor: pointer; }
+  #bolha-voz.ver { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #bolha-voz .disseste { font-size: 13px; color: var(--suave); margin-bottom: 4px; }
+  #bolha-voz .resp { font-size: 17px; line-height: 1.35; }
+  #bolha-voz ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; font-size: 15px; }
+  #bolha-voz li { display: list-item; border: 0; padding: 1px 0; }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -610,6 +621,8 @@
   </form>
 </div>
 
+<div id="bolha-voz" role="status" aria-live="polite"><div class="disseste" id="bolha-disseste"></div><div class="resp" id="bolha-resp"></div></div>
+
 <div id="escuta"><i></i><span id="escuta-txt"></span></div>
 
 <div id="repouso"><div>
@@ -825,6 +838,8 @@ function barras(lista, corDe) {
 }
 const barrasAreas = totais => barras(Object.entries(totais).sort((a, b) => b[1] - a[1]).map(([a, m]) => [NOMES[a], m, cor(a)]));
 
+// um teste de hoje so conta como "proximo" de manha; a tarde ja passou
+const aindaNaoFoi = t => diasAte(t.data) > 0 || (diasAte(t.data) === 0 && new Date().getHours() < 12);
 function textoDias(n) {
   if (n === 0) return "hoje"; if (n === 1) return "amanhã"; if (n === -1) return "ontem";
   return n > 0 ? `daqui a ${n} dias` : `há ${-n} dias`;
@@ -866,7 +881,7 @@ function desenharInicio() {
   else if (!blocos.length) html += `<div class="vazio" style="margin-top:8px">Nada no horário de hoje.</div>`;
   $("#i-agora").innerHTML = html;
 
-  const futuro = testes.filter(t => diasAte(t.data) >= 0);
+  const futuro = testes.filter(aindaNaoFoi);
   if (futuro.length) {
     const t = futuro[0], n = diasAte(t.data);
     $("#i-teste").innerHTML = `<h2>Próximo teste</h2>
@@ -957,7 +972,7 @@ function repouso(d) {
     const at = bl.find(b => b.inicio <= agora && agora < b.fim), px = bl.find(b => b.inicio > agora);
     if (at) extra = `Agora: ${esc(at.titulo)} até às ${at.fim}`;
     else if (px) extra = `A seguir: ${esc(px.titulo)} às ${px.inicio}`;
-    const t = (dados.testes || []).find(t => diasAte(t.data) >= 0);
+    const t = (dados.testes || []).find(aindaNaoFoi);
     if (t) extra += `${extra ? " · " : ""}Teste de ${esc(t.disciplina)} ${textoDias(diasAte(t.data))}`;
   }
   if (crono) {
@@ -1353,17 +1368,37 @@ let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false;
 function estadoEscuta(txt, ativo) {
   $("#escuta").classList.toggle("ver", !!txt); $("#escuta").classList.toggle("ativo", !!ativo); $("#escuta-txt").textContent = txt || "";
 }
-async function comandoVoz(texto) {
+// bolha: mostra o que disseste e a resposta, e desaparece sozinha (toca para fechar)
+function bolha(disseste, resposta, itens, segundos) {
+  $("#bolha-disseste").textContent = disseste ? `"${disseste}"` : "";
+  $("#bolha-resp").innerHTML = esc(resposta || "") + (itens?.length ? `<ul>${itens.slice(0, 8).map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : "");
+  $("#bolha-voz").classList.add("ver");
+  clearTimeout(bolha.t);
+  if (segundos) bolha.t = setTimeout(() => $("#bolha-voz").classList.remove("ver"), segundos * 1000);
+}
+$("#bolha-voz").onclick = () => $("#bolha-voz").classList.remove("ver");
+
+// pedido por voz: responde so com a voz e a bolha. O chat so abre se o pedido veio de dentro do chat.
+async function comandoVoz(texto, { noChat = false } = {}) {
   estadoEscuta("A pensar…", true);
-  abrirAssist();
-  msgAssist("eu", texto); sugestoesAssist([]);
+  if (noChat) { abrirAssist(); msgAssist("eu", texto); sugestoesAssist([]); }
+  else bolha(texto, "…", null, 0);
   try {
     const r = await api("/api/assistente", "POST", { texto });
-    msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    if (noChat) { msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes); }
+    else {
+      // fica no historico do chat, sem o abrir
+      guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
+      if ($("#assist-msgs").children.length) { msgAssist("eu", texto); msgAssist("ela", r.resposta, r.itens); }
+      const n = (r.itens || []).length;
+      bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
+    }
     if (r.mudou) atualizar();
     if (r.comandos) { await executarComandos(r.comandos); return; }
     await falar(r.falado || r.resposta);
-  } catch (err) { msgAssist("ela", "Não consegui falar com o servidor."); }
+  } catch (err) {
+    if (noChat) msgAssist("ela", "Não consegui falar com o servidor."); else bolha(texto, "Não consegui falar com o servidor.", null, 6);
+  }
 }
 function iniciarEscuta(avisar) {
   if (!podeOuvir) { if (avisar) aviso("Para ouvir, abre a central no próprio tablet em http://127.0.0.1:8080"); $("#cfg-ouvir").checked = false; return; }
@@ -1452,7 +1487,7 @@ if (podeOuvir) {
     micOcupado = true; pararEscuta();
     const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false;
     $("#assist-mic").classList.add("a-ouvir");
-    r.onresult = ev => comandoVoz(ev.results[0][0].transcript);
+    r.onresult = ev => comandoVoz(ev.results[0][0].transcript, { noChat: true });
     r.onend = () => { micOcupado = false; $("#assist-mic").classList.remove("a-ouvir"); setTimeout(retomarEscuta, 600); };
     r.onerror = () => aviso("Não te consegui ouvir.");
     r.start();
