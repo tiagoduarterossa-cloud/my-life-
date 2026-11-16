@@ -18,6 +18,7 @@ import urllib.request
 
 import alarmes
 import assistente
+import rotinas
 import voz
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -111,6 +112,8 @@ def init_db():
             """
         )
         con.executescript(alarmes.TABELAS)
+        con.executescript(rotinas.TABELAS)
+        rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
             if c not in colunas:
@@ -472,6 +475,10 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/assistente" and metodo == "POST":
                 frase = (self.corpo_json().get("texto") or "").strip()[:500]
                 with db() as con:
+                    r = rotinas.por_voz(con, frase)
+                    if r:  # "modo estudo", "rotina hora de dormir"...
+                        cmds = rotinas.executar(con, r, **extras_rotina(sem_falar=True))
+                        return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
                     return self.enviar(200, assistente.responder(frase, con, nome=ler_config().get("nome", "")))
             # ----- despertador -----
             if caminho == "/api/alarmes":
@@ -501,12 +508,44 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/alarme/estado" and metodo == "GET":
                 return self.enviar(200, alarmes.estado())
             if caminho == "/api/alarme/parar" and metodo == "POST":
-                alarmes.parar(); return self.enviar(200, {"ok": True})
+                estava = alarmes.estado().get("tocando")
+                alarmes.parar()
+                cmds = []
+                if estava:  # gatilho das rotinas "quando paro o alarme" (ex.: Bom dia)
+                    with db() as con:
+                        for r in rotinas.listar(con):
+                            if r["ativa"] and r["quando"].get("tipo") == "alarme_parado" and rotinas.condicao_ok(con, r["se"]):
+                                cmds += rotinas.executar(con, r, **extras_rotina(sem_falar=True))
+                return self.enviar(200, {"ok": True, "comandos": cmds})
             if caminho == "/api/alarme/adiar" and metodo == "POST":
                 return self.enviar(200, {"ate": alarmes.adiar()})
             if caminho == "/api/alarme/testar" and metodo == "POST":
                 alarmes.tocar({"nome": "Teste", "hora": datetime.now().strftime("%H:%M")}, bom_dia_falado)
                 return self.enviar(200, {"ok": True})
+
+            # ----- rotinas -----
+            if caminho == "/api/rotinas" and metodo == "GET":
+                with db() as con:
+                    return self.enviar(200, {"rotinas": rotinas.listar(con),
+                                             "acoes": {k: v["descricao"] for k, v in rotinas.ACOES.items()}})
+            m = re.fullmatch(r"/api/rotinas/(\d+)/(ativa|hora|executar)", caminho)
+            if m and metodo == "POST":
+                d = self.corpo_json()
+                with db() as con:
+                    r = next((x for x in rotinas.listar(con) if x["id"] == int(m[1])), None)
+                    if not r:
+                        raise Erro("rotina nao encontrada")
+                    if m[2] == "ativa":
+                        con.execute("UPDATE rotinas SET ativa = ? WHERE id = ?", (1 if d.get("ativa") else 0, r["id"]))
+                    elif m[2] == "hora":
+                        r["quando"]["hora"] = hora_ok(d.get("hora"), "hora")
+                        con.execute("UPDATE rotinas SET quando = ? WHERE id = ?", (json.dumps(r["quando"]), r["id"]))
+                    else:
+                        return self.enviar(200, {"comandos": rotinas.executar(con, r, **extras_rotina(sem_falar=True))})
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/estado" and metodo == "GET":
+                depois = int(query.get("depois", 0) or 0)
+                return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
 
             # ----- voz neural -----
             if caminho == "/api/voz/info" and metodo == "GET":
@@ -596,11 +635,35 @@ def ip_local():
 
 
 def bom_dia_falado():
-    """o que o Rosserini diz quando o alarme toca: as horas e o resumo do dia"""
-    agora = datetime.now().strftime("%H:%M")
+    """o que o Rosserini diz enquanto o alarme toca. Se a rotina Bom dia estiver ligada, o resumo fica para
+    quando parares o alarme; senao diz logo tudo."""
+    agora = assistente.hora_falada(datetime.now().strftime("%H:%M"))
     with db() as con:
+        if any(r["ativa"] and r["quando"].get("tipo") == "alarme_parado" for r in rotinas.listar(con)):
+            return f"São {agora}. Bora, hora de acordar."
         r = assistente.responder("bom dia", con, nome=ler_config().get("nome", ""))
-    return f"São {assistente.hora_falada(agora)}. " + r.get("falado", "")
+    return f"São {agora}. " + r.get("falado", "")
+
+
+def tempo_hoje_falado():
+    """'Lá fora estão 12 graus, vai até 18, e vai chover.' (precisa de internet e da cidade escolhida)"""
+    cfg = ler_config()
+    if not cfg.get("lat"):
+        return ""
+    try:
+        m = assistente._json(f"https://api.open-meteo.com/v1/forecast?latitude={cfg['lat']}&longitude={cfg['lon']}"
+                             "&current=temperature_2m&daily=temperature_2m_max,precipitation_probability_max&timezone=auto&forecast_days=1")
+        agora, maxima = round(m["current"]["temperature_2m"]), round(m["daily"]["temperature_2m_max"][0])
+        chuva = m["daily"]["precipitation_probability_max"][0] or 0
+        return f"Lá fora estão {agora} graus, vai até {maxima}" + (", e vai chover, leva casaco." if chuva >= 50 else ".")
+    except Exception:
+        return ""
+
+
+def extras_rotina(sem_falar=False):
+    """o que as rotinas precisam de saber: o nome, o tempo, e como falar se o ecra estiver apagado"""
+    return {"nome": ler_config().get("nome", ""), "tempo_hoje": tempo_hoje_falado,
+            **({} if sem_falar else {"falar_servidor": falar_alarme})}
 
 
 def falar_alarme(texto):
@@ -619,6 +682,7 @@ if __name__ == "__main__":
     init_db()
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
+    rotinas.vigiar(db, extras_rotina)
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

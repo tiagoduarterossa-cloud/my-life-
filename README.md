@@ -78,6 +78,21 @@ pip install edge-tts
 
 Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa de internet. Se falhar, a central usa sozinha a voz do tablet. É um serviço gratuito e não oficial, por isso pode deixar de funcionar um dia. O texto que ele diz vai para a Microsoft para virar som.
 
+## Rotinas
+
+Uma rotina é **quando** acontece uma coisa → **(se)** uma condição → a central faz **estas ações**. Estão no assistente > **Rotinas** (ou na roda dentada). Podes ligá-las, desligá-las, mudar a hora e experimentá-las.
+
+Vêm quatro feitas:
+- **Bom dia**: quando paras o alarme, acende o ecrã e diz o que tens hoje e o tempo lá fora
+- **Modo estudo**: quando dizes "modo estudo" (ou "vou estudar"), cronómetro de 45 min com a disciplina do próximo teste, e o Rosserini não te interrompe
+- **Hora de dormir**: às 22:00 diz o que há amanhã e a que horas toca o alarme, e põe o ecrã em modo noite
+- **Véspera de teste**: às 18:00, só se houver teste no dia seguinte, avisa-te
+
+Como está feito (`rotinas.py`), em três camadas:
+1. **Ações**: cada coisa que a central sabe fazer (`falar`, `cronometro`, `ecra`, `tarefa`...). O assistente usa-as, e um dia o Claude também.
+2. **Rotinas**: guardadas na base de dados, com o gatilho (hora, alarme parado, frase dita) e a condição.
+3. **Dispositivos**: quando houver uma tomada, luzes ou uma coluna, entram como ações novas, e todas as rotinas as podem usar.
+
 ## Despertador
 
 No Início há o cartão **Despertador** com o próximo alarme. Em **Alarmes** crias:

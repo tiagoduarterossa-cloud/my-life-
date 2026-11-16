@@ -210,6 +210,19 @@
   #a-tocar button { min-width: 160px; padding: 20px 30px; border-radius: 999px; border: 0; font-size: 20px; font-weight: 700; font-family: inherit; cursor: pointer; }
   #a-tocar .parar { background: #fff; color: #000; } #a-tocar .adiar { background: rgba(255,255,255,.18); color: #fff; }
 
+  /* rotinas */
+  .rotina { display: block !important; padding: 14px 0 !important; }
+  .rotina .topo-r { display: flex; align-items: center; gap: 12px; }
+  .rotina .topo-r .meio { flex: 1; }
+  .rotina .titulo { font-weight: 600; font-size: 17px; }
+  .rotina ol { margin: 8px 0 8px 2px; padding-left: 18px; color: var(--suave); font-size: 14px; }
+  .rotina ol li { display: list-item; border: 0; padding: 2px 0; }
+  .rotina .linha-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rotina input[type=time] { width: auto; padding: 6px 10px; font-size: 15px; }
+  .rotina.desligada { opacity: .5; }
+  #assist .cab .acoes-cab { display: flex; gap: 8px; align-items: center; }
+  #assist .cab .rot-btn { width: auto; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -575,7 +588,7 @@
   <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
 </button>
 <div id="assist" role="dialog" aria-label="Assistente">
-  <div class="cab"><span>Assistente</span><button id="fechar-assist" aria-label="Fechar">×</button></div>
+  <div class="cab"><span>Assistente</span><div class="acoes-cab"><button class="rot-btn" id="abrir-rotinas">Rotinas</button><button id="fechar-assist" aria-label="Fechar">×</button></div></div>
   <div id="assist-msgs"></div>
   <div class="sugestoes" id="assist-sug"></div>
   <form id="f-assist">
@@ -594,6 +607,13 @@
 </div></div>
 
 <div id="noite"><div class="relogio" id="noite-relogio"></div><p>Fora do horário do ecrã. Toca para acordar.</p></div>
+
+<dialog id="d-rotinas">
+  <h3>Rotinas</h3>
+  <p class="vazio" style="font-size:14px;margin:-6px 0 6px">Quando acontece uma coisa, a central faz estas ações sozinha.</p>
+  <ul id="lista-rotinas"></ul>
+  <button type="button" class="secundario" style="width:100%;margin-top:10px" onclick="this.closest('dialog').close()">Fechar</button>
+</dialog>
 
 <dialog id="d-alarmes">
   <h3>Alarmes</h3>
@@ -673,6 +693,7 @@
     <div class="largo vazio" style="font-size:13px">Dentro destas horas o ecrã não se apaga. Fora delas fica preto, só com o relógio. Deixa vazio para desligar.</div>
     <button class="principal">Guardar</button>
   </form>
+  <button type="button" class="secundario" style="width:100%;margin-top:10px" id="cfg-rotinas">Rotinas</button>
   <a class="secundario" href="/fundos.html" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:14px;border-radius:12px;font-weight:600">Fundos de ecrã para o tablet</a>
   <button class="secundario" style="width:100%;margin-top:10px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
@@ -908,7 +929,7 @@ function dentroDoHorario() {
 async function ecraLigado() {
   const dentro = dentroDoHorario();
   const noInicio = $("#inicio").classList.contains("ativo");
-  $("#noite").style.display = dentro === false && noInicio && Date.now() > acordadoAte ? "grid" : "none";
+  $("#noite").style.display = forcarNoite || (dentro === false && noInicio && Date.now() > acordadoAte) ? "grid" : "none";
   const quero = dentro === true && document.visibilityState === "visible";
   try {
     if (quero && !wakeLock && "wakeLock" in navigator) {
@@ -917,7 +938,7 @@ async function ecraLigado() {
     } else if (!quero && wakeLock) { await wakeLock.release(); wakeLock = null; }
   } catch (e) { /* o browser pode recusar; tenta outra vez no proximo minuto */ }
 }
-$("#noite").onclick = () => { acordadoAte = Date.now() + 5 * 60000; $("#noite").style.display = "none"; };
+$("#noite").onclick = () => { forcarNoite = false; acordadoAte = Date.now() + 5 * 60000; $("#noite").style.display = "none"; };
 
 // ---------- ESTUDO: cronometro ligado ao diario ----------
 let crono = ler("crono"); // { disc, total (s), fim (ms) | restante (s) }
@@ -1149,6 +1170,7 @@ async function perguntar(texto) {
   try {
     const r = await api("/api/assistente", "POST", { texto });
     espera.remove(); msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    if (r.comandos) executarComandos(r.comandos);
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
   } catch (err) { espera.remove(); msgAssist("ela", "Não consegui falar com o servidor: " + err.message); }
@@ -1274,6 +1296,7 @@ async function comandoVoz(texto) {
     const r = await api("/api/assistente", "POST", { texto });
     msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
     if (r.mudou) atualizar();
+    if (r.comandos) { await executarComandos(r.comandos); return; }
     await falar(r.falado || r.resposta);
   } catch (err) { msgAssist("ela", "Não consegui falar com o servidor."); }
 }
@@ -1287,6 +1310,7 @@ function pararEscuta(desligar) {
 }
 function retomarEscuta() {
   if (!aEscutar || aFalar || escuta || document.visibilityState !== "visible") return;
+  if (Date.now() < pausaEscutaAte) { estadoEscuta(""); return; } // modo estudo: nao incomodar
   if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
   const r = new Reconhecer(); escuta = r;
   r.lang = "pt-PT"; r.continuous = true; r.interimResults = false;
@@ -1320,6 +1344,81 @@ if (podeOuvir) {
     r.start();
   };
 }
+
+// ---------- ROTINAS: as acoes que correm no ecra ----------
+let pausaEscutaAte = 0, forcarNoite = false, ultimoComando = null;
+async function executarComandos(cmds) {
+  for (const c of cmds || []) {
+    try {
+      if (c.acao === "falar") await falar(c.texto);
+      else if (c.acao === "aviso") aviso(c.texto, false);
+      else if (c.acao === "abrir") abrirSeparador(c.separador);
+      else if (c.acao === "cronometro") {
+        const min = +c.minutos || 25;
+        crono = { disc: c.disciplina || "Estudo", total: min * 60, fim: Date.now() + min * 60000 };
+        guardar("crono", crono); mostrarCrono();
+      } else if (c.acao === "nao_incomodar") {
+        pausaEscutaAte = Date.now() + (+c.minutos || 30) * 60000; pararEscuta();
+        setTimeout(retomarEscuta, pausaEscutaAte - Date.now() + 500);
+      } else if (c.acao === "ecra") {
+        forcarNoite = c.modo === "noite";
+        if (!forcarNoite) { acordadoAte = Date.now() + 15 * 60000; ultimoToque = Date.now(); }
+        ecraLigado();
+      } else if (c.acao === "cor") {
+        await api("/api/config", "POST", { tema: c.cor }); config.tema = c.cor; aplicarTema();
+      }
+    } catch (e) { console.warn("acao falhou", c, e); }
+  }
+}
+
+const QUANDO_TXT = {
+  alarme_parado: () => "Quando paras o alarme",
+  manual: () => "Só quando carregas em Experimentar",
+  voz: q => `Quando dizes "${(q.frases || [])[0] || ""}"`,
+  hora: q => (q.dias === "0123456" ? "Todos os dias" : q.dias === "01234" ? "Segunda a sexta" : "Em certos dias") + " às",
+};
+const SE_TXT = { teste_amanha: "só se tiveres teste no dia seguinte", dia_de_aulas: "só em dias de aulas", fim_de_semana: "só ao fim de semana" };
+const MARCAS = { "{virgula_nome}": ", [o teu nome]", "{nome}": "[o teu nome]", "{resumo_hoje}": "[o que tens hoje]",
+  "{tempo_hoje}": "[o tempo lá fora]", "{resumo_amanha}": "[o que tens amanhã]", "{resumo_amanha_curto}": "[o que há amanhã]",
+  "{alarme_amanha}": "[a hora do alarme]", "{disciplina}": "[a disciplina]", "{teste_amanha}": "[o teste]", "{hora}": "[as horas]" };
+const legivel = t => Object.entries(MARCAS).reduce((x, [k, v]) => x.split(k).join(v), t || "");
+function descreverAcao(a) {
+  return { falar: `Diz: "${legivel(a.texto)}"`, aviso: `Mostra: "${legivel(a.texto)}"`, cronometro: `Cronómetro de ${a.minutos} min` + (a.disciplina === "auto" ? " (disciplina do próximo teste)" : ""),
+    nao_incomodar: `Não te interrompe durante ${a.minutos} min`, ecra: a.modo === "noite" ? "Põe o ecrã em modo noite" : "Acende o ecrã",
+    abrir: `Abre o separador ${a.separador}`, cor: `Muda a cor para ${a.cor}`, tarefa: `Cria a tarefa "${a.titulo}"`, som: "Toca o som do alarme" }[a.acao] || a.acao;
+}
+async function carregarRotinas() {
+  let d; try { d = await api("/api/rotinas"); } catch (e) { return aviso(e.message); }
+  $("#lista-rotinas").innerHTML = d.rotinas.map(r => {
+    const q = r.quando;
+    return `<li class="rotina ${r.ativa ? "" : "desligada"}">
+      <div class="topo-r"><div class="meio"><div class="titulo">${esc(r.nome)}</div>
+        <div class="linha-r info">${esc((QUANDO_TXT[q.tipo] || (() => q.tipo))(q))}
+          ${q.tipo === "hora" ? `<input type="time" value="${q.hora}" data-rot-hora="${r.id}">` : ""}
+          ${r.se ? `<span>· ${SE_TXT[r.se] || r.se}</span>` : ""}</div></div>
+        <button class="comutador ${r.ativa ? "ligado" : ""}" data-rot-ativa="${r.id}" data-ligado="${r.ativa}" aria-label="Ligar ou desligar"></button></div>
+      <ol>${r.acoes.map(a => `<li>${esc(descreverAcao(a))}</li>`).join("")}</ol>
+      <button class="saltar-btn" data-rot-exp="${r.id}">Experimentar agora</button></li>`;
+  }).join("");
+}
+function abrirRotinas() { carregarRotinas(); $("#d-rotinas").showModal(); }
+$("#abrir-rotinas").onclick = abrirRotinas;
+$("#cfg-rotinas").onclick = () => { $("#config").close(); abrirRotinas(); };
+$("#lista-rotinas").addEventListener("click", async e => {
+  const t = e.target;
+  try {
+    if (t.dataset.rotAtiva) { await api(`/api/rotinas/${t.dataset.rotAtiva}/ativa`, "POST", { ativa: t.dataset.ligado !== "1" }); carregarRotinas(); }
+    else if (t.dataset.rotExp) {
+      $("#d-rotinas").close();
+      const r = await api(`/api/rotinas/${t.dataset.rotExp}/executar`, "POST"); executarComandos(r.comandos);
+    }
+  } catch (err) { aviso(err.message); }
+});
+$("#lista-rotinas").addEventListener("change", async e => {
+  const id = e.target.dataset.rotHora; if (!id) return;
+  try { await api(`/api/rotinas/${id}/hora`, "POST", { hora: e.target.value }); aviso(`Hora mudada para ${e.target.value}.`, false); }
+  catch (err) { aviso(err.message); }
+});
 
 // ---------- DESPERTADOR ----------
 let alarmesDados = null, modoAlarme = "repetir";
@@ -1390,7 +1489,10 @@ function somNaPagina(ligar) {
   tocarUmaVez(); somPagina = setInterval(tocarUmaVez, 3500);
 }
 async function vigiarAlarme() {
-  let e; try { e = await api("/api/alarme/estado"); } catch (err) { return; }
+  let tudo; try { tudo = await api(`/api/estado?depois=${ultimoComando ?? 0}`); } catch (err) { return; }
+  if (ultimoComando === null) ultimoComando = tudo.ultimo;   // ao abrir, nao repete comandos antigos
+  else if (tudo.comandos.length) { ultimoComando = tudo.ultimo; executarComandos(tudo.comandos); }
+  const e = tudo.alarme;
   const ver = !!e.tocando;
   $("#a-tocar").classList.toggle("ver", ver);
   if (ver) {
@@ -1399,7 +1501,9 @@ async function vigiarAlarme() {
   }
   somNaPagina(ver && !e.som_no_tablet);
 }
-$("#tocar-parar").onclick = async () => { await api("/api/alarme/parar", "POST"); vigiarAlarme(); carregarAlarmes(); };
+$("#tocar-parar").onclick = async () => {
+  const r = await api("/api/alarme/parar", "POST"); vigiarAlarme(); carregarAlarmes(); executarComandos(r.comandos);
+};
 $("#tocar-adiar").onclick = async () => { const r = await api("/api/alarme/adiar", "POST"); aviso(`Volto a tocar às ${r.ate}.`, false); vigiarAlarme(); };
 setInterval(vigiarAlarme, 3000);
 
