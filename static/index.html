@@ -723,6 +723,8 @@
     <div class="deslizar"><span>Velocidade</span><input type="range" id="cfg-rate" min="0.8" max="1.4" step="0.02"><span>Tom</span><input type="range" id="cfg-pitch" min="0.6" max="1.5" step="0.02"></div>
     <div class="botoes"><button type="button" class="secundario" id="cfg-testar">Ouvir a voz</button></div>
     <input id="cfg-palavra" placeholder="Palavra de ativação" maxlength="30">
+    <div class="botoes"><button type="button" class="secundario" id="cfg-ensinar">Ensinar a palavra</button></div>
+    <div class="vazio" id="cfg-alternativas" style="font-size:13px"></div>
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
   </div>
@@ -1240,7 +1242,7 @@ $("#assist-sug").onclick = e => {
 };
 // ---------- VOZ: falar as respostas ----------
 const vozCfg = Object.assign({ motor: "neural", vozNeural: "pt-PT-DuarteNeural", voz: "", rate: 1.08, pitch: 1.05,
-  palavra: "Rosserini", ouvir: false }, ler("voz") || {});
+  palavra: "Rosserini", ouvir: false, alternativas: [] }, ler("voz") || {});
 let aFalar = false, infoVoz = null;
 async function falarNeural(texto) {
   // pede o som ao servidor (voz da Microsoft). Se falhar, devolve false e usa-se a voz do tablet
@@ -1289,7 +1291,8 @@ function guardarVoz() {
   api("/api/config", "POST", { voz_motor: vozCfg.motor, voz_neural: vozCfg.vozNeural,
     voz_rate: String(vozCfg.rate), voz_pitch: String(vozCfg.pitch) }).catch(() => {});
 }
-["#cfg-voz", "#cfg-voz-neural", "#cfg-rate", "#cfg-pitch", "#cfg-palavra"].forEach(id => $(id).onchange = guardarVoz);
+["#cfg-voz", "#cfg-voz-neural", "#cfg-rate", "#cfg-pitch"].forEach(id => $(id).onchange = guardarVoz);
+$("#cfg-palavra").onchange = () => { vozCfg.alternativas = []; guardarVoz(); mostrarAlternativas(); };
 async function mostrarMotor() {
   document.querySelectorAll("#cfg-motor button").forEach(b => b.classList.toggle("ativo", b.dataset.motor === vozCfg.motor));
   const neural = vozCfg.motor === "neural";
@@ -1327,8 +1330,16 @@ function distancia(a, b) { // quantas letras e preciso mudar para a virar b (Lev
   return d[a.length][b.length];
 }
 // o reconhecimento de voz nao conhece "Rosserini": pode ouvir "Rossini", "rosa rini"... por isso aceitamos parecidos
+const juntar = t => semAcentos(t).replace(/[^a-z0-9]/g, "");
 function acharPalavra(frase) {
-  const alvo = semAcentos(vozCfg.palavra).replace(/[^a-z]/g, "");
+  for (const alvo of [vozCfg.palavra, ...(vozCfg.alternativas || [])]) {
+    const r = acharUma(frase, juntar(alvo));
+    if (r) return r;
+  }
+  return null;
+}
+function acharUma(frase, alvo) {
+  if (!alvo) return null;
   const orig = frase.split(/\s+/).filter(Boolean);                       // palavras como foram ditas
   const p = orig.map(w => semAcentos(w).replace(/[^a-z0-9]/g, ""));     // as mesmas, simplificadas
   const tol = Math.max(1, Math.round(alvo.length / 4));
@@ -1369,7 +1380,7 @@ function retomarEscuta() {
   if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
   if (!navigator.onLine) { estadoEscuta("Sem internet: não consigo ouvir"); setTimeout(retomarEscuta, 15000); return; }
   const r = new Reconhecer(); escuta = r;
-  r.lang = "pt-PT"; r.continuous = true; r.interimResults = false;
+  r.lang = "pt-PT"; r.continuous = true; r.interimResults = false; r.maxAlternatives = 4;
   estadoEscuta(aEsperarComando > Date.now() ? "Diz…" : `Diz "${vozCfg.palavra}"`, aEsperarComando > Date.now());
   r.onresult = ev => {
     const frase = ev.results[ev.results.length - 1][0].transcript.trim();
@@ -1377,7 +1388,9 @@ function retomarEscuta() {
     estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
     clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, 3500);
     if (aEsperarComando > Date.now()) { aEsperarComando = 0; pararEscuta(); comandoVoz(frase); return; }
-    const achou = acharPalavra(frase);
+    const res = ev.results[ev.results.length - 1];
+    let achou = null;
+    for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
     if (!achou) return;
     pararEscuta();
     if (achou.depois.length > 2) comandoVoz(achou.depois);
@@ -1391,6 +1404,36 @@ function retomarEscuta() {
   try { r.start(); } catch (e) { escuta = null; }
 }
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" ? retomarEscuta() : pararEscuta());
+
+// ensinar a palavra: diz o nome 3 vezes e guardamos o que a Google percebeu
+function mostrarAlternativas() {
+  const a = vozCfg.alternativas || [];
+  $("#cfg-alternativas").textContent = a.length ? `Também aceito: ${a.join(", ")}` : "";
+}
+function ouvirUmaVez() {
+  return new Promise(ok => {
+    const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false; r.maxAlternatives = 5;
+    let ouviu = [];
+    r.onresult = ev => { ouviu = [...ev.results[0]].map(x => x.transcript.trim()); };
+    r.onend = () => ok(ouviu); r.onerror = () => {};
+    r.start();
+  });
+}
+$("#cfg-ensinar").onclick = async () => {
+  if (!podeOuvir) return aviso("Para ouvir, abre a central no próprio tablet em http://127.0.0.1:8080");
+  pararEscuta();
+  const novas = new Set(vozCfg.alternativas || []);
+  for (let i = 1; i <= 3; i++) {
+    aviso(`Diz "${vozCfg.palavra}" (${i} de 3)`, false);
+    await new Promise(ok => setTimeout(ok, 600));
+    const ouvidas = await ouvirUmaVez();
+    // guardamos so as primeiras 1 a 3 palavras de cada versao (o nome, sem o resto)
+    ouvidas.forEach(t => { const p = t.split(/\s+/).slice(0, 3).join(" "); if (p && juntar(p).length >= 3) novas.add(p.toLowerCase()); });
+  }
+  vozCfg.alternativas = [...novas].slice(-12); guardar("voz", vozCfg); mostrarAlternativas();
+  aviso(novas.size ? "Aprendido! Experimenta dizer o nome." : "Não te ouvi. Tenta outra vez, mais perto do tablet.", !novas.size);
+  setTimeout(retomarEscuta, 500);
+};
 
 // botao do microfone no assistente: falar uma vez, sem palavra de ativacao
 if (podeOuvir) {
@@ -1780,7 +1823,7 @@ $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
-  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-nome").value = config.nome || "";
+  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
   $("#cfg-tomada").value = config.tomada_ip || "";
   $("#config").showModal();
 };
