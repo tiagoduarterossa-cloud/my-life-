@@ -167,6 +167,20 @@
   #f-assist button.mic.a-ouvir { background: var(--perigo); color: #fff; }
   #f-assist svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+  .voz-cfg { display: grid; gap: 10px; }
+  .deslizar { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; font-size: 14px; color: var(--suave); }
+  .deslizar input { padding: 0; accent-color: var(--acento); }
+  .interruptor { display: flex !important; gap: 10px; align-items: center; text-transform: none !important; font-size: 15px !important;
+                 color: var(--txt) !important; font-weight: 500 !important; margin: 0 !important; cursor: pointer; }
+  .interruptor input { width: 24px; height: 24px; }
+  #escuta { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 46;
+            display: none; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+            background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); pointer-events: none; }
+  #escuta.ver { display: flex; }
+  #escuta i { width: 9px; height: 9px; border-radius: 50%; background: var(--acento); animation: pulsar 1.6s ease-in-out infinite; }
+  #escuta.ativo i { background: #ff375f; animation-duration: .6s; }
+  @keyframes pulsar { 50% { transform: scale(1.6); opacity: .5; } }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -541,6 +555,8 @@
   </form>
 </div>
 
+<div id="escuta"><i></i><span id="escuta-txt"></span></div>
+
 <div id="repouso"><div>
   <div class="rel" id="rep-rel"></div>
   <div class="linha" id="rep-linha"></div>
@@ -578,6 +594,16 @@
     <option value="10">Ao fim de 10 minutos sem mexer</option>
     <option value="0">Desligado</option>
   </select>
+  <label>Assistente</label>
+  <div class="voz-cfg">
+    <input id="cfg-nome" placeholder="O teu nome (para ele te cumprimentar)" maxlength="30">
+    <select id="cfg-voz"></select>
+    <div class="deslizar"><span>Velocidade</span><input type="range" id="cfg-rate" min="0.8" max="1.4" step="0.02"><span>Tom</span><input type="range" id="cfg-pitch" min="0.6" max="1.5" step="0.02"></div>
+    <div class="botoes"><button type="button" class="secundario" id="cfg-testar">Ouvir a voz</button></div>
+    <input id="cfg-palavra" placeholder="Palavra de ativação" maxlength="30">
+    <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
+    <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
+  </div>
   <label>Ecrã sempre ligado</label>
   <form id="f-horas">
     <input type="time" name="ecra_inicio" title="Das">
@@ -1081,15 +1107,118 @@ $("#assist-sug").onclick = e => {
   const t = e.target.dataset.sug; if (!t) return;
   if (t.endsWith(": ")) { $("#f-assist").texto.value = t; $("#f-assist").texto.focus(); } else perguntar(t);
 };
-// falar em vez de escrever (so funciona no proprio tablet, em http://127.0.0.1)
+// ---------- VOZ: falar as respostas ----------
+const vozCfg = Object.assign({ voz: "", rate: 1.08, pitch: 1.05, palavra: "Rosserini", ouvir: false }, ler("voz") || {});
+let aFalar = false;
+function vozes() { return (window.speechSynthesis?.getVoices() || []).filter(v => v.lang.toLowerCase().startsWith("pt")); }
+function falar(texto) {
+  if (!window.speechSynthesis || !texto) return Promise.resolve();
+  return new Promise(ok => {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(texto);
+    const lista = vozes();
+    u.voice = lista.find(v => v.name === vozCfg.voz) || lista.find(v => v.lang === "pt-PT") || lista[0] || null;
+    u.lang = u.voice?.lang || "pt-PT"; u.rate = vozCfg.rate; u.pitch = vozCfg.pitch;
+    aFalar = true; pararEscuta();
+    u.onend = u.onerror = () => { aFalar = false; ok(); setTimeout(retomarEscuta, 250); };
+    speechSynthesis.speak(u);
+  });
+}
+function preencherVozes() {
+  const lista = vozes();
+  $("#cfg-voz").innerHTML = lista.length
+    ? lista.map(v => `<option value="${esc(v.name)}">${esc(v.name)} (${v.lang})</option>`).join("")
+    : `<option value="">Sem vozes em português neste aparelho</option>`;
+  if (vozCfg.voz) $("#cfg-voz").value = vozCfg.voz;
+}
+window.speechSynthesis?.addEventListener?.("voiceschanged", preencherVozes);
+function guardarVoz() {
+  Object.assign(vozCfg, { voz: $("#cfg-voz").value, rate: +$("#cfg-rate").value, pitch: +$("#cfg-pitch").value,
+    palavra: $("#cfg-palavra").value.trim() || "Rosserini", ouvir: $("#cfg-ouvir").checked });
+  guardar("voz", vozCfg);
+}
+["#cfg-voz", "#cfg-rate", "#cfg-pitch", "#cfg-palavra"].forEach(id => $(id).onchange = guardarVoz);
+$("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
+$("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); };
+$("#cfg-nome").onchange = async e => { try { await api("/api/config", "POST", { nome: e.target.value.trim() }); } catch (err) { aviso(err.message); } };
+
+// ---------- OUVIR: microfone e palavra de ativacao ----------
 const Reconhecer = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (Reconhecer && window.isSecureContext) {
+const podeOuvir = !!(Reconhecer && window.isSecureContext);
+function semAcentos(t) { return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function distancia(a, b) { // quantas letras e preciso mudar para a virar b (Levenshtein)
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+// o reconhecimento de voz nao conhece "Rosserini": pode ouvir "Rossini", "rosa rini"... por isso aceitamos parecidos
+function acharPalavra(frase) {
+  const alvo = semAcentos(vozCfg.palavra).replace(/[^a-z]/g, "");
+  const orig = frase.split(/\s+/).filter(Boolean);                       // palavras como foram ditas
+  const p = orig.map(w => semAcentos(w).replace(/[^a-z0-9]/g, ""));     // as mesmas, simplificadas
+  const tol = Math.max(1, Math.round(alvo.length / 4));
+  for (let i = 0; i < p.length; i++)
+    for (let n = 1; n <= 3 && i + n <= p.length; n++)
+      if (p[i] && distancia(p.slice(i, i + n).join(""), alvo) <= tol)
+        return { depois: orig.slice(i + n).join(" ").replace(/^[,.!?\s]+/, "") };
+  return null;
+}
+let escuta = null, aEscutar = false, aEsperarComando = 0;
+function estadoEscuta(txt, ativo) {
+  $("#escuta").classList.toggle("ver", !!txt); $("#escuta").classList.toggle("ativo", !!ativo); $("#escuta-txt").textContent = txt || "";
+}
+async function comandoVoz(texto) {
+  estadoEscuta("A pensar…", true);
+  abrirAssist();
+  msgAssist("eu", texto); sugestoesAssist([]);
+  try {
+    const r = await api("/api/assistente", "POST", { texto });
+    msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    if (r.mudou) atualizar();
+    await falar(r.falado || r.resposta);
+  } catch (err) { msgAssist("ela", "Não consegui falar com o servidor."); }
+}
+function iniciarEscuta(avisar) {
+  if (!podeOuvir) { if (avisar) aviso("Para ouvir, abre a central no próprio tablet em http://127.0.0.1:8080"); $("#cfg-ouvir").checked = false; return; }
+  aEscutar = true; retomarEscuta();
+}
+function pararEscuta(desligar) {
+  if (desligar) { aEscutar = false; estadoEscuta(""); }
+  try { escuta?.abort(); } catch (e) {} escuta = null;
+}
+function retomarEscuta() {
+  if (!aEscutar || aFalar || escuta || document.visibilityState !== "visible") return;
+  if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
+  const r = new Reconhecer(); escuta = r;
+  r.lang = "pt-PT"; r.continuous = true; r.interimResults = false;
+  estadoEscuta(aEsperarComando > Date.now() ? "Diz…" : `Diz "${vozCfg.palavra}"`, aEsperarComando > Date.now());
+  r.onresult = ev => {
+    const frase = ev.results[ev.results.length - 1][0].transcript.trim();
+    if (aEsperarComando > Date.now()) { aEsperarComando = 0; pararEscuta(); comandoVoz(frase); return; }
+    const achou = acharPalavra(frase);
+    if (!achou) return;
+    pararEscuta();
+    if (achou.depois.length > 2) comandoVoz(achou.depois);
+    else { aEsperarComando = Date.now() + 8000; falar(["Diz.", "Ya?", "Diz lá."][Math.floor(Math.random() * 3)]); }
+  };
+  r.onerror = ev => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+    aviso("O tablet não deu acesso ao microfone."); vozCfg.ouvir = false; guardar("voz", vozCfg); $("#cfg-ouvir").checked = false; pararEscuta(true); } };
+  r.onend = () => { if (escuta === r) escuta = null; setTimeout(retomarEscuta, 400); };
+  try { r.start(); } catch (e) { escuta = null; }
+}
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" ? retomarEscuta() : pararEscuta());
+
+// botao do microfone no assistente: falar uma vez, sem palavra de ativacao
+if (podeOuvir) {
   $("#assist-mic").hidden = false;
   $("#assist-mic").onclick = () => {
+    pararEscuta();
     const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false;
     $("#assist-mic").classList.add("a-ouvir");
-    r.onresult = ev => perguntar(ev.results[0][0].transcript);
-    r.onend = () => $("#assist-mic").classList.remove("a-ouvir");
+    r.onresult = ev => comandoVoz(ev.results[0][0].transcript);
+    r.onend = () => { $("#assist-mic").classList.remove("a-ouvir"); setTimeout(retomarEscuta, 400); };
     r.onerror = () => aviso("Não te consegui ouvir.");
     r.start();
   };
@@ -1219,6 +1348,8 @@ $("#temas").onclick = async e => {
 $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
+  preencherVozes(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
+  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-nome").value = config.nome || "";
   $("#config").showModal();
 };
 $("#f-cidade").onsubmit = async e => {
@@ -1261,6 +1392,7 @@ tick(); setInterval(tick, 1000);
 (async () => {
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
+  if (vozCfg.ouvir) iniciarEscuta(false);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);
   atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
   setInterval(() => atualizar().catch(() => {}), 60000);

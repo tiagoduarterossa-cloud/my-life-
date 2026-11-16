@@ -12,6 +12,7 @@ Se um dia treinares um modelo teu (ou ligares o Claude), so tens de trocar a fun
 
 import json
 import math
+import random
 import re
 import unicodedata
 import urllib.parse
@@ -323,81 +324,157 @@ def fmt_data(d, hoje):
     return f"{d.day}/{d.month}"
 
 
+# ---------- a maneira de falar (para a voz) ----------
+
+def hora_falada(h):
+    """'08:50' -> '8 e 50', '16:00' -> '4 da tarde', '20:30' -> '8 e meia da noite'"""
+    if not h:
+        return ""
+    hh, mm = int(h[:2]), int(h[3:])
+    parte = ""
+    if hh >= 20: parte = " da noite"
+    elif hh >= 13: parte = " da tarde"
+    if hh > 12: hh -= 12
+    if mm == 0: return f"{hh}{parte}" if parte else f"{hh} horas"
+    if mm == 30: return f"{hh} e meia{parte}"
+    return f"{hh} e {mm}{parte}"
+
+
+def dia_falado(d, hoje):
+    if d == hoje: return "hoje"
+    if d == hoje + timedelta(days=1): return "amanhã"
+    if d == hoje + timedelta(days=2): return "depois de amanhã"
+    if 0 < (d - hoje).days < 7: return f"na {NOMES_DIAS[d.weekday()]}" if d.weekday() < 5 else f"no {NOMES_DIAS[d.weekday()]}"
+    return f"no dia {d.day}"
+
+
+def lista_falada(xs):
+    xs = list(xs)
+    if len(xs) <= 1: return "".join(xs)
+    return ", ".join(xs[:-1]) + " e " + xs[-1]
+
+
+CURTOS = {"Matemática": "Mat", "Educação Física": "Educação Física", "Ciências Naturais": "Ciências",
+          "Físico-Química": "Físico-Química", "Cidadania e Desenvolvimento": "Cidadania"}
+
+
 AJUDA = {
     "resposta": "Ainda não percebi. Experimenta uma destas:",
+    "falado": "Hmm, não apanhei essa. Experimenta perguntar o que tens amanhã.",
     "sugestoes": ["O que tenho amanhã?", "Faz-me a mala para Madrid de sexta a domingo",
                   "Marca jantar com a avó sábado às 20h", "Toma nota: levar a calculadora",
                   "Tenho de acabar o trabalho de CN até quinta", "Quando é o próximo teste?"],
 }
 
 
-def responder(texto, con, hoje=None):
-    """con = ligacao sqlite (row_factory = Row). Devolve {resposta, itens?, sugestoes?, mudou?}"""
+def responder(texto, con, hoje=None, nome=""):
+    """con = ligacao sqlite (row_factory = Row).
+    Devolve {resposta, falado, itens?, sugestoes?, mudou?}. 'falado' e a versao descontraida para a voz."""
     hoje = hoje or date.today()
     intencao, d = entender(texto, hoje)
+    ya = random.choice
 
     if intencao == "nota":
         if not d["texto"]:
-            return {"resposta": "O que queres que eu anote? Por exemplo: toma nota: levar a calculadora."}
+            return {"resposta": "O que queres que eu anote? Por exemplo: toma nota: levar a calculadora.",
+                    "falado": "Anotar o quê? Diz toma nota e a coisa a seguir."}
         con.execute("INSERT INTO notas (texto) VALUES (?)", (d["texto"][:500],))
-        return {"resposta": "Anotado.", "itens": [d["texto"]], "mudou": True}
+        return {"resposta": "Anotado.", "itens": [d["texto"]], "mudou": True,
+                "falado": ya(["Siga, já anotei.", "Feito, está anotado.", "Na boa, ficou guardado."])}
 
     if intencao == "ver_notas":
         notas = con.execute("SELECT * FROM notas ORDER BY id DESC LIMIT 15").fetchall()
         if not notas:
-            return {"resposta": "Ainda não tens notas. Diz 'toma nota: ...' para criar uma."}
-        return {"resposta": f"As tuas últimas {len(notas)} notas:", "itens": [n["texto"] for n in notas]}
+            return {"resposta": "Ainda não tens notas. Diz 'toma nota: ...' para criar uma.",
+                    "falado": "Ainda não tens notas nenhumas."}
+        falado = "As últimas são: " + lista_falada(n["texto"] for n in notas[:3]) + "."
+        return {"resposta": f"As tuas últimas {len(notas)} notas:", "itens": [n["texto"] for n in notas], "falado": falado}
 
     if intencao == "evento":
         if not d["titulo"]:
-            return {"resposta": "O que queres marcar? Por exemplo: marca jantar com a avó sábado às 20h."}
+            return {"resposta": "O que queres marcar? Por exemplo: marca jantar com a avó sábado às 20h.",
+                    "falado": "Marcar o quê? Diz por exemplo: marca treino sexta às 6 da tarde."}
         if not d["data"]:
-            return {"resposta": f"Para quando é '{d['titulo']}'? Diz-me o dia, por exemplo: marca {d['titulo'].lower()} sexta às 18h."}
+            return {"resposta": f"Para quando é '{d['titulo']}'? Diz-me o dia, por exemplo: marca {d['titulo'].lower()} sexta às 18h.",
+                    "falado": f"Ya, mas {d['titulo'].lower()} é para quando? Diz-me o dia."}
         con.execute("INSERT INTO eventos (titulo, data, hora) VALUES (?,?,?)", (d["titulo"][:200], d["data"].isoformat(), d["hora"]))
         quando = fmt_data(d["data"], hoje) + (f" às {d['hora']}" if d["hora"] else "")
-        return {"resposta": f"Marquei {d['titulo']} para {quando}. Já aparece no calendário.", "mudou": True}
+        quando_f = dia_falado(d["data"], hoje) + (f" às {hora_falada(d['hora'])}" if d["hora"] else "")
+        return {"resposta": f"Marquei {d['titulo']} para {quando}. Já aparece no calendário.", "mudou": True,
+                "falado": ya(["Feito.", "Tá marcado.", "Siga."]) + f" {d['titulo']}, {quando_f}."}
 
     if intencao == "tarefa":
         if not d["titulo"]:
-            return {"resposta": "Qual é a tarefa? Por exemplo: tenho de acabar o trabalho de CN até quinta."}
+            return {"resposta": "Qual é a tarefa? Por exemplo: tenho de acabar o trabalho de CN até quinta.",
+                    "falado": "Qual é a tarefa?"}
         con.execute("INSERT INTO tarefas (titulo, area, prioridade, prazo) VALUES (?,?,?,?)",
                     (d["titulo"][:200], d["area"], d["prioridade"], d["prazo"].isoformat() if d["prazo"] else None))
         extra = f", para {fmt_data(d['prazo'], hoje)}" if d["prazo"] else ""
-        return {"resposta": f"Nova tarefa de {d['area']}: {d['titulo']}{extra}.", "mudou": True}
+        extra_f = f", até {dia_falado(d['prazo'], hoje)}" if d["prazo"] else ""
+        return {"resposta": f"Nova tarefa de {d['area']}: {d['titulo']}{extra}.", "mudou": True,
+                "falado": ya(["Tranquilo, meti na lista:", "Na boa, ficou na lista:", "Anotado nas tarefas:"]) + f" {d['titulo'].lower()}{extra_f}."}
 
     if intencao == "testes":
         ts = con.execute("SELECT * FROM testes WHERE data >= ? ORDER BY data LIMIT 6", (hoje.isoformat(),)).fetchall()
         if not ts:
-            return {"resposta": "Não tens testes marcados. Mete-os no separador Estudo."}
-        return {"resposta": "Os teus próximos testes:",
+            return {"resposta": "Não tens testes marcados. Mete-os no separador Estudo.",
+                    "falado": "Não tens testes marcados. Pelo menos que eu saiba."}
+        t0 = ts[0]; d0 = date.fromisoformat(t0["data"])
+        falado = f"O próximo é {CURTOS.get(t0['disciplina'], t0['disciplina'])}, {dia_falado(d0, hoje)}."
+        if (d0 - hoje).days <= 2:
+            falado += " Está mesmo aí, bora rever."
+        if len(ts) > 1:
+            t1 = ts[1]; falado += f" Depois vem {CURTOS.get(t1['disciplina'], t1['disciplina'])}, {dia_falado(date.fromisoformat(t1['data']), hoje)}."
+        return {"resposta": "Os teus próximos testes:", "falado": falado,
                 "itens": [f"{t['disciplina']}: {fmt_data(date.fromisoformat(t['data']), hoje)}" +
                           (f" · {t['materia']}" if t["materia"] else "") for t in ts]}
 
     if intencao == "dia":
-        dia = d["data"]; iso = dia.isoformat()
-        itens = []
+        dia = d["data"]; iso = dia.isoformat(); qd = dia_falado(dia, hoje)
+        itens, fala = [], []
         aulas = con.execute("SELECT * FROM horario WHERE dia = ? ORDER BY inicio", (dia.weekday(),)).fetchall()
         escola = [a for a in aulas if a["area"] == "escola"]
         if escola:
             itens.append(f"Aulas das {escola[0]['inicio']} às {escola[-1]['fim']}: " + ", ".join(dict.fromkeys(a["titulo"] for a in escola)))
-        for a in aulas:
-            if a["area"] != "escola":
-                itens.append(f"{a['inicio']} {a['titulo']}")
-        for e in con.execute("SELECT * FROM eventos WHERE data = ? ORDER BY hora", (iso,)):
+            fala.append(f"{qd.capitalize()} tens aulas das {hora_falada(escola[0]['inicio'])} às {hora_falada(escola[-1]['fim'])}.")
+        outros = [a for a in aulas if a["area"] != "escola"]
+        for a in outros:
+            itens.append(f"{a['inicio']} {a['titulo']}")
+        if outros:
+            fala.append("Tens também " + lista_falada(f"{a['titulo'].lower()} às {hora_falada(a['inicio'])}" for a in outros) + ".")
+        evs = con.execute("SELECT * FROM eventos WHERE data = ? ORDER BY hora", (iso,)).fetchall()
+        for e in evs:
             itens.append(f"{e['hora'] or 'Durante o dia'} · {e['titulo']}")
-        for t in con.execute("SELECT * FROM testes WHERE data = ?", (iso,)):
+        if evs:
+            fala.append("Marcado: " + lista_falada(e["titulo"] + (f" às {hora_falada(e['hora'])}" if e["hora"] else "") for e in evs) + ".")
+        ts = con.execute("SELECT * FROM testes WHERE data = ?", (iso,)).fetchall()
+        for t in ts:
             itens.append(f"TESTE de {t['disciplina']}" + (f" ({t['materia']})" if t["materia"] else ""))
-        for t in con.execute("SELECT * FROM testes WHERE data > ? AND data <= ? ORDER BY data", (iso, (dia + timedelta(days=3)).isoformat())):
+        if ts:
+            nomes = lista_falada(CURTOS.get(t["disciplina"], t["disciplina"]) for t in ts)
+            fala.append(f"E atenção, tens teste de {nomes}." + (" Bora rever isso hoje." if dia > hoje else " Força nisso!"))
+        prox = con.execute("SELECT * FROM testes WHERE data > ? AND data <= ? ORDER BY data", (iso, (dia + timedelta(days=3)).isoformat())).fetchall()
+        for t in prox:
             itens.append(f"Estudar para o teste de {t['disciplina']} ({fmt_data(date.fromisoformat(t['data']), hoje)})")
-        for t in con.execute("SELECT * FROM tarefas WHERE feita = 0 AND prazo IS NOT NULL AND prazo <= ? ORDER BY prazo", (iso,)):
-            atrasada = t["prazo"] < hoje.isoformat()
-            itens.append(f"Tarefa: {t['titulo']}" + (" (atrasada!)" if atrasada else ""))
-        ola = ""
+        if prox:
+            fala.append("Convém estudar para " + lista_falada(f"{CURTOS.get(t['disciplina'], t['disciplina'])}, que é {dia_falado(date.fromisoformat(t['data']), hoje)}" for t in prox[:2]) + ".")
+        tar = con.execute("SELECT * FROM tarefas WHERE feita = 0 AND prazo IS NOT NULL AND prazo <= ? ORDER BY prazo", (iso,)).fetchall()
+        for t in tar:
+            itens.append(f"Tarefa: {t['titulo']}" + (" (atrasada!)" if t["prazo"] < hoje.isoformat() else ""))
+        if tar:
+            atrasadas = [t for t in tar if t["prazo"] < hoje.isoformat()]
+            fala.append(("Não te esqueças: " + lista_falada(t["titulo"].lower() for t in tar[:3]) + ".") +
+                        (f" E tens {len(atrasadas)} atrasada{'s' if len(atrasadas) > 1 else ''}, despacha isso." if atrasadas else ""))
+        ola, ola_f = "", ""
         if d.get("saudacao"):
             ola = {"bom dia": "Bom dia!", "boa tarde": "Boa tarde!", "boa noite": "Boa noite!"}.get(d["saudacao"], "Olá!") + " "
+            vir = f", {nome}" if nome else ""
+            ola_f = {"bom dia": f"Bom dia{vir}!", "boa tarde": f"Boa tarde{vir}!", "boa noite": f"Boa noite{vir}!"}.get(d["saudacao"], f"Ei{vir}!") + " "
         if not itens:
-            return {"resposta": f"{ola}Não tens nada marcado para {fmt_data(dia, hoje)}. Dia livre."}
-        return {"resposta": f"{ola}Para {fmt_data(dia, hoje)}:", "itens": itens}
+            return {"resposta": f"{ola}Não tens nada marcado para {fmt_data(dia, hoje)}. Dia livre.",
+                    "falado": ola_f + ya([f"{qd.capitalize()} está livre, aproveita.", f"Nada marcado para {qd}. Dia chill."])}
+        return {"resposta": f"{ola}Para {fmt_data(dia, hoje)}:", "itens": itens,
+                "falado": ola_f + (ya(["Ya, então.", "Ora bem.", "Bora lá."]) + " " if not ola_f else "") + " ".join(fala)}
 
     if intencao == "mala":
         ini, fim = d["inicio"], d["fim"]
@@ -409,15 +486,20 @@ def responder(texto, con, hoje=None):
         if prev and prev["dias"]:
             tmax = max(x[1] for x in prev["dias"]); tmin = min(x[2] for x in prev["dias"]); chuva = max(x[3] for x in prev["dias"])
             tempo = f"Em {prev['nome']}: entre {round(tmin)}° e {round(tmax)}°, chuva até {round(chuva)}%."
+            tempo_f = f"Em {prev['nome'].split(',')[0]} vai estar entre {round(tmin)} e {round(tmax)} graus" + \
+                      (", e vai chover, leva casaco." if chuva >= 50 else ".")
         else:
             tmax = tmin = None; chuva = 30
             tempo = ("Não sei para onde vais, por isso fiz uma mala genérica. Diz por exemplo: mala para Madrid de sexta a domingo."
                      if not d["destino"] else
                      f"Não consegui ver a previsão para {d['destino']} (fora dos próximos 16 dias, ou sem internet). Mala genérica.")
+            tempo_f = "Não consegui ver o tempo, por isso fiz uma mala normal."
         linhas, avisos = fazer_mala(roupa, n, tmax, tmin, chuva)
         if not roupa:
             avisos.append("Ainda não tens roupa na central. Adiciona-a no separador Roupa para eu escolher as peças.")
         periodo = f"{fmt_data(ini, hoje)} a {fmt_data(fim, hoje)}" if n > 1 else fmt_data(ini, hoje)
-        return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos}
+        falado = f"Bora fazer a mala para {n} dia{'s' if n > 1 else ''}. {tempo_f} Deixei-te a lista no ecrã." + \
+                 (" Ah, e tens roupa que ainda está para lavar." if any("lavar" in a for a in avisos) else "")
+        return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos, "falado": falado}
 
     return AJUDA

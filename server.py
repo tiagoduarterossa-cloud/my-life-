@@ -343,7 +343,7 @@ def criar_teste(d):
         )
 
 
-CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso"}
+CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -462,7 +462,7 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/assistente" and metodo == "POST":
                 texto = (self.corpo_json().get("texto") or "").strip()[:500]
                 with db() as con:
-                    return self.enviar(200, assistente.responder(texto, con))
+                    return self.enviar(200, assistente.responder(texto, con, nome=ler_config().get("nome", "")))
             if caminho == "/api/notas" and metodo == "GET":
                 with db() as con:
                     return self.enviar(200, [dict(r) for r in con.execute("SELECT * FROM notas ORDER BY id DESC")])
