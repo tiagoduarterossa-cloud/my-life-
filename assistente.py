@@ -441,7 +441,9 @@ def responder(texto, con, hoje=None, nome=""):
                 "falado": ya(["Tranquilo, meti na lista:", "Na boa, ficou na lista:", "Anotado nas tarefas:"]) + f" {d['titulo'].lower()}{extra_f}."}
 
     if intencao == "testes":
-        ts = con.execute("SELECT * FROM testes WHERE data >= ? ORDER BY data LIMIT 6", (hoje.isoformat(),)).fetchall()
+        from datetime import datetime
+        op = ">=" if datetime.now().hour < 12 or hoje != date.today() else ">"  # a tarde, o teste de hoje ja passou
+        ts = con.execute(f"SELECT * FROM testes WHERE data {op} ? ORDER BY data LIMIT 6", (hoje.isoformat(),)).fetchall()
         if not ts:
             return {"resposta": "Não tens testes marcados. Mete-os no separador Estudo.",
                     "falado": "Não tens testes marcados. Pelo menos que eu saiba."}
