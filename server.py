@@ -18,6 +18,7 @@ import urllib.request
 
 import alarmes
 import assistente
+import voz
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -345,7 +346,8 @@ def criar_teste(d):
         )
 
 
-CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome"}
+CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
+                 "voz_motor", "voz_neural", "voz_rate", "voz_pitch"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -367,6 +369,12 @@ def gravar_config(d):
             hora_ok(v, k)
         if k == "tema" and v not in TEMAS:
             raise Erro("tema desconhecido")
+        if k == "voz_motor" and v not in ("neural", "tablet"):
+            raise Erro("motor de voz invalido")
+        if k == "voz_neural" and v not in {n for n, _ in voz.VOZES}:
+            raise Erro("voz desconhecida")
+        if k in ("voz_rate", "voz_pitch") and not 0.5 <= float(v) <= 2:
+            raise Erro("valor de voz invalido")
         if k == "repouso" and v not in ("0", "1", "3", "5", "10"):
             raise Erro("repouso invalido")
         if k in ("lat", "lon"):
@@ -500,6 +508,17 @@ class Handler(BaseHTTPRequestHandler):
                 alarmes.tocar({"nome": "Teste", "hora": datetime.now().strftime("%H:%M")}, bom_dia_falado)
                 return self.enviar(200, {"ok": True})
 
+            # ----- voz neural -----
+            if caminho == "/api/voz/info" and metodo == "GET":
+                return self.enviar(200, {"disponivel": voz.disponivel(), "vozes": voz.VOZES})
+            if caminho == "/api/voz" and metodo == "POST":
+                d = self.corpo_json()
+                ficheiro = voz.gerar((d.get("texto") or "")[:600], d.get("voz") or "pt-PT-DuarteNeural",
+                                     float(d.get("velocidade") or 1.08), float(d.get("tom") or 1.05))
+                if not ficheiro:
+                    return self.enviar(503, {"erro": "voz neural indisponivel"})
+                return self.enviar(200, ficheiro.read_bytes(), "audio/mpeg")
+
             if caminho == "/api/notas" and metodo == "GET":
                 with db() as con:
                     return self.enviar(200, [dict(r) for r in con.execute("SELECT * FROM notas ORDER BY id DESC")])
@@ -584,8 +603,21 @@ def bom_dia_falado():
     return f"São {assistente.hora_falada(agora)}. " + r.get("falado", "")
 
 
+def falar_alarme(texto):
+    """quando o alarme toca: usa a voz neural se estiver escolhida, senao a do tablet"""
+    cfg = ler_config()
+    if cfg.get("voz_motor", "neural") == "neural":
+        f = voz.gerar(texto, cfg.get("voz_neural", "pt-PT-DuarteNeural"),
+                      float(cfg.get("voz_rate", 1.08)), float(cfg.get("voz_pitch", 1.05)))
+        if f:
+            alarmes.tocar_ficheiro(f)
+            return len(texto) / 13 + 1.5  # mais ou menos o tempo que demora a dizer
+    return alarmes._falar(texto)
+
+
 if __name__ == "__main__":
     init_db()
+    alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")

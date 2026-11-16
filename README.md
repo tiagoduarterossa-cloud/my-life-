@@ -68,6 +68,16 @@ chmod +x ~/.termux/boot/central.sh
 
 O router pode dar um IP diferente ao tablet de vez em quando. Para isso não acontecer, nas definições do Wi-Fi do tablet escolhe **IP estático**, ou pede ao teu pai para reservar o IP no router.
 
+## Voz neural (o Rosserini a soar a pessoa)
+
+Por defeito o Rosserini usa as vozes do Microsoft Edge (Duarte ou Raquel, de Portugal), que soam muito mais naturais do que a voz do tablet. No Termux:
+
+```
+pip install edge-tts
+```
+
+Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa de internet. Se falhar, a central usa sozinha a voz do tablet. É um serviço gratuito e não oficial, por isso pode deixar de funcionar um dia. O texto que ele diz vai para a Microsoft para virar som.
+
 ## Despertador
 
 No Início há o cartão **Despertador** com o próximo alarme. Em **Alarmes** crias:

@@ -119,8 +119,19 @@ def _som():
 
 
 def _falar(texto):
+    """voz do tablet (fica a falar ate acabar). Devolve 0: nao e preciso esperar mais."""
     if shutil.which("termux-tts-speak") and texto:
         _correr("termux-tts-speak", "-l", "pt", "-n", "PT", "-s", "ALARM", "-r", "1.05", texto, espera=60)
+    return 0
+
+
+def tocar_ficheiro(caminho):
+    """toca um som (ex.: a voz neural) pelo tablet"""
+    if som_no_tablet():
+        _correr("termux-media-player", "play", str(caminho))
+
+
+falar = _falar  # o servidor troca isto pela voz neural, se estiver ligada
 
 
 def estado():
@@ -153,8 +164,9 @@ def _ciclo_toque(desde, texto_bom_dia):
             return
         _som()
         if not falou and time.time() - desde > 12 and texto_bom_dia:
-            _falar(texto_bom_dia())
             falou = True
+            espera = falar(texto_bom_dia()) or 0
+            time.sleep(espera)  # deixa acabar de falar antes de voltar a tocar
         time.sleep(4)
 
 

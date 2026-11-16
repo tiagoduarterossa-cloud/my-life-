@@ -653,6 +653,12 @@
   <label>Assistente</label>
   <div class="voz-cfg">
     <input id="cfg-nome" placeholder="O teu nome (para ele te cumprimentar)" maxlength="30">
+    <div class="filtros" id="cfg-motor" style="margin:0">
+      <button type="button" data-motor="neural">Voz neural (natural)</button>
+      <button type="button" data-motor="tablet">Voz do tablet</button>
+    </div>
+    <select id="cfg-voz-neural"></select>
+    <div class="vazio" id="cfg-neural-estado" style="font-size:13px"></div>
     <select id="cfg-voz"></select>
     <div class="deslizar"><span>Velocidade</span><input type="range" id="cfg-rate" min="0.8" max="1.4" step="0.02"><span>Tom</span><input type="range" id="cfg-pitch" min="0.6" max="1.5" step="0.02"></div>
     <div class="botoes"><button type="button" class="secundario" id="cfg-testar">Ouvir a voz</button></div>
@@ -1164,11 +1170,28 @@ $("#assist-sug").onclick = e => {
   if (t.endsWith(": ")) { $("#f-assist").texto.value = t; $("#f-assist").texto.focus(); } else perguntar(t);
 };
 // ---------- VOZ: falar as respostas ----------
-const vozCfg = Object.assign({ voz: "", rate: 1.08, pitch: 1.05, palavra: "Rosserini", ouvir: false }, ler("voz") || {});
-let aFalar = false;
+const vozCfg = Object.assign({ motor: "neural", vozNeural: "pt-PT-DuarteNeural", voz: "", rate: 1.08, pitch: 1.05,
+  palavra: "Rosserini", ouvir: false }, ler("voz") || {});
+let aFalar = false, infoVoz = null;
+async function falarNeural(texto) {
+  // pede o som ao servidor (voz da Microsoft). Se falhar, devolve false e usa-se a voz do tablet
+  try {
+    const r = await fetch("/api/voz", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto, voz: vozCfg.vozNeural, velocidade: vozCfg.rate, tom: vozCfg.pitch }) });
+    if (!r.ok) return false;
+    const url = URL.createObjectURL(await r.blob());
+    aFalar = true; pararEscuta();
+    await new Promise(ok => { const a = new Audio(url); a.onended = a.onerror = ok; a.play().catch(ok); });
+    URL.revokeObjectURL(url);
+    aFalar = false; setTimeout(retomarEscuta, 250);
+    return true;
+  } catch (e) { aFalar = false; return false; }
+}
 function vozes() { return (window.speechSynthesis?.getVoices() || []).filter(v => v.lang.toLowerCase().startsWith("pt")); }
-function falar(texto) {
-  if (!window.speechSynthesis || !texto) return Promise.resolve();
+async function falar(texto) {
+  if (!texto) return;
+  if (vozCfg.motor === "neural" && await falarNeural(texto)) return;
+  if (!window.speechSynthesis) return;
   return new Promise(ok => {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(texto);
@@ -1189,11 +1212,29 @@ function preencherVozes() {
 }
 window.speechSynthesis?.addEventListener?.("voiceschanged", preencherVozes);
 function guardarVoz() {
-  Object.assign(vozCfg, { voz: $("#cfg-voz").value, rate: +$("#cfg-rate").value, pitch: +$("#cfg-pitch").value,
+  Object.assign(vozCfg, { voz: $("#cfg-voz").value, vozNeural: $("#cfg-voz-neural").value || vozCfg.vozNeural,
+    rate: +$("#cfg-rate").value, pitch: +$("#cfg-pitch").value,
     palavra: $("#cfg-palavra").value.trim() || "Rosserini", ouvir: $("#cfg-ouvir").checked });
   guardar("voz", vozCfg);
+  // o servidor tambem precisa de saber, para o alarme falar com a mesma voz
+  api("/api/config", "POST", { voz_motor: vozCfg.motor, voz_neural: vozCfg.vozNeural,
+    voz_rate: String(vozCfg.rate), voz_pitch: String(vozCfg.pitch) }).catch(() => {});
 }
-["#cfg-voz", "#cfg-rate", "#cfg-pitch", "#cfg-palavra"].forEach(id => $(id).onchange = guardarVoz);
+["#cfg-voz", "#cfg-voz-neural", "#cfg-rate", "#cfg-pitch", "#cfg-palavra"].forEach(id => $(id).onchange = guardarVoz);
+async function mostrarMotor() {
+  document.querySelectorAll("#cfg-motor button").forEach(b => b.classList.toggle("ativo", b.dataset.motor === vozCfg.motor));
+  const neural = vozCfg.motor === "neural";
+  $("#cfg-voz").hidden = neural; $("#cfg-voz-neural").hidden = !neural; $("#cfg-neural-estado").hidden = !neural;
+  if (neural && !infoVoz) { try { infoVoz = await api("/api/voz/info"); } catch (e) { infoVoz = { disponivel: false, vozes: [] }; } }
+  if (neural) {
+    $("#cfg-voz-neural").innerHTML = (infoVoz.vozes || []).map(([id, nome]) => `<option value="${id}">${esc(nome)}</option>`).join("");
+    $("#cfg-voz-neural").value = vozCfg.vozNeural;
+    $("#cfg-neural-estado").textContent = infoVoz.disponivel
+      ? "Precisa de internet. Se falhar, usa a voz do tablet."
+      : "Falta instalar no Termux: pip install edge-tts (e reiniciar o servidor). Até lá usa a voz do tablet.";
+  }
+}
+$("#cfg-motor").onclick = e => { const m = e.target.dataset.motor; if (!m) return; vozCfg.motor = m; guardarVoz(); mostrarMotor(); };
 $("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
 $("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); };
 $("#cfg-nome").onchange = async e => { try { await api("/api/config", "POST", { nome: e.target.value.trim() }); } catch (err) { aviso(err.message); } };
@@ -1487,7 +1528,7 @@ $("#temas").onclick = async e => {
 $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
-  preencherVozes(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
+  preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-nome").value = config.nome || "";
   $("#config").showModal();
 };
