@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta
 import alarmes
 import assistente
 import dispositivos
+import spotify
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS rotinas (
@@ -47,6 +48,7 @@ ACOES = {
     "tarefa":         {"onde": "servidor", "descricao": "Cria uma tarefa"},
     "som":            {"onde": "servidor", "descricao": "Toca o som do alarme uma vez"},
     "tomada":         {"onde": "servidor", "descricao": "Liga ou desliga a tomada inteligente (luz LED)"},
+    "musica":         {"onde": "servidor", "descricao": "Spotify: toca uma playlist, pausa ou muda o volume"},
 }
 
 SEPARADORES = ["inicio", "tarefas", "estudo", "horario", "tempo", "quarto", "roupa"]
@@ -112,6 +114,12 @@ def validar(d):
             t = str(a.get("titulo") or "").strip()[:200]
             if not t: raise Invalida("a tarefa precisa de um título")
             acoes.append({"acao": n, "titulo": t})
+        elif n == "musica":
+            o = a.get("o") if a.get("o") in ("tocar", "pausar", "volume") else "tocar"
+            x = {"acao": n, "o": o}
+            if o == "tocar": x["pedido"] = str(a.get("pedido") or "").strip()[:100]
+            if o == "volume": x["valor"] = max(0, min(100, int(a.get("valor") or 40)))
+            acoes.append(x)
         elif n == "tomada":
             e = a.get("estado") if a.get("estado") in ("ligar", "desligar", "alternar") else "ligar"
             acoes.append({"acao": n, "estado": e})
@@ -267,6 +275,13 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
             con.execute("INSERT INTO tarefas (titulo, area, prioridade) VALUES (?, 'outro', 2)", (a.get("titulo", "Tarefa")[:200],))
         elif a["acao"] == "som":
             alarmes.tocar_ficheiro(alarmes.SOM)
+        elif a["acao"] == "musica":
+            try:
+                if a.get("o") == "pausar": spotify.pausar()
+                elif a.get("o") == "volume": spotify.volume(a.get("valor", 40))
+                else: spotify.tocar(a.get("pedido", ""))
+            except spotify.ErroSpotify as e:
+                cmds.append({"acao": "aviso", "texto": f"Spotify: {e}"})
         elif a["acao"] == "tomada":
             ip = con.execute("SELECT valor FROM config WHERE chave = 'tomada_ip'").fetchone()
             ok, msg = dispositivos.tomada(ip[0] if ip else "", a.get("estado", "ligar"))

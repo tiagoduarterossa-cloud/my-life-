@@ -90,6 +90,20 @@ pip install edge-tts
 
 Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa de internet. Se falhar, a central usa sozinha a voz do tablet. É um serviço gratuito e não oficial, por isso pode deixar de funcionar um dia. O texto que ele diz vai para a Microsoft para virar som.
 
+## Spotify
+
+"Põe música de estudo", "toca Travis Scott", "mete a playlist treino", "pausa", "próxima", "volume 30", "que música é esta?". No Início aparece um mini leitor, e nas rotinas há a ação **Música (Spotify)** (ex.: o Modo estudo põe lofi, a Hora de dormir pausa).
+
+Precisa de **Spotify Premium** (é o Spotify que exige isso para controlar a música) e do Spotify aberto num aparelho (o tablet ou o telemóvel). O som sai por onde esse aparelho estiver ligado, por exemplo uma coluna Bluetooth.
+
+Para ligar (uma vez):
+1. Em **developer.spotify.com/dashboard**, entra com a conta Spotify e carrega em **Create app**
+2. Nome: `Central do quarto`. Em **Redirect URIs** escreve exatamente `http://127.0.0.1:8080/api/spotify/callback` e carrega em Add. Em APIs, escolhe **Web API**. Aceita os termos e guarda.
+3. Copia o **Client ID** (32 letras e números)
+4. **No próprio tablet**, com a central aberta em `http://127.0.0.1:8080`: roda dentada > **Spotify** > cola o Client ID > Guardar > **Ligar ao Spotify** > entra e aceita
+
+A ligação fica em `spotify_token.json` (fora do GitHub). Não é preciso nenhum segredo: usa o método PKCE.
+
 ## Inteligência: o Claude
 
 Quando o assistente não percebe uma pergunta ("porque é que o céu é azul?", "explica-me as equações", "e porquê?"), pergunta ao **Claude**. Também podes começar por "Claude, ..." para ir direto. O Claude pode usar a central (marcar, ver o dia, alarmes, mala, luz) e lembra-se da conversa dos últimos 15 minutos.

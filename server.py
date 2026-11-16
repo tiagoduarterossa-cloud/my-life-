@@ -21,6 +21,7 @@ import assistente
 import dispositivos
 import ia
 import rotinas
+import spotify
 import voz
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -353,7 +354,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "palavra_ativacao"}
+                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -375,6 +376,8 @@ def gravar_config(d):
             hora_ok(v, k)
         if k == "tema" and v not in TEMAS:
             raise Erro("tema desconhecido")
+        if k == "spotify_client" and not re.fullmatch(r"[0-9a-f]{32}", v):
+            raise Erro("o Client ID do Spotify tem 32 letras e numeros (0-9, a-f)")
         if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
             raise Erro("modelo desconhecido")
         if k == "ia_limite" and not (v.isdigit() and 1 <= int(v) <= 1000):
@@ -578,6 +581,44 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/estado" and metodo == "GET":
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
+
+            # ----- spotify -----
+            if caminho == "/api/spotify" and metodo == "GET":
+                info = {"ligado": spotify.ligado(), "client_id": bool(ler_config().get("spotify_client"))}
+                if info["ligado"]:
+                    try: info["agora"] = spotify.a_tocar()
+                    except spotify.ErroSpotify as e: info["erro"] = str(e)
+                return self.enviar(200, info)
+            if caminho == "/api/spotify" and metodo == "DELETE":
+                spotify.desligar(); return self.enviar(200, {"ok": True})
+            if caminho == "/api/spotify/entrar" and metodo == "GET":
+                cid = ler_config().get("spotify_client")
+                if not cid:
+                    raise Erro("primeiro cola o Client ID do Spotify nas definicoes")
+                self.send_response(302)
+                self.send_header("Location", spotify.link_entrar(cid, f"http://127.0.0.1:{PORT}/api/spotify/callback"))
+                self.end_headers(); return
+            if caminho == "/api/spotify/callback" and metodo == "GET":
+                from urllib.parse import unquote
+                try:
+                    if query.get("error"):
+                        raise spotify.ErroSpotify("não deste autorização")
+                    spotify.terminar_entrada(unquote(query.get("state", "")), unquote(query.get("code", "")))
+                    msg = "Spotify ligado! A voltar à central…"
+                except spotify.ErroSpotify as e:
+                    msg = f"Não consegui ligar o Spotify: {e}"
+                pagina = f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/"><body style="font:20px system-ui;background:#000;color:#fff;display:grid;place-content:center;height:90vh;text-align:center">{msg}</body>'
+                return self.enviar(200, pagina.encode(), "text/html")
+            m = re.fullmatch(r"/api/spotify/(tocar|pausar|seguinte|anterior|volume)", caminho)
+            if m and metodo == "POST":
+                d = self.corpo_json()
+                try:
+                    if m[1] == "tocar": msg = spotify.tocar(str(d.get("pedido") or "")[:100])
+                    elif m[1] == "volume": msg = spotify.volume(d.get("volume", 50))
+                    else: msg = getattr(spotify, m[1])()
+                except spotify.ErroSpotify as e:
+                    raise Erro(str(e))
+                return self.enviar(200, {"ok": True, "msg": msg})
 
             # ----- inteligencia (Claude) -----
             if caminho == "/api/ia" and metodo == "GET":

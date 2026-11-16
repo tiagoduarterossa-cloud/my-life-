@@ -185,6 +185,31 @@ def entender(texto, hoje=None):
     if not s:
         return "ajuda", {}
 
+    if re.search(r"\b(pausa|para|parar|pausar|stop)\b.*\b(musica|spotify|som)\b|^(pausa|stop)$", s):
+        return "musica", {"o": "pausar"}
+    if re.search(r"\b(proxima|seguinte|passa a frente|salta|skip)\b.*\b(musica|cancao|faixa)?|^(proxima|skip)$", s) and re.search(r"musica|cancao|faixa|^proxima$|^skip$|passa a frente|salta", s):
+        return "musica", {"o": "seguinte"}
+    if re.search(r"\b(musica anterior|volta a anterior|cancao anterior)\b", s):
+        return "musica", {"o": "anterior"}
+    m = re.search(r"\bvolume (?:a |para |no |nos )?(\d{1,3})\b", s)
+    if m:
+        return "musica", {"o": "volume", "valor": int(m[1])}
+    if re.search(r"\b(aumenta|sobe|mais alto)\b.*\b(volume|musica|som)\b|\bmais alto\b", s):
+        return "musica", {"o": "volume_mais"}
+    if re.search(r"\b(baixa|diminui|mais baixo)\b.*\b(volume|musica|som)\b|\bmais baixo\b", s):
+        return "musica", {"o": "volume_menos"}
+    if re.search(r"\b(o que esta a tocar|que musica e esta|que musica e essa|como se chama esta musica)\b", s):
+        return "musica", {"o": "agora"}
+    if re.search(r"^(poe|pões|poes|mete|toca|tocar|quero ouvir|play|continua a musica|retoma)\b", s) and \
+            re.search(r"\b(musica|spotify|playlist|ouvir|tocar|toca|play|album|retoma|continua)\b", s):
+        pedido = re.sub(r"^(poe|pões|poes|mete|toca|tocar|quero ouvir|play|continua a|retoma)\s*", "", s)
+        pedido = re.sub(r"\b(a |uma |um |alguma |me )?\b(musica|musicas|playlist|no spotify|do spotify|spotify|a tocar|para mim)\b", " ", pedido)
+        pedido = re.sub(r"^\s*(de|do|da|dos|das|para)\s+", "", " ".join(pedido.split())).strip()
+        temas = {"estudo": "lofi study", "estudar": "lofi study", "dormir": "sleep", "calma": "chill", "festa": "party hits",
+                 "treino": "workout", "concentrar": "deep focus", "relaxar": "chill vibes"}
+        pedido = temas.get(pedido, pedido)
+        return "musica", {"o": "tocar", "pedido": pedido}
+
     m = re.search(r"\b(liga|acende|ligar|acender|desliga|apaga|desligar|apagar)\b.*\b(luz|luzes|led|leds|fita|tomada|candeeiro)\b", s)
     if m:
         return "tomada", {"estado": "ligar" if m[1] in ("liga", "acende", "ligar", "acender") else "desligar"}
@@ -529,6 +554,30 @@ def responder(texto, con, hoje=None, nome=""):
         falado = f"Bora fazer a mala para {n} dia{'s' if n > 1 else ''}. {tempo_f} Deixei-te a lista no ecrã." + \
                  (" Ah, e tens roupa que ainda está para lavar." if any("lavar" in a for a in avisos) else "")
         return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos, "falado": falado}
+
+    if intencao == "musica":
+        import spotify
+        try:
+            o = d["o"]
+            if o == "tocar": msg = spotify.tocar(d.get("pedido", ""))
+            elif o == "pausar": msg = spotify.pausar()
+            elif o == "seguinte": msg = spotify.seguinte()
+            elif o == "anterior": msg = spotify.anterior()
+            elif o == "volume": msg = spotify.volume(d["valor"])
+            elif o in ("volume_mais", "volume_menos"):
+                atual = spotify.a_tocar().get("volume") or 50
+                msg = spotify.volume(atual + (15 if o == "volume_mais" else -15))
+            else:
+                a = spotify.a_tocar()
+                if not a.get("musica"):
+                    return {"resposta": "Não está nada a tocar.", "falado": "Não está nada a tocar."}
+                msg = f"Está a tocar {a['musica']}, de {a['artista']}."
+                return {"resposta": msg, "falado": msg}
+        except spotify.ErroSpotify as e:
+            m = str(e)[:1].upper() + str(e)[1:] + "."
+            return {"resposta": m, "falado": m}
+        curto = {"Música em pausa.": "Pausa.", "Próxima.": "Bora, próxima."}.get(msg, msg)
+        return {"resposta": msg, "falado": curto, "musica": True}
 
     if intencao == "tomada":
         import dispositivos

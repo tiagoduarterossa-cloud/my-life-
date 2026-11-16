@@ -128,7 +128,8 @@ def perguntar(texto, db, cfg):
         "marca dentista quarta às 15h", "tenho de entregar o trabalho de CN até sexta",
         "toma nota: levar a calculadora", "mostra as notas", "acorda-me sexta às 5 e meia",
         "a que horas é o meu alarme", "amanhã não me acordes", "faz-me a mala para Madrid de sexta a domingo",
-        "liga a luz", "desliga a luz". Devolve a resposta da central.
+        "liga a luz", "desliga a luz", "põe música de estudo", "toca Travis Scott", "pausa a música",
+        "próxima música", "volume 30", "que música é esta". Devolve a resposta da central.
 
         Args:
             pedido: o pedido numa frase curta, parecida com os exemplos.
