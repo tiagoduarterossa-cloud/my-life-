@@ -18,6 +18,7 @@ import urllib.request
 
 import alarmes
 import assistente
+import dispositivos
 import rotinas
 import voz
 from datetime import date, datetime, timedelta
@@ -350,7 +351,7 @@ def criar_teste(d):
 
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
-                 "voz_motor", "voz_neural", "voz_rate", "voz_pitch"}
+                 "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -372,6 +373,8 @@ def gravar_config(d):
             hora_ok(v, k)
         if k == "tema" and v not in TEMAS:
             raise Erro("tema desconhecido")
+        if k == "tomada_ip" and not re.fullmatch(r"[\w.\-]{1,60}(:\d{1,5})?", v):
+            raise Erro("IP da tomada invalido (ex: 192.168.1.50)")
         if k == "voz_motor" and v not in ("neural", "tablet"):
             raise Erro("motor de voz invalido")
         if k == "voz_neural" and v not in {n for n, _ in voz.VOZES}:
@@ -524,10 +527,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self.enviar(200, {"ok": True})
 
             # ----- rotinas -----
-            if caminho == "/api/rotinas" and metodo == "GET":
+            if caminho == "/api/rotinas":
                 with db() as con:
-                    return self.enviar(200, {"rotinas": rotinas.listar(con),
-                                             "acoes": {k: v["descricao"] for k, v in rotinas.ACOES.items()}})
+                    if metodo == "GET":
+                        return self.enviar(200, {"rotinas": rotinas.listar(con),
+                                                 "acoes": {k: v["descricao"] for k, v in rotinas.ACOES.items()}})
+                    if metodo == "POST":
+                        try: rotinas.guardar(con, self.corpo_json())
+                        except rotinas.Invalida as e: raise Erro(str(e))
+                        return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/rotinas/(\d+)", caminho)
+            if m and metodo in ("PUT", "DELETE"):
+                with db() as con:
+                    if metodo == "DELETE":
+                        con.execute("DELETE FROM rotinas WHERE id = ?", (int(m[1]),))
+                    else:
+                        try: rotinas.guardar(con, self.corpo_json(), int(m[1]))
+                        except rotinas.Invalida as e: raise Erro(str(e))
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/tomada" and metodo == "POST":
+                ok, msg = dispositivos.tomada(ler_config().get("tomada_ip", ""), self.corpo_json().get("estado", "alternar"))
+                return self.enviar(200 if ok else 502, {"ok": ok, "erro": None if ok else msg})
             m = re.fullmatch(r"/api/rotinas/(\d+)/(ativa|hora|executar)", caminho)
             if m and metodo == "POST":
                 d = self.corpo_json()
@@ -618,6 +638,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.tratar("POST")
+
+    def do_PUT(self):
+        self.tratar("PUT")
 
     def do_DELETE(self):
         self.tratar("DELETE")

@@ -15,7 +15,19 @@ Tem seis separadores, com um visual ao estilo iOS (claro ou escuro, conforme o t
 
 Só usa Python, sem bibliotecas extra. Os dados ficam no ficheiro `vida.db`, dentro do tablet. Nada vai para a internet.
 
-## Instalar no tablet
+## Instalar ou atualizar (o mais fácil)
+
+Depois do `git clone` (ver em baixo), no Termux:
+
+```
+cd ~/central && ./instalar.sh
+```
+
+Instala tudo, prepara o arranque automático, mete o horário e arranca a central. Pode correr-se outra vez se alguma coisa falhar.
+
+Para ir buscar a versão mais recente e reiniciar: `./atualizar.sh`
+
+## Instalar no tablet (passo a passo, à mão)
 
 ### 1. Preparar o tablet
 
@@ -80,7 +92,7 @@ Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa
 
 ## Rotinas
 
-Uma rotina é **quando** acontece uma coisa → **(se)** uma condição → a central faz **estas ações**. Estão no assistente > **Rotinas** (ou na roda dentada). Podes ligá-las, desligá-las, mudar a hora e experimentá-las.
+Uma rotina é **quando** acontece uma coisa → **(se)** uma condição → a central faz **estas ações**. Estão no assistente > **Rotinas** (ou na roda dentada). Podes ligá-las, desligá-las, experimentá-las, **editá-las** (frases, minutos, textos, ações) e **criar novas**, por exemplo "Cheguei a casa": quando dizes "cheguei" → liga a luz, diz o que tens amanhã e começa o cronómetro.
 
 Vêm quatro feitas:
 - **Bom dia**: quando paras o alarme, acende o ecrã e diz o que tens hoje e o tempo lá fora
@@ -92,6 +104,14 @@ Como está feito (`rotinas.py`), em três camadas:
 1. **Ações**: cada coisa que a central sabe fazer (`falar`, `cronometro`, `ecra`, `tarefa`...). O assistente usa-as, e um dia o Claude também.
 2. **Rotinas**: guardadas na base de dados, com o gatilho (hora, alarme parado, frase dita) e a condição.
 3. **Dispositivos**: quando houver uma tomada, luzes ou uma coluna, entram como ações novas, e todas as rotinas as podem usar.
+
+## Dispositivos
+
+Para já, uma tomada inteligente **Shelly** (para a fita LED, por exemplo). Na roda dentada > **Dispositivos**, escreve o IP da tomada e experimenta Ligar/Desligar. Depois:
+- "Rosserini, liga a luz" / "apaga o led"
+- nas rotinas, a ação **Tomada (luz)**
+
+A central fala com a tomada diretamente no Wi-Fi de casa, sem internet. Para juntar outro aparelho: `dispositivos.py` + uma ação nova em `rotinas.py`.
 
 ## Despertador
 

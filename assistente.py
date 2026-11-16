@@ -185,6 +185,10 @@ def entender(texto, hoje=None):
     if not s:
         return "ajuda", {}
 
+    m = re.search(r"\b(liga|acende|ligar|acender|desliga|apaga|desligar|apagar)\b.*\b(luz|luzes|led|leds|fita|tomada|candeeiro)\b", s)
+    if m:
+        return "tomada", {"estado": "ligar" if m[1] in ("liga", "acende", "ligar", "acender") else "desligar"}
+
     if re.search(r"\b(alarme|alarmes|despertador|acorda-me|acordar-me|acorda me|me acordes|acordes|acordar)\b", s):
         datas = achar_datas(t, hoje)
         if re.search(r"\b(desliga|desligar|tira|tirar|cancela|cancelar|sem alarme|nao quero|nao ponhas|nao me acordes|nao acordes|nao preciso)\b", s):
@@ -523,6 +527,15 @@ def responder(texto, con, hoje=None, nome=""):
         falado = f"Bora fazer a mala para {n} dia{'s' if n > 1 else ''}. {tempo_f} Deixei-te a lista no ecrã." + \
                  (" Ah, e tens roupa que ainda está para lavar." if any("lavar" in a for a in avisos) else "")
         return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos, "falado": falado}
+
+    if intencao == "tomada":
+        import dispositivos
+        ip = con.execute("SELECT valor FROM config WHERE chave = 'tomada_ip'").fetchone()
+        ok, msg = dispositivos.tomada(ip[0] if ip else "", d["estado"])
+        if not ok:
+            return {"resposta": msg, "falado": "Não consegui falar com a tomada. " + ("Ainda não a configuraste." if not ip else "Vê se está ligada.")}
+        return {"resposta": "Luz " + ("ligada." if d["estado"] == "ligar" else "desligada."),
+                "falado": ya(["Feito.", "Siga.", "Na boa."]) if d["estado"] == "ligar" else ya(["Apagada.", "Feito, luz apagada."])}
 
     if intencao in ("alarme", "alarme_sem", "alarme_ver"):
         import alarmes

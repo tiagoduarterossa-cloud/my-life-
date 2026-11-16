@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta
 
 import alarmes
 import assistente
+import dispositivos
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS rotinas (
@@ -45,7 +46,89 @@ ACOES = {
     "cor":            {"onde": "ecra",     "descricao": "Muda a cor do ecrã principal"},
     "tarefa":         {"onde": "servidor", "descricao": "Cria uma tarefa"},
     "som":            {"onde": "servidor", "descricao": "Toca o som do alarme uma vez"},
+    "tomada":         {"onde": "servidor", "descricao": "Liga ou desliga a tomada inteligente (luz LED)"},
 }
+
+SEPARADORES = ["inicio", "tarefas", "estudo", "horario", "tempo", "quarto", "roupa"]
+CORES = ["roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"]
+CONDICOES = ["", "teste_amanha", "dia_de_aulas", "fim_de_semana"]
+
+
+class Invalida(ValueError):
+    pass
+
+
+def validar(d):
+    """confirma que uma rotina vinda do ecra faz sentido, e devolve-a limpa"""
+    nome = str(d.get("nome") or "").strip()[:40]
+    if not nome:
+        raise Invalida("a rotina precisa de um nome")
+    q = d.get("quando") or {}
+    tipo = q.get("tipo")
+    if tipo == "hora":
+        h = str(q.get("hora") or "")
+        if len(h) != 5 or h[2] != ":" or not (h[:2] + h[3:]).isdigit() or int(h[:2]) > 23 or int(h[3:]) > 59:
+            raise Invalida("hora inválida")
+        dias = "".join(sorted(set(c for c in str(q.get("dias", "")) if c in "0123456")))
+        if not dias:
+            raise Invalida("escolhe pelo menos um dia")
+        quando = {"tipo": "hora", "hora": h, "dias": dias}
+    elif tipo == "voz":
+        frases = [f.strip()[:40] for f in q.get("frases", []) if str(f).strip()][:6]
+        if not frases:
+            raise Invalida("escreve pelo menos uma frase para a ativar")
+        quando = {"tipo": "voz", "frases": frases}
+    elif tipo in ("alarme_parado", "manual"):
+        quando = {"tipo": tipo}
+    else:
+        raise Invalida("escolhe quando a rotina acontece")
+    se = d.get("se") or ""
+    if se not in CONDICOES:
+        raise Invalida("condição inválida")
+    acoes = []
+    for a in (d.get("acoes") or [])[:12]:
+        n = a.get("acao")
+        if n not in ACOES:
+            raise Invalida(f"ação desconhecida: {n}")
+        if n in ("falar", "aviso"):
+            t = str(a.get("texto") or "").strip()[:300]
+            if not t: raise Invalida("uma das ações 'falar' ou 'aviso' está sem texto")
+            acoes.append({"acao": n, "texto": t})
+        elif n in ("cronometro", "nao_incomodar"):
+            m = int(a.get("minutos") or 0)
+            if not 1 <= m <= 180: raise Invalida("os minutos têm de estar entre 1 e 180")
+            x = {"acao": n, "minutos": m}
+            if n == "cronometro": x["disciplina"] = str(a.get("disciplina") or "auto").strip()[:40] or "auto"
+            acoes.append(x)
+        elif n == "ecra":
+            acoes.append({"acao": n, "modo": "noite" if a.get("modo") == "noite" else "normal"})
+        elif n == "abrir":
+            if a.get("separador") not in SEPARADORES: raise Invalida("separador inválido")
+            acoes.append({"acao": n, "separador": a["separador"]})
+        elif n == "cor":
+            if a.get("cor") not in CORES: raise Invalida("cor inválida")
+            acoes.append({"acao": n, "cor": a["cor"]})
+        elif n == "tarefa":
+            t = str(a.get("titulo") or "").strip()[:200]
+            if not t: raise Invalida("a tarefa precisa de um título")
+            acoes.append({"acao": n, "titulo": t})
+        elif n == "tomada":
+            e = a.get("estado") if a.get("estado") in ("ligar", "desligar", "alternar") else "ligar"
+            acoes.append({"acao": n, "estado": e})
+        else:
+            acoes.append({"acao": n})
+    if not acoes:
+        raise Invalida("a rotina precisa de pelo menos uma ação")
+    return {"nome": nome, "quando": quando, "se": se, "acoes": acoes}
+
+
+def guardar(con, d, rid=None):
+    r = validar(d)
+    valores = (r["nome"], json.dumps(r["quando"], ensure_ascii=False), r["se"], json.dumps(r["acoes"], ensure_ascii=False))
+    if rid:
+        con.execute("UPDATE rotinas SET nome = ?, quando = ?, se = ?, acoes = ? WHERE id = ?", valores + (rid,))
+    else:
+        con.execute("INSERT INTO rotinas (nome, quando, se, acoes) VALUES (?,?,?,?)", valores)
 
 PADRAO = [
     {"nome": "Bom dia", "quando": {"tipo": "alarme_parado"}, "se": "",
@@ -184,6 +267,11 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
             con.execute("INSERT INTO tarefas (titulo, area, prioridade) VALUES (?, 'outro', 2)", (a.get("titulo", "Tarefa")[:200],))
         elif a["acao"] == "som":
             alarmes.tocar_ficheiro(alarmes.SOM)
+        elif a["acao"] == "tomada":
+            ip = con.execute("SELECT valor FROM config WHERE chave = 'tomada_ip'").fetchone()
+            ok, msg = dispositivos.tomada(ip[0] if ip else "", a.get("estado", "ligar"))
+            if not ok:
+                cmds.append({"acao": "aviso", "texto": msg})
         elif a["acao"] in ACOES:
             cmds.append(a)
     if not para_ecra:
