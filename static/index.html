@@ -138,6 +138,35 @@
   .grelha-aulas tr.pausa td { height: 14px; padding: 0; background: var(--campo); border-left: 0; }
   .grelha-aulas col.c-horas { width: 62px; }
 
+  /* assistente */
+  #bot-assist { position: fixed; right: 18px; bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 20; width: 56px; height: 56px;
+                border-radius: 50%; border: 0; background: var(--acento); color: #fff; cursor: pointer; display: grid; place-content: center;
+                box-shadow: 0 6px 24px color-mix(in srgb, var(--acento) 55%, transparent); }
+  #bot-assist svg { width: 28px; height: 28px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  #assist { position: fixed; z-index: 55; right: 12px; left: 12px; bottom: calc(84px + env(safe-area-inset-bottom)); max-width: 520px; margin-left: auto;
+            height: min(640px, calc(100vh - 120px)); background: var(--vidro); backdrop-filter: blur(28px) saturate(170%);
+            -webkit-backdrop-filter: blur(28px) saturate(170%); border-radius: 22px; border: 0.5px solid var(--linha);
+            box-shadow: 0 20px 60px rgba(0,0,0,.35); display: none; flex-direction: column; overflow: hidden; }
+  #assist.aberto { display: flex; animation: entrar .2s ease; }
+  #assist .cab { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; font-weight: 700; font-size: 17px; }
+  #assist .cab button { border: 0; background: var(--campo); color: var(--txt); width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  #assist-msgs { flex: 1; overflow-y: auto; padding: 4px 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 86%; padding: 10px 13px; border-radius: 18px; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
+  .msg.eu { align-self: flex-end; background: var(--acento); color: #fff; border-bottom-right-radius: 6px; }
+  .msg.ela { align-self: flex-start; background: var(--card); border-bottom-left-radius: 6px; }
+  .msg ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; } .msg li { display: list-item; border: 0; padding: 2px 0; font-size: 15px; }
+  .msg.a-pensar { color: var(--suave); }
+  .sugestoes { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
+  .sugestoes button { font-size: 13px; padding: 7px 11px; border-radius: 999px; border: 0.5px solid var(--linha); background: var(--card);
+                      color: var(--txt); cursor: pointer; font-family: inherit; }
+  #f-assist { display: flex; gap: 8px; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border-top: 0.5px solid var(--linha); }
+  #f-assist input { flex: 1; border-radius: 999px; padding: 12px 16px; }
+  #f-assist button { width: 46px; height: 46px; border-radius: 50%; border: 0; background: var(--acento); color: #fff; cursor: pointer; flex: none;
+                     display: grid; place-content: center; }
+  #f-assist button.mic { background: var(--campo); color: var(--txt); }
+  #f-assist button.mic.a-ouvir { background: var(--perigo); color: #fff; }
+  #f-assist svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -328,6 +357,7 @@
         </form>
       </div>
       <div class="card"><h2>Feitas</h2><ul id="lista-feitas"></ul></div>
+      <div class="card"><h2>Notas</h2><ul id="lista-notas"></ul></div>
     </div>
     <div class="card"><h2>Por fazer</h2><ul id="lista-tarefas"></ul></div>
   </section>
@@ -411,6 +441,7 @@
         <span><i style="background:var(--txt)"></i>estudar</span>
         <span><i style="background:var(--perigo)"></i>falta</span>
         <span><i style="background:var(--ok)"></i>estudei</span>
+        <span><i style="background:var(--acento)"></i>evento</span>
       </div>
       <ul id="cal-detalhe" style="margin-top:12px"></ul>
     </div>
@@ -495,6 +526,20 @@
   <button data-tab="quarto"><svg viewBox="0 0 24 24"><path d="M12 2.5 21 7v10l-9 4.5L3 17V7z"/><path d="M3 7l9 4.5L21 7M12 11.5V21.5"/></svg><span>Quarto</span></button>
   <button data-tab="roupa"><svg viewBox="0 0 24 24"><path d="M8 3l4 2 4-2 5 3.5-2.5 4-2.5-1.5V21H8V9l-2.5 1.5L3 6.5z"/></svg><span>Roupa</span></button>
 </nav>
+
+<button id="bot-assist" title="Assistente" aria-label="Abrir o assistente">
+  <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>
+</button>
+<div id="assist" role="dialog" aria-label="Assistente">
+  <div class="cab"><span>Assistente</span><button id="fechar-assist" aria-label="Fechar">×</button></div>
+  <div id="assist-msgs"></div>
+  <div class="sugestoes" id="assist-sug"></div>
+  <form id="f-assist">
+    <input name="texto" placeholder="Pergunta ou pede uma coisa…" autocomplete="off" maxlength="500">
+    <button type="button" class="mic" id="assist-mic" hidden aria-label="Falar"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+    <button aria-label="Enviar"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+  </form>
+</div>
 
 <div id="repouso"><div>
   <div class="rel" id="rep-rel"></div>
@@ -657,6 +702,8 @@ function desenharInicio() {
   let html = "<h2>Agora</h2>";
   if (atual) html += `<div class="grande">${esc(atual.titulo)}</div><div class="vazio">até às ${atual.fim}</div>`;
   else html += `<div class="grande">Tempo livre</div>`;
+  const evHoje = (dados.eventos || []).filter(e => e.data === hojeISO());
+  if (evHoje.length) html += `<div class="vazio" style="margin-top:8px">Hoje: ${evHoje.map(e => `<b style="color:#fff">${esc(e.titulo)}</b>${e.hora ? " às " + e.hora : ""}`).join(" · ")}</div>`;
   if (proximo) html += `<div class="vazio" style="margin-top:8px">A seguir: <b style="color:#fff">${esc(proximo.titulo)}</b> às ${proximo.inicio}</div>`;
   else if (!blocos.length) html += `<div class="vazio" style="margin-top:8px">Nada no horário de hoje.</div>`;
   $("#i-agora").innerHTML = html;
@@ -905,7 +952,8 @@ const curto = n => MESES_CURTOS[n] || n;
 function marcasDoCalendario() {
   // dia -> { testes: [], estudei: [], estudar: bool }
   const m = {};
-  const pega = d => (m[d] ||= { testes: [], sessoes: [], estudar: false });
+  const pega = d => (m[d] ||= { testes: [], sessoes: [], estudar: false, eventos: [] });
+  (dados.eventos || []).forEach(e => pega(e.data).eventos.push(e));
   (dados.testes || []).forEach(t => {
     pega(t.data).testes.push(t);
     for (let i = 1; i <= 3; i++) { // os 3 dias antes de cada teste sao para estudar
@@ -926,8 +974,9 @@ function desenharCalendario() {
   for (let i = 0; i < inicio; i++) html += `<button class="fora" tabindex="-1"></button>`;
   for (let dia = 1; dia <= nDias; dia++) {
     const iso = isoDe(new Date(mesCal.getFullYear(), mesCal.getMonth(), dia));
-    const mk = marcas[iso] || { testes: [], sessoes: [], estudar: false };
+    const mk = marcas[iso] || { testes: [], sessoes: [], estudar: false, eventos: [] };
     const pontos = [];
+    if (mk.eventos.length) pontos.push("var(--acento)");
     if (mk.sessoes.length) pontos.push("var(--ok)");
     else if (mk.estudar && iso < hoje) pontos.push("var(--perigo)");
     else if (mk.estudar) pontos.push(mk.testes.length ? "#1a1a1a" : "var(--txt)");
@@ -936,9 +985,12 @@ function desenharCalendario() {
   }
   $("#calendario").innerHTML = html;
 
-  const d = diaEscolhido && (marcas[diaEscolhido] || { testes: [], sessoes: [], estudar: false });
+  const d = diaEscolhido && (marcas[diaEscolhido] || { testes: [], sessoes: [], estudar: false, eventos: [] });
   if (!d) { $("#cal-detalhe").innerHTML = vazio("Toca num dia para veres o que tem."); return; }
   const linhas = [
+    ...d.eventos.map(e => `<li><span class="bolinha" style="background:var(--acento)"></span><div class="meio">
+      <div class="titulo">${esc(e.titulo)}</div><div class="info">${e.hora || "Durante o dia"}</div></div>
+      <button class="x" data-apagar="eventos/${e.id}" title="Apagar">×</button></li>`),
     ...d.testes.map(t => `<li><span class="bolinha" style="background:var(--teste)"></span><div class="meio">
       <div class="titulo">Teste de ${esc(t.disciplina)}</div><div class="info">${t.materia ? esc(t.materia) + " · " : ""}estudaste ${horas(t.minutos_estudados)}</div></div></li>`),
     ...d.sessoes.map(e => `<li><span class="bolinha" style="background:var(--ok)"></span><div class="meio">
@@ -989,6 +1041,60 @@ function desenharGrelhaAulas() {
   $("#grelha-aulas").innerHTML = html + "</table>";
 }
 
+// ---------- ASSISTENTE ----------
+const SUGESTOES = ["O que tenho amanhã?", "Faz-me a mala para Madrid de sexta a domingo", "Marca treino quinta às 18h",
+  "Toma nota: ", "Tenho de acabar o trabalho de CN até quinta", "Quando é o próximo teste?"];
+function msgAssist(quem, texto, itens) {
+  const el = document.createElement("div");
+  el.className = "msg " + quem;
+  el.innerHTML = esc(texto) + (itens?.length ? `<ul>${itens.map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : "");
+  $("#assist-msgs").appendChild(el); $("#assist-msgs").scrollTop = 1e9;
+  return el;
+}
+function sugestoesAssist(lista) {
+  $("#assist-sug").innerHTML = (lista || []).map(t => `<button type="button" data-sug="${esc(t)}">${esc(t)}</button>`).join("");
+}
+async function perguntar(texto) {
+  if (!texto.trim()) return;
+  msgAssist("eu", texto); sugestoesAssist([]);
+  const espera = msgAssist("ela a-pensar", "…");
+  try {
+    const r = await api("/api/assistente", "POST", { texto });
+    espera.remove(); msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
+    if (r.mudou) atualizar();
+  } catch (err) { espera.remove(); msgAssist("ela", "Não consegui falar com o servidor: " + err.message); }
+}
+function abrirAssist() {
+  $("#assist").classList.add("aberto");
+  if (!$("#assist-msgs").children.length) {
+    (ler("assist") || []).forEach(([p, r, i]) => { msgAssist("eu", p); msgAssist("ela", r, i); });
+    if (!$("#assist-msgs").children.length) msgAssist("ela", "Olá! Posso ver o teu dia, marcar coisas, tomar notas, criar tarefas e fazer-te a mala com a tua roupa.");
+    sugestoesAssist(SUGESTOES);
+  }
+  setTimeout(() => $("#f-assist").texto.focus(), 150);
+}
+$("#bot-assist").onclick = () => $("#assist").classList.contains("aberto") ? $("#assist").classList.remove("aberto") : abrirAssist();
+$("#fechar-assist").onclick = () => $("#assist").classList.remove("aberto");
+$("#f-assist").onsubmit = e => { e.preventDefault(); const t = e.target.texto.value; e.target.texto.value = ""; perguntar(t); };
+$("#assist-sug").onclick = e => {
+  const t = e.target.dataset.sug; if (!t) return;
+  if (t.endsWith(": ")) { $("#f-assist").texto.value = t; $("#f-assist").texto.focus(); } else perguntar(t);
+};
+// falar em vez de escrever (so funciona no proprio tablet, em http://127.0.0.1)
+const Reconhecer = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Reconhecer && window.isSecureContext) {
+  $("#assist-mic").hidden = false;
+  $("#assist-mic").onclick = () => {
+    const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false;
+    $("#assist-mic").classList.add("a-ouvir");
+    r.onresult = ev => perguntar(ev.results[0][0].transcript);
+    r.onend = () => $("#assist-mic").classList.remove("a-ouvir");
+    r.onerror = () => aviso("Não te consegui ouvir.");
+    r.start();
+  };
+}
+
 // ---------- QUARTO 3D ----------
 let quarto3d = null, aCarregarQuarto = false;
 async function abrirQuarto() {
@@ -1013,10 +1119,14 @@ $("#q-led").onclick = e => {
 
 // ---------- desenhar tudo ----------
 async function atualizar() {
-  const [tarefas, horario, reg7, reg1, diario, roupa, testes, diario90] = await Promise.all([
+  const [tarefas, horario, reg7, reg1, diario, roupa, testes, diario90, eventos, notas] = await Promise.all([
     api("/api/tarefas"), api("/api/horario"), api("/api/registo?dias=7"), api("/api/registo?dias=1"),
-    api("/api/diario?dias=30"), api("/api/roupa"), api("/api/testes"), api("/api/diario?dias=120")]);
-  dados = { tarefas, horario, reg7, reg1, diario, roupa, testes, diario90 };
+    api("/api/diario?dias=30"), api("/api/roupa"), api("/api/testes"), api("/api/diario?dias=120"),
+    api("/api/eventos"), api("/api/notas")]);
+  dados = { tarefas, horario, reg7, reg1, diario, roupa, testes, diario90, eventos, notas };
+  $("#lista-notas").innerHTML = notas.map(n => `<li><div class="meio"><div class="titulo">${esc(n.texto)}</div>
+    <div class="info">${fmtData(n.criada.slice(0, 10))}</div></div><button class="x" data-apagar="notas/${n.id}" title="Apagar">×</button></li>`).join("")
+    || vazio("Sem notas. Diz ao assistente: toma nota: ...");
   desenharCalendario();
   desenharGrelhaAulas();
   const hoje = hojeISO();

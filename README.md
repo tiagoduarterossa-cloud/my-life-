@@ -10,6 +10,7 @@ Tem seis separadores, com um visual ao estilo iOS (claro ou escuro, conforme o t
 - **Estudo**: cronómetro de estudo (15, 25, 45 ou 60 min) que, ao terminar, preenche sozinho o diário com a disciplina e os minutos. Lista de testes com contagem dos dias e quanto já estudaste para cada um (conta as sessões do diário dessa disciplina). E o diário de estudo. Cada sessão guarda a disciplina, o que estudaste, como correu e as dúvidas que ficaram. O tempo entra sozinho no separador Tempo, na área Escola.
 - **Tempo**: registas quanto tempo deste a cada área e vês o total dos últimos 7 dias.
 - **Quarto**: o quarto em 3D, a partir de um scan LiDAR do iPhone. Roda com um dedo, aproxima com dois. Vista 3D, planta vista de cima, teto, e a luz LED na cor do tema. O visualizador é WebGL puro, sem bibliotecas, por isso funciona sem internet.
+- **Assistente** (botão redondo em baixo à direita, em qualquer separador): percebe frases em português. "O que tenho amanhã?", "faz-me a mala para Madrid de sexta a domingo" (vê a previsão do tempo e escolhe a tua roupa arrumada), "marca dentista quarta às 15h", "toma nota: ...", "tenho de acabar o trabalho de CN até quinta", "quando é o próximo teste?". No tablet, em `http://127.0.0.1:8080`, também dá para falar com o microfone.
 - **Roupa**: cola o link da loja e a foto aparece sozinha (se a loja deixar). Todas as peças, onde estão guardadas e se estão arrumadas, para lavar ou emprestadas. Toca na etiqueta para mudar o estado.
 
 Só usa Python, sem bibliotecas extra. Os dados ficam no ficheiro `vida.db`, dentro do tablet. Nada vai para a internet.
@@ -107,6 +108,19 @@ Depois fecha o servidor (Ctrl+C) e corre `./iniciar.sh` outra vez.
 ## Cópia de segurança
 
 Tudo o que escreves está em `~/central/vida.db`. Se o tablet morrer, isto perde-se. De vez em quando copia esse ficheiro para outro sítio.
+
+## Como funciona o assistente
+
+Está em `assistente.py` e tem duas partes:
+
+- `entender(texto)` descobre **o que queres** (mala, evento, nota, tarefa, o teu dia, testes) e tira os dados da frase: datas ("sexta", "dia 20", "de 20 a 23"), horas ("às 20h"), o destino e o título.
+- `responder(...)` **faz a coisa** com os teus dados e responde.
+
+Para o testares sem a central: `python -c "import assistente; print(assistente.entender('marca treino sexta às 18h'))"`
+
+Para o melhorares mais tarde, só tens de trocar o `entender()`:
+1. **Um modelo teu:** juntas umas 100 frases com a intenção certa e treinas um classificador (procura `scikit-learn`).
+2. **A API do Claude:** com uma chave (de um adulto, com limite de gastos), o Claude percebe qualquer frase e chama as mesmas funções. A chave fica num ficheiro fora do GitHub.
 
 ## Desafios para ti (programação e encriptação)
 

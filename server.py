@@ -15,6 +15,8 @@ import re
 import socket
 import sqlite3
 import urllib.request
+
+import assistente
 from datetime import date, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -74,6 +76,17 @@ def init_db():
                 cor TEXT,
                 local TEXT,                            -- onde esta guardada
                 estado TEXT NOT NULL DEFAULT 'arrumada'
+            );
+            CREATE TABLE IF NOT EXISTS notas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                texto TEXT NOT NULL,
+                criada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            );
+            CREATE TABLE IF NOT EXISTS eventos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                data TEXT NOT NULL,                    -- AAAA-MM-DD
+                hora TEXT                              -- HH:MM ou NULL
             );
             CREATE TABLE IF NOT EXISTS testes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -368,7 +381,7 @@ def estado_roupa(rid, d):
 
 
 def apagar(tabela, rid):
-    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes")
+    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos")
     with db() as con:
         if tabela == "diario":
             row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
@@ -446,6 +459,28 @@ class Handler(BaseHTTPRequestHandler):
                 if metodo == "POST":
                     criar_roupa(self.corpo_json())
                     return self.enviar(201, {"ok": True})
+            if caminho == "/api/assistente" and metodo == "POST":
+                texto = (self.corpo_json().get("texto") or "").strip()[:500]
+                with db() as con:
+                    return self.enviar(200, assistente.responder(texto, con))
+            if caminho == "/api/notas" and metodo == "GET":
+                with db() as con:
+                    return self.enviar(200, [dict(r) for r in con.execute("SELECT * FROM notas ORDER BY id DESC")])
+            if caminho == "/api/eventos":
+                if metodo == "GET":
+                    desde = (date.today() - timedelta(days=90)).isoformat()
+                    with db() as con:
+                        rows = con.execute("SELECT * FROM eventos WHERE data >= ? ORDER BY data, hora", (desde,)).fetchall()
+                    return self.enviar(200, [dict(r) for r in rows])
+                if metodo == "POST":
+                    d = self.corpo_json()
+                    dia = data_ok(d.get("data"), "data")
+                    if not dia:
+                        raise Erro("falta a data")
+                    with db() as con:
+                        con.execute("INSERT INTO eventos (titulo, data, hora) VALUES (?,?,?)",
+                                    (texto(d, "titulo"), dia, hora_ok(d["hora"], "hora") if d.get("hora") else None))
+                    return self.enviar(201, {"ok": True})
             if caminho == "/api/testes":
                 if metodo == "GET":
                     return self.enviar(200, listar_testes())
@@ -467,7 +502,7 @@ class Handler(BaseHTTPRequestHandler):
             if m and metodo == "POST":
                 alternar_tarefa(int(m[1]))
                 return self.enviar(200, {"ok": True})
-            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes)/(\d+)", caminho)
+            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes|notas|eventos)/(\d+)", caminho)
             if m and metodo == "DELETE":
                 apagar(m[1], int(m[2]))
                 return self.enviar(200, {"ok": True})
