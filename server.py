@@ -570,6 +570,26 @@ class Handler(BaseHTTPRequestHandler):
             # ----- voz neural -----
             if caminho == "/api/voz/info" and metodo == "GET":
                 return self.enviar(200, {"disponivel": voz.disponivel(), "vozes": voz.VOZES})
+            if caminho == "/api/voz/ouvir" and metodo == "GET":
+                # transmite o som enquanto e gerado: o browser comeca a tocar logo o primeiro pedaco
+                from urllib.parse import unquote_plus
+                q = {k: unquote_plus(v) for k, v in query.items()}
+                pedacos = voz.transmitir(q.get("t", "")[:600], q.get("v") or "pt-PT-DuarteNeural",
+                                         float(q.get("r") or 1.08), float(q.get("p") or 1.05))
+                primeiro = next(pedacos, None) if pedacos else None
+                if not primeiro:
+                    return self.enviar(503, {"erro": "voz neural indisponivel"})
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                try:
+                    self.wfile.write(primeiro); self.wfile.flush()
+                    for p in pedacos:
+                        self.wfile.write(p); self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # o browser desistiu (ex.: falou a voz do tablet)
+                return
             if caminho == "/api/voz" and metodo == "POST":
                 d = self.corpo_json()
                 ficheiro = voz.gerar((d.get("texto") or "")[:600], d.get("voz") or "pt-PT-DuarteNeural",

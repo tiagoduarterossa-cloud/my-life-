@@ -1260,24 +1260,42 @@ const vozCfg = Object.assign({ motor: "neural", vozNeural: "pt-PT-DuarteNeural",
   palavra: "Rosserini", ouvir: false, alternativas: [] }, ler("voz") || {});
 let aFalar = false, infoVoz = null;
 async function falarNeural(texto) {
-  // pede o som ao servidor (voz da Microsoft). Se falhar, devolve false e usa-se a voz do tablet
-  try {
-    const r = await fetch("/api/voz", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ texto, voz: vozCfg.vozNeural, velocidade: vozCfg.rate, tom: vozCfg.pitch }) });
-    if (!r.ok) return false;
-    const url = URL.createObjectURL(await r.blob());
-    aFalar = true; pararEscuta();
-    await new Promise(ok => { const a = new Audio(url); a.onended = a.onerror = ok; a.play().catch(ok); });
+  // parte a resposta em frases, pede-as todas ao mesmo tempo e toca a primeira logo que chega,
+  // enquanto as outras ainda estao a ser geradas. Se a primeira nao chegar em 5 s, fala o tablet.
+  const frases = (texto.match(/[^.!?]+[.!?]*/g) || [texto]).map(f => f.trim()).filter(Boolean);
+  const pedir = f => fetch("/api/voz/ouvir?" + new URLSearchParams({ t: f, v: vozCfg.vozNeural, r: vozCfg.rate, p: vozCfg.pitch }))
+    .then(r => r.ok ? r.blob() : null).catch(() => null);
+  const pedidos = frases.map(pedir);
+  aFalar = true; pararEscuta();
+  let i = 0;
+  for (; i < frases.length; i++) {
+    const limite = new Promise(ok => setTimeout(() => ok("demorou"), i === 0 ? 5000 : 12000));
+    const som = await Promise.race([pedidos[i], limite]);
+    if (!som || som === "demorou" || !som.size) break;
+    const url = URL.createObjectURL(som);
+    const tocou = await new Promise(ok => { const a = new Audio(url); a.onended = () => ok(true); a.onerror = () => ok(false); a.play().catch(() => ok(false)); });
     URL.revokeObjectURL(url);
-    aFalar = false; setTimeout(retomarEscuta, 250);
-    return true;
-  } catch (e) { aFalar = false; return false; }
+    if (!tocou) break;
+  }
+  aFalar = false;
+  if (i === 0) return false;                       // nada tocou: o falar() usa a voz do tablet
+  if (i < frases.length) await falarTablet(frases.slice(i).join(" "));  // o resto pela voz do tablet
+  setTimeout(retomarEscuta, 250);
+  return true;
 }
-function vozes() { return (window.speechSynthesis?.getVoices() || []).filter(v => v.lang.toLowerCase().startsWith("pt")); }
+// deixa as respostas curtas ja prontas, para serem instantaneas
+function aquecerVoz() {
+  if (vozCfg.motor !== "neural") return;
+  ["Diz.", "Ya?", "Diz lá.", "Feito.", "Siga.", "Na boa.", "Bora lá.", "Ora bem.", "Ya, então.", "Tá marcado."].forEach(t =>
+    fetch("/api/voz/ouvir?" + new URLSearchParams({ t, v: vozCfg.vozNeural, r: vozCfg.rate, p: vozCfg.pitch })).then(r => r.arrayBuffer()).catch(() => {}));
+}
 async function falar(texto) {
   if (!texto) return;
   if (vozCfg.motor === "neural" && await falarNeural(texto)) return;
-  if (!window.speechSynthesis) return;
+  return falarTablet(texto);
+}
+function falarTablet(texto) {
+  if (!window.speechSynthesis) return Promise.resolve();
   return new Promise(ok => {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(texto);
@@ -1913,6 +1931,7 @@ tick(); setInterval(tick, 1000);
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
   if (vozCfg.ouvir) iniciarEscuta(false);
+  setTimeout(aquecerVoz, 3000);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);
   atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
   setInterval(() => atualizar().catch(() => {}), 60000);
