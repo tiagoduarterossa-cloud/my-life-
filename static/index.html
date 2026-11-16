@@ -1349,7 +1349,7 @@ function acharUma(frase, alvo) {
         return { depois: orig.slice(i + n).join(" ").replace(/^[,.!?\s]+/, "") };
   return null;
 }
-let escuta = null, aEscutar = false, aEsperarComando = 0;
+let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false;
 function estadoEscuta(txt, ativo) {
   $("#escuta").classList.toggle("ver", !!txt); $("#escuta").classList.toggle("ativo", !!ativo); $("#escuta-txt").textContent = txt || "";
 }
@@ -1374,7 +1374,7 @@ function pararEscuta(desligar) {
   try { escuta?.abort(); } catch (e) {} escuta = null;
 }
 function retomarEscuta() {
-  if (!aEscutar || aFalar || escuta || document.visibilityState !== "visible") return;
+  if (!aEscutar || aFalar || aEnsinar || micOcupado || escuta || document.visibilityState !== "visible") return;
   if (Date.now() < pausaEscutaAte) { // modo estudo: nao incomodar
     estadoEscuta(`Em pausa até às ${new Date(pausaEscutaAte).toTimeString().slice(0, 5)}`); return; }
   if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
@@ -1410,40 +1410,50 @@ function mostrarAlternativas() {
   const a = vozCfg.alternativas || [];
   $("#cfg-alternativas").textContent = a.length ? `Também aceito: ${a.join(", ")}` : "";
 }
+let aEnsinar = false;
 function ouvirUmaVez() {
+  // uma tentativa: no maximo 7 segundos, para nunca ficar preso
   return new Promise(ok => {
+    let acabou = false, ouviu = [];
+    const fim = () => { if (!acabou) { acabou = true; clearTimeout(limite); ok(ouviu); } };
     const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false; r.maxAlternatives = 5;
-    let ouviu = [];
-    r.onresult = ev => { ouviu = [...ev.results[0]].map(x => x.transcript.trim()); };
-    r.onend = () => ok(ouviu); r.onerror = () => {};
-    r.start();
+    r.onresult = ev => { ouviu = [...ev.results[0]].map(x => x.transcript.trim()); fim(); try { r.stop(); } catch (e) {} };
+    r.onend = fim; r.onerror = fim;
+    const limite = setTimeout(() => { try { r.abort(); } catch (e) {} fim(); }, 7000);
+    try { r.start(); } catch (e) { fim(); }
   });
 }
+const esperar = ms => new Promise(ok => setTimeout(ok, ms));
 $("#cfg-ensinar").onclick = async () => {
   if (!podeOuvir) return aviso("Para ouvir, abre a central no próprio tablet em http://127.0.0.1:8080");
-  pararEscuta();
+  if (aEnsinar) return;
+  aEnsinar = true; pararEscuta();
+  const botao = $("#cfg-ensinar"); botao.disabled = true;
+  await esperar(700); // da tempo ao microfone de ficar livre
   const novas = new Set(vozCfg.alternativas || []);
   for (let i = 1; i <= 3; i++) {
-    aviso(`Diz "${vozCfg.palavra}" (${i} de 3)`, false);
-    await new Promise(ok => setTimeout(ok, 600));
+    botao.textContent = `A ouvir… diz "${vozCfg.palavra}" (${i} de 3)`;
     const ouvidas = await ouvirUmaVez();
+    await esperar(400);
     // guardamos so as primeiras 1 a 3 palavras de cada versao (o nome, sem o resto)
     ouvidas.forEach(t => { const p = t.split(/\s+/).slice(0, 3).join(" "); if (p && juntar(p).length >= 3) novas.add(p.toLowerCase()); });
   }
   vozCfg.alternativas = [...novas].slice(-12); guardar("voz", vozCfg); mostrarAlternativas();
+  botao.textContent = "Ensinar a palavra"; botao.disabled = false; aEnsinar = false;
   aviso(novas.size ? "Aprendido! Experimenta dizer o nome." : "Não te ouvi. Tenta outra vez, mais perto do tablet.", !novas.size);
-  setTimeout(retomarEscuta, 500);
+  setTimeout(retomarEscuta, 800);
 };
 
 // botao do microfone no assistente: falar uma vez, sem palavra de ativacao
 if (podeOuvir) {
   $("#assist-mic").hidden = false;
   $("#assist-mic").onclick = () => {
-    pararEscuta();
+    if (micOcupado) return;
+    micOcupado = true; pararEscuta();
     const r = new Reconhecer(); r.lang = "pt-PT"; r.interimResults = false;
     $("#assist-mic").classList.add("a-ouvir");
     r.onresult = ev => comandoVoz(ev.results[0][0].transcript);
-    r.onend = () => { $("#assist-mic").classList.remove("a-ouvir"); setTimeout(retomarEscuta, 400); };
+    r.onend = () => { micOcupado = false; $("#assist-mic").classList.remove("a-ouvir"); setTimeout(retomarEscuta, 600); };
     r.onerror = () => aviso("Não te consegui ouvir.");
     r.start();
   };
