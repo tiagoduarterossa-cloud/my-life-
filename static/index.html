@@ -1364,13 +1364,18 @@ function pararEscuta(desligar) {
 }
 function retomarEscuta() {
   if (!aEscutar || aFalar || escuta || document.visibilityState !== "visible") return;
-  if (Date.now() < pausaEscutaAte) { estadoEscuta(""); return; } // modo estudo: nao incomodar
+  if (Date.now() < pausaEscutaAte) { // modo estudo: nao incomodar
+    estadoEscuta(`Em pausa até às ${new Date(pausaEscutaAte).toTimeString().slice(0, 5)}`); return; }
   if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
+  if (!navigator.onLine) { estadoEscuta("Sem internet: não consigo ouvir"); setTimeout(retomarEscuta, 15000); return; }
   const r = new Reconhecer(); escuta = r;
   r.lang = "pt-PT"; r.continuous = true; r.interimResults = false;
   estadoEscuta(aEsperarComando > Date.now() ? "Diz…" : `Diz "${vozCfg.palavra}"`, aEsperarComando > Date.now());
   r.onresult = ev => {
     const frase = ev.results[ev.results.length - 1][0].transcript.trim();
+    // mostra o que a Google percebeu, para sabermos se ouviu o nome certo
+    estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
+    clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, 3500);
     if (aEsperarComando > Date.now()) { aEsperarComando = 0; pararEscuta(); comandoVoz(frase); return; }
     const achou = acharPalavra(frase);
     if (!achou) return;
@@ -1378,7 +1383,9 @@ function retomarEscuta() {
     if (achou.depois.length > 2) comandoVoz(achou.depois);
     else { aEsperarComando = Date.now() + 8000; falar(["Diz.", "Ya?", "Diz lá."][Math.floor(Math.random() * 3)]); }
   };
-  r.onerror = ev => { if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+  r.onerror = ev => {
+    if (ev.error && !["no-speech", "aborted"].includes(ev.error)) estadoEscuta(`Microfone: ${ev.error}`);
+    if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
     aviso("O tablet não deu acesso ao microfone."); vozCfg.ouvir = false; guardar("voz", vozCfg); $("#cfg-ouvir").checked = false; pararEscuta(true); } };
   r.onend = () => { if (escuta === r) escuta = null; setTimeout(retomarEscuta, 400); };
   try { r.start(); } catch (e) { escuta = null; }
