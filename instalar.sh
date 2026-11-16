@@ -26,7 +26,7 @@ if [ -d "$HOME/storage" ]; then ok "já tinha acesso"; else termux-setup-storage
 echo "5/7 Arranque automático..."
 mkdir -p "$HOME/.termux/boot"
 printf '#!/data/data/com.termux/files/usr/bin/bash\n%s/iniciar.sh\n' "$PASTA" > "$HOME/.termux/boot/central.sh"
-chmod +x "$HOME/.termux/boot/central.sh" iniciar.sh atualizar.sh instalar.sh 2>/dev/null
+chmod +x "$HOME/.termux/boot/central.sh" iniciar.sh atualizar.sh instalar.sh instalar_claude.sh 2>/dev/null
 ok "a central arranca sozinha quando o tablet liga (abre a app Termux:Boot uma vez)"
 
 echo "6/7 Horário das aulas..."

@@ -741,6 +741,18 @@
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
   </div>
+  <label>Inteligência (Claude)</label>
+  <div class="voz-cfg">
+    <div class="vazio" id="ia-estado" style="font-size:14px"></div>
+    <div class="disp-linha" style="grid-template-columns: 1fr auto">
+      <input id="ia-chave" type="password" placeholder="Chave da API (sk-ant-...)" autocomplete="off">
+      <button type="button" class="chip ativo" id="ia-guardar">Guardar</button>
+    </div>
+    <select id="ia-modelo"></select>
+    <div class="deslizar"><span>Máximo por dia</span><input type="number" id="ia-limite" min="1" max="1000" style="padding:8px"></div>
+    <button type="button" class="secundario" id="ia-apagar" style="color:var(--perigo)">Apagar a chave deste tablet</button>
+    <div class="vazio" style="font-size:13px">Só é usado quando o assistente não percebe a pergunta, ou quando começas por "Claude, …". A chave fica só neste tablet e não aparece em lado nenhum. Define um limite de gastos em console.anthropic.com.</div>
+  </div>
   <label>Dispositivos</label>
   <div class="disp-linha">
     <input id="cfg-tomada" placeholder="IP da tomada Shelly (ex: 192.168.1.50)" maxlength="60">
@@ -1289,6 +1301,7 @@ function aquecerVoz() {
   ["Diz.", "Ya?", "Diz lá.", "Feito.", "Siga.", "Na boa.", "Bora lá.", "Ora bem.", "Ya, então.", "Tá marcado."].forEach(t =>
     fetch("/api/voz/ouvir?" + new URLSearchParams({ t, v: vozCfg.vozNeural, r: vozCfg.rate, p: vozCfg.pitch })).then(r => r.arrayBuffer()).catch(() => {}));
 }
+function vozes() { return (window.speechSynthesis?.getVoices() || []).filter(v => v.lang.toLowerCase().startsWith("pt")); }
 async function falar(texto) {
   if (!texto) return;
   if (vozCfg.motor === "neural" && await falarNeural(texto)) return;
@@ -1321,7 +1334,7 @@ function guardarVoz() {
     palavra: $("#cfg-palavra").value.trim() || "Rosserini", ouvir: $("#cfg-ouvir").checked });
   guardar("voz", vozCfg);
   // o servidor tambem precisa de saber, para o alarme falar com a mesma voz
-  api("/api/config", "POST", { voz_motor: vozCfg.motor, voz_neural: vozCfg.vozNeural,
+  api("/api/config", "POST", { palavra_ativacao: vozCfg.palavra, voz_motor: vozCfg.motor, voz_neural: vozCfg.vozNeural,
     voz_rate: String(vozCfg.rate), voz_pitch: String(vozCfg.pitch) }).catch(() => {});
 }
 ["#cfg-voz", "#cfg-voz-neural", "#cfg-rate", "#cfg-pitch"].forEach(id => $(id).onchange = guardarVoz);
@@ -1342,6 +1355,23 @@ async function mostrarMotor() {
 $("#cfg-motor").onclick = e => { const m = e.target.dataset.motor; if (!m) return; vozCfg.motor = m; guardarVoz(); mostrarMotor(); };
 $("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
 $("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); };
+// ----- inteligencia (Claude) -----
+async function mostrarIA() {
+  let e; try { e = await api("/api/ia"); } catch (err) { return; }
+  $("#ia-estado").textContent = !e.sdk ? "Falta instalar no Termux: ./instalar_claude.sh"
+    : !e.chave ? "Ainda sem chave. Cola aqui a chave da API do teu pai."
+    : `Ligado. Perguntas hoje: ${e.usadas_hoje} de ${e.limite}.`;
+  $("#ia-modelo").innerHTML = e.modelos.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
+  $("#ia-modelo").value = e.modelo; $("#ia-limite").value = e.limite; $("#ia-apagar").hidden = !e.chave;
+}
+$("#ia-guardar").onclick = async () => {
+  try { await api("/api/ia/chave", "POST", { chave: $("#ia-chave").value }); $("#ia-chave").value = ""; aviso("Chave guardada.", false); mostrarIA(); }
+  catch (err) { aviso(err.message); }
+};
+$("#ia-apagar").onclick = async () => { if (!confirm("Apagar a chave do Claude deste tablet?")) return; await api("/api/ia/chave", "DELETE"); mostrarIA(); };
+$("#ia-modelo").onchange = e => api("/api/config", "POST", { ia_modelo: e.target.value }).then(() => aviso("Modelo mudado.", false)).catch(err => aviso(err.message));
+$("#ia-limite").onchange = e => api("/api/config", "POST", { ia_limite: e.target.value }).then(mostrarIA).catch(err => aviso(err.message));
+
 $("#cfg-tomada").onchange = async e => {
   try { await api("/api/config", "POST", { tomada_ip: e.target.value.trim() }); config.tomada_ip = e.target.value.trim(); aviso("Tomada guardada.", false); }
   catch (err) { aviso(err.message); }
@@ -1400,7 +1430,7 @@ $("#bolha-voz").onclick = () => $("#bolha-voz").classList.remove("ver");
 async function comandoVoz(texto, { noChat = false } = {}) {
   estadoEscuta("A pensar…", true);
   if (noChat) { abrirAssist(); msgAssist("eu", texto); sugestoesAssist([]); }
-  else bolha(texto, "…", null, 0);
+  else bolha(texto, "A pensar…", null, 0);
   try {
     const r = await api("/api/assistente", "POST", { texto });
     if (noChat) { msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes); }
@@ -1887,7 +1917,7 @@ $("#abrir-config").onclick = () => {
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
-  $("#cfg-tomada").value = config.tomada_ip || "";
+  $("#cfg-tomada").value = config.tomada_ip || ""; mostrarIA();
   $("#config").showModal();
 };
 $("#f-cidade").onsubmit = async e => {

@@ -90,6 +90,21 @@ pip install edge-tts
 
 Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa de internet. Se falhar, a central usa sozinha a voz do tablet. É um serviço gratuito e não oficial, por isso pode deixar de funcionar um dia. O texto que ele diz vai para a Microsoft para virar som.
 
+## Inteligência: o Claude
+
+Quando o assistente não percebe uma pergunta ("porque é que o céu é azul?", "explica-me as equações", "e porquê?"), pergunta ao **Claude**. Também podes começar por "Claude, ..." para ir direto. O Claude pode usar a central (marcar, ver o dia, alarmes, mala, luz) e lembra-se da conversa dos últimos 15 minutos.
+
+O que ele já percebia com regras continua grátis e instantâneo. Só as outras perguntas custam dinheiro.
+
+Para ligar:
+1. Um adulto cria uma conta em console.anthropic.com, mete saldo, **define um limite de gastos** e cria uma chave da API
+2. No Termux: `./instalar_claude.sh` (a primeira vez pode demorar 10 a 30 minutos, porque compila partes no tablet)
+3. Na roda dentada > **Inteligência**: cola a chave, escolhe o modelo e o máximo de perguntas por dia
+
+A chave fica só no tablet, no ficheiro `chave_claude.txt` (fora do GitHub, e só o Termux o pode ler). Nunca é mostrada na página.
+
+Nos TPC, o Claude está instruído para te ajudar a perceber em vez de te dar a resposta pronta.
+
 ## Rotinas
 
 Uma rotina é **quando** acontece uma coisa → **(se)** uma condição → a central faz **estas ações**. Estão no assistente > **Rotinas** (ou na roda dentada). Podes ligá-las, desligá-las, experimentá-las, **editá-las** (frases, minutos, textos, ações) e **criar novas**, por exemplo "Cheguei a casa": quando dizes "cheguei" → liga a luz, diz o que tens amanhã e começa o cronómetro.

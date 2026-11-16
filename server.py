@@ -19,6 +19,7 @@ import urllib.request
 import alarmes
 import assistente
 import dispositivos
+import ia
 import rotinas
 import voz
 from datetime import date, datetime, timedelta
@@ -351,7 +352,8 @@ def criar_teste(d):
 
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
-                 "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip"}
+                 "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
+                 "ia_modelo", "ia_limite", "palavra_ativacao"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -373,6 +375,10 @@ def gravar_config(d):
             hora_ok(v, k)
         if k == "tema" and v not in TEMAS:
             raise Erro("tema desconhecido")
+        if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
+            raise Erro("modelo desconhecido")
+        if k == "ia_limite" and not (v.isdigit() and 1 <= int(v) <= 1000):
+            raise Erro("o limite tem de ser entre 1 e 1000 perguntas por dia")
         if k == "tomada_ip" and not re.fullmatch(r"[\w.\-]{1,60}(:\d{1,5})?", v):
             raise Erro("IP da tomada invalido (ex: 192.168.1.50)")
         if k == "voz_motor" and v not in ("neural", "tablet"):
@@ -477,12 +483,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self.enviar(201, {"ok": True})
             if caminho == "/api/assistente" and metodo == "POST":
                 frase = (self.corpo_json().get("texto") or "").strip()[:500]
+                direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
+                if direto and ia.disponivel():
+                    return self.enviar(200, responder_ia(direto))
                 with db() as con:
                     r = rotinas.por_voz(con, frase)
                     if r:  # "modo estudo", "rotina hora de dormir"...
                         cmds = rotinas.executar(con, r, **extras_rotina(sem_falar=True))
                         return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
-                    return self.enviar(200, assistente.responder(frase, con, nome=ler_config().get("nome", "")))
+                    r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
+                if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
+                    return self.enviar(200, responder_ia(frase))
+                return self.enviar(200, r)
             # ----- despertador -----
             if caminho == "/api/alarmes":
                 with db() as con:
@@ -566,6 +578,17 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/estado" and metodo == "GET":
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
+
+            # ----- inteligencia (Claude) -----
+            if caminho == "/api/ia" and metodo == "GET":
+                return self.enviar(200, ia.estado(ler_config()))
+            if caminho == "/api/ia/chave":
+                if metodo == "POST":
+                    try: ia.guardar_chave(self.corpo_json().get("chave"))
+                    except ValueError as e: raise Erro(str(e))
+                    return self.enviar(200, {"ok": True})
+                if metodo == "DELETE":
+                    ia.apagar_chave(); return self.enviar(200, {"ok": True})
 
             # ----- voz neural -----
             if caminho == "/api/voz/info" and metodo == "GET":
@@ -707,6 +730,13 @@ def extras_rotina(sem_falar=False):
     """o que as rotinas precisam de saber: o nome, o tempo, e como falar se o ecra estiver apagado"""
     return {"nome": ler_config().get("nome", ""), "tempo_hoje": tempo_hoje_falado,
             **({} if sem_falar else {"falar_servidor": falar_alarme})}
+
+
+def responder_ia(frase):
+    r = ia.perguntar(frase, db, ler_config())
+    if "erro" in r:
+        return {"resposta": r["erro"], "falado": r["erro"]}
+    return {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}
 
 
 def falar_alarme(texto):

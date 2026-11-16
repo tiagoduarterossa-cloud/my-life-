@@ -5,3 +5,4 @@ __pycache__/
 static/quarto/
 *.fbx
 vozes/
+chave_claude.txt
