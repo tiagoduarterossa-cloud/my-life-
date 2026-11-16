@@ -121,6 +121,14 @@ def achar_intervalo(t, hoje):
 
 def achar_hora(t):
     s = simples(t)
+    m = re.search(r"\b(?:as |a |para as )?(\d{1,2}) e (meia|um quarto|quarto|\d{1,2})\b(?: da (manha|tarde|noite))?", s)
+    if m and not re.search(r"\b(?:dia|de|entre) " + m[1] + r" e ", s):
+        mi = {"meia": 30, "um quarto": 15, "quarto": 15}.get(m[2])
+        mi = mi if mi is not None else int(m[2])
+        h = int(m[1])
+        if m[3] in ("tarde", "noite") and h < 12: h += 12
+        if h <= 23 and mi <= 59:
+            return f"{h:02d}:{mi:02d}"
     m = re.search(r"\b(?:as |a )?(\d{1,2})(?:[:h](\d{2})|h| horas)\b(?: da (manha|tarde|noite))?", s)
     if not m:
         m = re.search(r"\bas (\d{1,2})()(?: da (manha|tarde|noite))?\b", s)
@@ -140,6 +148,7 @@ def limpar_titulo(t, gatilhos):
         r"\b(?:na |no |esta |este |pr[oó]xima |pr[oó]ximo )?(?:segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)(?:-feira| feira)?\b",
         r"\b(?:no |o )?dia \d{1,2}(?: de \w+)?\b", r"\b\d{1,2} de (?:" + "|".join(MESES).replace("marco", "mar[cç]o") + r")\b",
         r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b",
+        r"\b(?:[aà]s |a |para as )?\d{1,2} e (?:meia|um quarto|quarto|\d{1,2})\b(?: da (?:manh[aã]|tarde|noite))?",
         r"\b(?:[aà]s |a )?\d{1,2}(?:[:h]\d{2}|h| horas)\b(?: da (?:manh[aã]|tarde|noite))?", r"\b[aà]s \d{1,2}\b(?: da (?:manh[aã]|tarde|noite))?",
         r"\bat[eé]\b(?=\s*$)", r"\b(?:urgente|importante|sem falta)\b",
     ]
@@ -175,6 +184,19 @@ def entender(texto, hoje=None):
     s = simples(t)
     if not s:
         return "ajuda", {}
+
+    if re.search(r"\b(alarme|alarmes|despertador|acorda-me|acordar-me|acorda me|me acordes|acordes|acordar)\b", s):
+        datas = achar_datas(t, hoje)
+        if re.search(r"\b(desliga|desligar|tira|tirar|cancela|cancelar|sem alarme|nao quero|nao ponhas|nao me acordes|nao acordes|nao preciso)\b", s):
+            return "alarme_sem", {"data": datas[0] if datas else hoje + timedelta(days=1)}
+        if re.search(r"\b(que alarmes|quais|a que horas|proximo alarme|tenho alarme|mostra)\b", s) or not achar_hora(t):
+            return "alarme_ver", {}
+        dias = ""
+        if re.search(r"\btodos os dias\b", s): dias = "0123456"
+        elif re.search(r"\b(dias de semana|dias uteis|dias de escola|de segunda a sexta|semana toda)\b", s): dias = "01234"
+        elif re.search(r"\b(fins de semana|fim de semana)\b", s): dias = "56"
+        nome = "Viagem" if re.search(r"\b(viagem|voo|aviao|aeroporto|comboio)\b", s) else ("Escola" if dias == "01234" else None)
+        return "alarme", {"hora": achar_hora(t), "dias": dias, "data": None if dias else (datas[0] if datas else None), "nome": nome}
 
     if re.search(r"\b(mala|malas|bagagem|o que (?:e que )?levo|o que devo levar|vou viajar|viagem)\b|^vou (?:a|ao|a|para|pra) ", s):
         ini, fim = achar_intervalo(t, hoje)
@@ -501,5 +523,38 @@ def responder(texto, con, hoje=None, nome=""):
         falado = f"Bora fazer a mala para {n} dia{'s' if n > 1 else ''}. {tempo_f} Deixei-te a lista no ecrã." + \
                  (" Ah, e tens roupa que ainda está para lavar." if any("lavar" in a for a in avisos) else "")
         return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos, "falado": falado}
+
+    if intencao in ("alarme", "alarme_sem", "alarme_ver"):
+        import alarmes
+        from datetime import datetime
+        if intencao == "alarme_sem":
+            n = alarmes.sem_alarme_no_dia(con, d["data"])
+            if not n:
+                return {"resposta": f"Não tinhas alarme para {fmt_data(d['data'], hoje)}.", "falado": f"Já não tinhas alarme para {dia_falado(d['data'], hoje)}."}
+            return {"resposta": f"Sem alarme {fmt_data(d['data'], hoje)}.", "mudou": True,
+                    "falado": ya(["Feito, ", "Na boa, "]) + f"{dia_falado(d['data'], hoje)} não te acordo. Dorme bem."}
+        if intencao == "alarme_ver":
+            p = alarmes.proximo(con)
+            if not p:
+                return {"resposta": "Não tens alarmes. Diz por exemplo: acorda-me amanhã às 7h.",
+                        "falado": "Não tens alarme nenhum. Diz acorda-me amanhã às 7, por exemplo."}
+            dp = date.fromisoformat(p["data"])
+            return {"resposta": f"Próximo alarme: {fmt_data(dp, hoje)} às {p['hora']}" + (f" ({p['nome']})" if p["nome"] else "") + ".",
+                    "falado": f"O próximo alarme é {dia_falado(dp, hoje)} às {hora_falada(p['hora'])}."}
+        hora = d["hora"]
+        if d["dias"]:
+            alarmes.criar(con, hora, d["dias"], None, d["nome"])
+            quais = {"0123456": "todos os dias", "01234": "de segunda a sexta", "56": "aos fins de semana"}[d["dias"]]
+            return {"resposta": f"Alarme às {hora}, {quais}.", "mudou": True,
+                    "falado": f"Siga, alarme às {hora_falada(hora)}, {quais}."}
+        dia = d["data"]
+        if not dia:  # sem dia: hoje se ainda nao passou, senao amanha
+            dia = hoje if hora > datetime.now().strftime("%H:%M") and hoje == date.today() else hoje + timedelta(days=1)
+        alarmes.criar(con, hora, "", dia.isoformat(), d["nome"])
+        normais = [a for a in con.execute("SELECT * FROM alarmes WHERE ativo = 1 AND data IS NULL AND instr(dias, ?) > 0", (str(dia.weekday()),))]
+        extra = " Nesse dia substitui o alarme normal." if normais else ""
+        return {"resposta": f"Alarme para {fmt_data(dia, hoje)} às {hora}.{extra}", "mudou": True,
+                "falado": ya(["Feito.", "Tá combinado.", "Siga."]) + f" Acordo-te {dia_falado(dia, hoje)} às {hora_falada(hora)}." +
+                          (" Boa viagem!" if d["nome"] == "Viagem" else "")}
 
     return AJUDA

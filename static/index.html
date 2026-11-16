@@ -181,6 +181,35 @@
   #escuta.ativo i { background: #ff375f; animation-duration: .6s; }
   @keyframes pulsar { 50% { transform: scale(1.6); opacity: .5; } }
 
+  /* despertador */
+  .desp { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .desp .grande { font-variant-numeric: tabular-nums; }
+  .desp button { border: 0; padding: 9px 14px; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff;
+                 font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .dias-chips { display: flex; gap: 5px; grid-column: 1 / -1; }
+  .dias-chips button { flex: 1; padding: 9px 0; border-radius: 10px; border: 0; background: var(--campo); color: var(--txt);
+                       font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .dias-chips button.ativo { background: var(--acento); color: #fff; }
+  .modo-alarme { display: flex; gap: 6px; grid-column: 1 / -1; }
+  .modo-alarme .chip { flex: 1; }
+  .alarme-item .hora { font-size: 30px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+  .alarme-item.desligado { opacity: .45; }
+  .comutador { width: 50px; height: 30px; border-radius: 999px; border: 0; background: var(--campo); position: relative; cursor: pointer; flex: none; }
+  .comutador::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff;
+                      box-shadow: 0 1px 4px rgba(0,0,0,.3); transition: transform .2s; }
+  .comutador.ligado { background: var(--ok); } .comutador.ligado::after { transform: translateX(20px); }
+  .saltar-btn { font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 0; background: var(--campo); color: var(--acento);
+                cursor: pointer; font-family: inherit; margin-top: 4px; }
+  #a-tocar { position: fixed; inset: 0; z-index: 90; display: none; place-content: center; text-align: center; color: #fff;
+             background: radial-gradient(60% 60% at 50% 40%, color-mix(in srgb, var(--acento) 70%, #000), #050208); }
+  #a-tocar.ver { display: grid; animation: brilhar 2s ease-in-out infinite alternate; }
+  @keyframes brilhar { to { filter: brightness(1.25); } }
+  #a-tocar .rel { font-size: clamp(110px, 24vw, 300px); font-weight: 100; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+  #a-tocar .nome { font-size: 22px; opacity: .85; margin: 6px 0 40px; }
+  #a-tocar .botoes { gap: 16px; justify-content: center; }
+  #a-tocar button { min-width: 160px; padding: 20px 30px; border-radius: 999px; border: 0; font-size: 20px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  #a-tocar .parar { background: #fff; color: #000; } #a-tocar .adiar { background: rgba(255,255,255,.18); color: #fff; }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -346,6 +375,7 @@
       </div>
       <div class="lado-cartoes">
         <div class="vidro" id="i-agora"></div>
+        <div class="vidro"><h2>Despertador</h2><div class="desp"><div id="i-alarme"></div><button id="abrir-alarmes">Alarmes</button></div></div>
         <div class="vidro" id="i-teste"></div>
         <div class="vidro"><h2>Tarefas urgentes</h2><ul id="i-tarefas"></ul></div>
         <div class="vidro"><h2>Tempo hoje</h2><div id="i-tempo"></div></div>
@@ -564,6 +594,32 @@
 </div></div>
 
 <div id="noite"><div class="relogio" id="noite-relogio"></div><p>Fora do horário do ecrã. Toca para acordar.</p></div>
+
+<dialog id="d-alarmes">
+  <h3>Alarmes</h3>
+  <ul id="lista-alarmes"></ul>
+  <label>Novo alarme</label>
+  <form id="f-alarme">
+    <input type="time" name="hora" required class="largo" style="font-size:28px;text-align:center">
+    <div class="modo-alarme"><button type="button" class="chip ativo" data-modo="repetir">Repetir</button><button type="button" class="chip" data-modo="dia">Só num dia</button></div>
+    <div class="dias-chips" id="dias-alarme">
+      <button type="button" data-d="0" class="ativo">S</button><button type="button" data-d="1" class="ativo">T</button><button type="button" data-d="2" class="ativo">Q</button>
+      <button type="button" data-d="3" class="ativo">Q</button><button type="button" data-d="4" class="ativo">S</button><button type="button" data-d="5">S</button><button type="button" data-d="6">D</button>
+    </div>
+    <input type="date" name="data" class="largo" hidden>
+    <input name="nome" placeholder="Nome (ex: Escola, Viagem)" maxlength="60" class="largo">
+    <button class="principal">Adicionar alarme</button>
+  </form>
+  <div class="vazio" id="alarme-som" style="font-size:13px;margin-top:10px"></div>
+  <div class="botoes" style="margin-top:10px"><button type="button" class="secundario" id="testar-alarme">Testar agora</button>
+    <button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
+
+<div id="a-tocar"><div>
+  <div class="rel" id="tocar-hora"></div>
+  <div class="nome" id="tocar-nome"></div>
+  <div class="botoes"><button class="adiar" id="tocar-adiar">Mais 5 min</button><button class="parar" id="tocar-parar">Parar</button></div>
+</div></div>
 
 <dialog id="config">
   <h3>Definições do ecrã</h3>
@@ -1224,6 +1280,88 @@ if (podeOuvir) {
   };
 }
 
+// ---------- DESPERTADOR ----------
+let alarmesDados = null, modoAlarme = "repetir";
+const DIAS_CURTOS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+function textoDiasAlarme(dias) {
+  if (dias === "0123456") return "Todos os dias";
+  if (dias === "01234") return "Segunda a sexta";
+  if (dias === "56") return "Fins de semana";
+  return [...dias].map(d => DIAS_CURTOS[+d]).join(", ");
+}
+async function carregarAlarmes() {
+  try { alarmesDados = await api("/api/alarmes"); } catch (e) { return; }
+  const p = alarmesDados.proximo;
+  $("#i-alarme").innerHTML = p
+    ? `<div class="grande">${p.hora}</div><div class="vazio">${p.data === hojeISO() ? "hoje" : textoDias(diasAte(p.data))}${p.nome ? " · " + esc(p.nome) : ""}</div>`
+    : `<div class="vazio">Sem alarmes</div>`;
+  const amanha = isoDe(new Date(Date.now() + 864e5));
+  $("#lista-alarmes").innerHTML = alarmesDados.alarmes.map(a => {
+    const quando = a.data ? `Só ${a.data === hojeISO() ? "hoje" : textoDias(diasAte(a.data))} (${fmtData(a.data)})` : textoDiasAlarme(a.dias);
+    const salta = a.saltar.includes(amanha);
+    const tocaAmanha = !a.data && a.dias.includes(String((new Date(amanha + "T12:00").getDay() + 6) % 7));
+    return `<li class="alarme-item ${a.ativo ? "" : "desligado"}"><div class="meio">
+      <div class="hora">${a.hora}</div><div class="info">${esc(a.nome || "Alarme")} · ${quando}
+      ${a.saltar.length ? ` · salta ${a.saltar.map(fmtData).join(", ")}` : ""}</div>
+      ${tocaAmanha && a.ativo ? `<button class="saltar-btn" data-saltar="${a.id}">${salta ? "Afinal acorda-me amanhã" : "Amanhã não"}</button>` : ""}</div>
+      <button class="comutador ${a.ativo ? "ligado" : ""}" data-alarme-ativo="${a.id}" data-ligado="${a.ativo}" aria-label="Ligar ou desligar"></button>
+      <button class="x" data-apagar="alarmes/${a.id}" title="Apagar">×</button></li>`;
+  }).join("") || vazio("Ainda não tens alarmes.");
+  $("#alarme-som").textContent = alarmesDados.som_no_tablet
+    ? "O alarme toca pelo tablet, mesmo com o ecrã apagado."
+    : "Atenção: falta a app Termux:API. Sem ela, o alarme só toca se a central estiver aberta e o ecrã ligado. Instala-a (vê o README).";
+}
+$("#abrir-alarmes").onclick = () => { carregarAlarmes(); $("#d-alarmes").showModal(); };
+document.querySelectorAll("#f-alarme [data-modo]").forEach(b => b.onclick = () => {
+  modoAlarme = b.dataset.modo;
+  document.querySelectorAll("#f-alarme [data-modo]").forEach(x => x.classList.toggle("ativo", x === b));
+  $("#dias-alarme").hidden = modoAlarme !== "repetir"; $("#f-alarme").data.hidden = modoAlarme === "repetir";
+  if (modoAlarme === "dia" && !$("#f-alarme").data.value) $("#f-alarme").data.value = isoDe(new Date(Date.now() + 864e5));
+});
+$("#dias-alarme").onclick = e => { if (e.target.dataset.d) e.target.classList.toggle("ativo"); };
+$("#f-alarme").onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target;
+  const dias = [...document.querySelectorAll("#dias-alarme .ativo")].map(b => b.dataset.d).join("");
+  try {
+    await api("/api/alarmes", "POST", { hora: f.hora.value, nome: f.nome.value,
+      ...(modoAlarme === "repetir" ? { dias } : { data: f.data.value }) });
+    f.hora.value = ""; f.nome.value = ""; carregarAlarmes();
+  } catch (err) { aviso(err.message); }
+};
+$("#lista-alarmes").addEventListener("click", async e => {
+  const t = e.target;
+  try {
+    if (t.dataset.alarmeAtivo) await api(`/api/alarmes/${t.dataset.alarmeAtivo}/ativo`, "POST", { ativo: t.dataset.ligado !== "1" });
+    else if (t.dataset.saltar) await api(`/api/alarmes/${t.dataset.saltar}/saltar`, "POST", { data: isoDe(new Date(Date.now() + 864e5)) });
+    else return;
+    e.stopPropagation(); carregarAlarmes();
+  } catch (err) { aviso(err.message); }
+}, true);
+$("#testar-alarme").onclick = async () => { $("#d-alarmes").close(); await api("/api/alarme/testar", "POST"); vigiarAlarme(); };
+
+// quando toca: ecra grande com Parar e Mais 5 min (e som na pagina se o tablet nao tiver Termux:API)
+let somPagina = null;
+function somNaPagina(ligar) {
+  if (!ligar) { clearInterval(somPagina); somPagina = null; return; }
+  if (somPagina) return;
+  const tocarUmaVez = () => { try { new Audio("/sons/alarme.wav").play(); } catch (e) {} };
+  tocarUmaVez(); somPagina = setInterval(tocarUmaVez, 3500);
+}
+async function vigiarAlarme() {
+  let e; try { e = await api("/api/alarme/estado"); } catch (err) { return; }
+  const ver = !!e.tocando;
+  $("#a-tocar").classList.toggle("ver", ver);
+  if (ver) {
+    $("#tocar-hora").textContent = horaAgora(); $("#tocar-nome").textContent = e.nome || "Alarme";
+    ultimoToque = Date.now(); acordadoAte = Date.now() + 15 * 60000;
+  }
+  somNaPagina(ver && !e.som_no_tablet);
+}
+$("#tocar-parar").onclick = async () => { await api("/api/alarme/parar", "POST"); vigiarAlarme(); carregarAlarmes(); };
+$("#tocar-adiar").onclick = async () => { const r = await api("/api/alarme/adiar", "POST"); aviso(`Volto a tocar às ${r.ate}.`, false); vigiarAlarme(); };
+setInterval(vigiarAlarme, 3000);
+
 // ---------- QUARTO 3D ----------
 let quarto3d = null, aCarregarQuarto = false;
 async function abrirQuarto() {
@@ -1258,6 +1396,7 @@ async function atualizar() {
     || vazio("Sem notas. Diz ao assistente: toma nota: ...");
   desenharCalendario();
   desenharGrelhaAulas();
+  carregarAlarmes();
   const hoje = hojeISO();
 
   desenharInicio();

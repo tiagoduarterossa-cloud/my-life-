@@ -16,8 +16,9 @@ import socket
 import sqlite3
 import urllib.request
 
+import alarmes
 import assistente
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urljoin
@@ -108,6 +109,7 @@ def init_db():
             );
             """
         )
+        con.executescript(alarmes.TABELAS)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
             if c not in colunas:
@@ -393,7 +395,7 @@ def apagar(tabela, rid):
 # ---------- HTTP ----------
 
 TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
-         ".png": "image/png", ".jpg": "image/jpeg", ".bin": "application/octet-stream", ".svg": "image/svg+xml", ".json": "application/json"}
+         ".png": "image/png", ".jpg": "image/jpeg", ".bin": "application/octet-stream", ".wav": "audio/wav", ".svg": "image/svg+xml", ".json": "application/json"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -460,9 +462,44 @@ class Handler(BaseHTTPRequestHandler):
                     criar_roupa(self.corpo_json())
                     return self.enviar(201, {"ok": True})
             if caminho == "/api/assistente" and metodo == "POST":
-                texto = (self.corpo_json().get("texto") or "").strip()[:500]
+                frase = (self.corpo_json().get("texto") or "").strip()[:500]
                 with db() as con:
-                    return self.enviar(200, assistente.responder(texto, con, nome=ler_config().get("nome", "")))
+                    return self.enviar(200, assistente.responder(frase, con, nome=ler_config().get("nome", "")))
+            # ----- despertador -----
+            if caminho == "/api/alarmes":
+                with db() as con:
+                    if metodo == "GET":
+                        return self.enviar(200, alarmes.listar(con))
+                    if metodo == "POST":
+                        d = self.corpo_json()
+                        alarmes.criar(con, hora_ok(d.get("hora"), "hora"), d.get("dias", ""),
+                                      data_ok(d.get("data"), "data"), texto(d, "nome", obrigatorio=False, maximo=60))
+                        return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/alarmes/(\d+)/(ativo|saltar)", caminho)
+            if m and metodo == "POST":
+                d = self.corpo_json()
+                with db() as con:
+                    if m[2] == "ativo":
+                        con.execute("UPDATE alarmes SET ativo = ? WHERE id = ?", (1 if d.get("ativo") else 0, int(m[1])))
+                    else:
+                        alarmes.saltar(con, int(m[1]), data_ok(d.get("data"), "data") or date.today().isoformat())
+                return self.enviar(200, {"ok": True})
+            m = re.fullmatch(r"/api/alarmes/(\d+)", caminho)
+            if m and metodo == "DELETE":
+                with db() as con:
+                    con.execute("DELETE FROM alarmes_saltar WHERE alarme_id = ?", (int(m[1]),))
+                    con.execute("DELETE FROM alarmes WHERE id = ?", (int(m[1]),))
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/alarme/estado" and metodo == "GET":
+                return self.enviar(200, alarmes.estado())
+            if caminho == "/api/alarme/parar" and metodo == "POST":
+                alarmes.parar(); return self.enviar(200, {"ok": True})
+            if caminho == "/api/alarme/adiar" and metodo == "POST":
+                return self.enviar(200, {"ate": alarmes.adiar()})
+            if caminho == "/api/alarme/testar" and metodo == "POST":
+                alarmes.tocar({"nome": "Teste", "hora": datetime.now().strftime("%H:%M")}, bom_dia_falado)
+                return self.enviar(200, {"ok": True})
+
             if caminho == "/api/notas" and metodo == "GET":
                 with db() as con:
                     return self.enviar(200, [dict(r) for r in con.execute("SELECT * FROM notas ORDER BY id DESC")])
@@ -539,8 +576,17 @@ def ip_local():
         s.close()
 
 
+def bom_dia_falado():
+    """o que o Rosserini diz quando o alarme toca: as horas e o resumo do dia"""
+    agora = datetime.now().strftime("%H:%M")
+    with db() as con:
+        r = assistente.responder("bom dia", con, nome=ler_config().get("nome", ""))
+    return f"São {assistente.hora_falada(agora)}. " + r.get("falado", "")
+
+
 if __name__ == "__main__":
     init_db()
+    alarmes.vigiar(db, bom_dia_falado)
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

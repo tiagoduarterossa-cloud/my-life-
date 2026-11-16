@@ -68,6 +68,23 @@ chmod +x ~/.termux/boot/central.sh
 
 O router pode dar um IP diferente ao tablet de vez em quando. Para isso não acontecer, nas definições do Wi-Fi do tablet escolhe **IP estático**, ou pede ao teu pai para reservar o IP no router.
 
+## Despertador
+
+No Início há o cartão **Despertador** com o próximo alarme. Em **Alarmes** crias:
+- **alarmes que se repetem** (ex.: escola, de segunda a sexta às 07:15)
+- **alarmes de um dia só** (ex.: viagem na sexta às 05:30). Nesse dia substituem os normais e depois desligam-se sozinhos.
+- **"Amanhã não"** para saltar o alarme normal num dia.
+
+Também por voz: "Rosserini, acorda-me sexta às 5 e meia que tenho viagem", "amanhã não me acordes", "a que horas é o meu alarme?".
+
+O alarme vive no servidor, por isso **toca mesmo com o ecrã apagado**, desde que o tablet tenha a app **Termux:API**:
+
+1. No F-Droid, instala **Termux:API** (tem de vir do mesmo sítio que o Termux)
+2. No Termux: `pkg install termux-api`
+3. Na central, em Alarmes, carrega em **Testar agora**. Deve tocar e, uns segundos depois, o Rosserini diz as horas e o que tens nesse dia.
+
+Sem a Termux:API, o alarme só toca se a central estiver aberta com o ecrã ligado.
+
 ## Ecrã inteiro
 
 No Chrome do tablet ou do telemóvel: menu ⋮ > **Adicionar ao ecrã principal** (ou "Instalar aplicação"). A central passa a abrir em ecrã inteiro, sem a barra do browser.
