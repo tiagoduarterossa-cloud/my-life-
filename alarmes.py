@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS alarmes_saltar (
 _lock = threading.Lock()
 _estado = {"tocar": None}   # {"id", "nome", "hora", "desde", "adiado_ate"} enquanto toca ou esta adiado
 _disparados = set()
+ultimo = {}                 # o ultimo alarme que tocou: {"nome", "hora", "quando"} (para "porque me acordaste?")
 
 
 def som_no_tablet():
@@ -145,6 +146,7 @@ def estado():
 
 
 def tocar(alarme, texto_bom_dia=None):
+    ultimo.update(nome=alarme.get("nome") or "Alarme", hora=alarme.get("hora") or datetime.now().strftime("%H:%M"), quando=time.time())
     with _lock:
         desde = time.time()
         _estado["tocar"] = {"id": alarme.get("id"), "nome": alarme.get("nome") or "Alarme",

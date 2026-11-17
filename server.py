@@ -354,7 +354,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client"}
+                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -376,6 +376,8 @@ def gravar_config(d):
             hora_ok(v, k)
         if k == "tema" and v not in TEMAS:
             raise Erro("tema desconhecido")
+        if k == "estilo" and v not in ("descontraido", "mordomo"):
+            raise Erro("estilo desconhecido")
         if k == "spotify_client" and not re.fullmatch(r"[0-9a-f]{32}", v):
             raise Erro("o Client ID do Spotify tem 32 letras e numeros (0-9, a-f)")
         if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
@@ -426,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
         pass  # silencio no terminal
 
     def enviar(self, codigo, corpo, tipo="application/json"):
+        if isinstance(corpo, dict) and corpo.get("falado") and self.path.startswith("/api/assistente"):
+            corpo = dict(corpo, falado=assistente.estilizar(corpo["falado"], ler_config().get("estilo", "descontraido")))
         dados = corpo if isinstance(corpo, bytes) else json.dumps(corpo).encode()
         self.send_response(codigo)
         self.send_header("Content-Type", tipo + "; charset=utf-8")
@@ -747,7 +751,7 @@ def bom_dia_falado():
     agora = assistente.hora_falada(datetime.now().strftime("%H:%M"))
     with db() as con:
         if any(r["ativa"] and r["quando"].get("tipo") == "alarme_parado" for r in rotinas.listar(con)):
-            return f"São {agora}. Bora, hora de acordar."
+            return assistente.estilizar(f"São {agora}. Bora, hora de acordar.", ler_config().get("estilo", ""))
         r = assistente.responder("bom dia", con, nome=ler_config().get("nome", ""))
     return f"São {agora}. " + r.get("falado", "")
 

@@ -269,6 +269,9 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
         for k in ("texto",):
             if k in a:
                 a[k] = preencher(a[k], con, nome, tempo_hoje)
+                if a.get("acao") == "falar":
+                    est = con.execute("SELECT valor FROM config WHERE chave = 'estilo'").fetchone()
+                    a[k] = assistente.estilizar(a[k], est[0] if est else "")
         if a.get("acao") == "cronometro" and a.get("disciplina") == "auto":
             a["disciplina"] = _proxima_disciplina(con, hoje) or "Estudo"
         if a["acao"] == "tarefa":

@@ -35,7 +35,7 @@ SISTEMA = """És o {nome_assistente}, o assistente da central pessoal que um rap
 Como falas:
 - Português de Portugal, sempre (tu, estás, telemóvel, autocarro). Nunca português do Brasil.
 - As tuas respostas vão ser LIDAS EM VOZ ALTA. Responde em 1 a 3 frases curtas e naturais. Sem listas, sem markdown, sem emojis, sem links.
-- Estilo descontraído e jovem, como um amigo mais velho que sabe muito. Um pouco de calão está bem; não exageres.
+{estilo}
 - Se não souberes ou não tiveres a certeza, diz isso. Não inventes.
 
 Escola:
@@ -147,7 +147,11 @@ def perguntar(texto, db, cfg):
     sistema = SISTEMA.format(
         nome_assistente=cfg.get("palavra_ativacao") or "assistente",
         data=f"{dias[agora.weekday()]}, {agora.day}/{agora.month}/{agora.year}", hora=agora.strftime("%H:%M"),
-        sobre_ele=f" Ele chama-se {nome}." if nome else "")
+        sobre_ele=f" Ele chama-se {nome}." if nome else "",
+        estilo=("- Fala como um mordomo britânico elegante, à maneira do Jarvis dos filmes do Homem de Ferro: educado, "
+                "seco e com humor subtil. Trata-o por \"senhor\". Português de Portugal na mesma."
+                if cfg.get("estilo") == "mordomo" else
+                "- Estilo descontraído e jovem, como um amigo mais velho que sabe muito. Um pouco de calão está bem; não exageres."))
 
     with _hist_lock:  # ultimas 6 trocas dos ultimos 15 minutos, para perceber "e na quarta?"
         _hist[:] = [h for h in _hist if time.time() - h[2] < 15 * 60][-6:]

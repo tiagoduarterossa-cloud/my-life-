@@ -249,6 +249,11 @@ def entender(texto, hoje=None):
         return "tarefa", {"titulo": titulo, "prazo": datas[0] if datas else None, "area": adivinhar_area(t),
                           "prioridade": 1 if re.search(r"\b(urgente|importante|ja|sem falta)\b", s) else 2}
 
+    if re.search(r"\b(porque (e que )?me (acordaste|acordas|acordou)|para que me acordaste|o que se passa|que se passa)\b", s):
+        return "acordaste", {}
+    if re.fullmatch(r"(obrigad[oa]|obg|valeu|thanks|thank you|fixe obrigado|brigado)( \w+)?[!. ]*", s):
+        return "obrigado", {}
+
     if re.fullmatch(r"(bom dia|boa tarde|boa noite|ola|oi|hey|hello|eai|e ai)[!. ]*", s):
         return "dia", {"data": hoje, "saudacao": s.split("!")[0].strip()}
 
@@ -555,6 +560,22 @@ def responder(texto, con, hoje=None, nome=""):
                  (" Ah, e tens roupa que ainda está para lavar." if any("lavar" in a for a in avisos) else "")
         return {"resposta": f"Mala para {n} dia{'s' if n > 1 else ''} ({periodo}). {tempo}", "itens": linhas + avisos, "falado": falado}
 
+    if intencao == "obrigado":
+        return {"resposta": "De nada!", "falado": ya(["De nada!", "Na boa!", "Sempre que precisares."])}
+
+    if intencao == "acordaste":
+        import time as _t
+        import alarmes
+        u = alarmes.ultimo
+        if not u or _t.time() - u.get("quando", 0) > 3 * 3600:
+            return {"resposta": "Hoje não te acordei.", "falado": "Eu? Hoje não te acordei. Se calhar foi outra pessoa."}
+        dia = responder("o que tenho hoje", con, hoje)
+        resumo = dia.get("falado", "")
+        for ab in ("Ya, então. ", "Ora bem. ", "Bora lá. "):
+            resumo = resumo.replace(ab, "")
+        porque = f"Acordei-te às {hora_falada(u['hora'])} por causa do alarme {u['nome']}."
+        return {"resposta": porque, "itens": dia.get("itens", []), "falado": porque + " " + resumo}
+
     if intencao == "musica":
         import spotify
         try:
@@ -622,3 +643,30 @@ def responder(texto, con, hoje=None, nome=""):
                           (" Boa viagem!" if d["nome"] == "Viagem" else "")}
 
     return AJUDA
+
+
+# ---------- estilos de personalidade ----------
+
+MORDOMO = [  # (o que diria, como diz um mordomo)
+    ("Ya, então. ", "Muito bem, senhor. "), ("Ora bem. ", "Muito bem, senhor. "), ("Bora lá. ", "Com certeza, senhor. "),
+    ("Siga.", "Certamente, senhor."), ("Feito.", "Está feito, senhor."), ("Tá marcado.", "Fica marcado, senhor."),
+    ("Tá combinado.", "Combinado, senhor."), ("Na boa, ", "Com certeza, "), ("Na boa.", "Com todo o gosto, senhor."),
+    ("Tranquilo, ", "Muito bem, "), ("Ya?", "Sim, senhor?"), ("Diz lá.", "Às suas ordens."), ("Diz.", "Sim, senhor?"),
+    ("Bora rever isso hoje.", "Sugiro que reveja a matéria hoje, senhor."), ("Está mesmo aí, bora rever.", "Está próximo, senhor. Convém rever."),
+    ("Hmm, não apanhei essa.", "Peço desculpa, senhor, não percebi."), ("Modo estudo ligado.", "Modo estudo ativado, senhor."),
+    ("Eu não te interrompo, força.", "Não o vou interromper."), ("Força nisso!", "Boa sorte, senhor."),
+    ("Ei, ", "Senhor, "), ("De nada!", "Sempre às ordens, senhor."), ("Sempre que precisares.", "Sempre às ordens, senhor."),
+    ("Dorme bem.", "Durma bem, senhor."), ("Boa viagem!", "Faça boa viagem, senhor."), ("despacha isso", "convém tratar disso"),
+    ("Bora, hora de acordar.", "Lamento incomodar, senhor, mas são horas de acordar."), ("Está na hora de ir para a cama.", "Senhor, são horas de recolher."),
+    ("Apagada.", "Luz apagada, senhor."), ("Bora, próxima.", "A seguinte, senhor."), ("Pausa.", "Em pausa, senhor."),
+]
+
+
+def estilizar(texto, estilo):
+    """'mordomo': fala como o Jarvis dos filmes. 'descontraido' (normal): fica igual."""
+    if estilo != "mordomo" or not texto:
+        return texto
+    for a, b in MORDOMO:
+        texto = texto.replace(a, b)
+    texto = re.sub(r"^(Bom dia|Boa tarde|Boa noite)(, [^!]+)?!", lambda m: f"{m[1]}, senhor.", texto)
+    return texto

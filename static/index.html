@@ -737,6 +737,10 @@
   <label>Assistente</label>
   <div class="voz-cfg">
     <input id="cfg-nome" placeholder="O teu nome (para ele te cumprimentar)" maxlength="30">
+    <div class="filtros" id="cfg-estilo" style="margin:0">
+      <button type="button" data-estilo="descontraido">Descontraído</button>
+      <button type="button" data-estilo="mordomo">Mordomo (estilo Jarvis)</button>
+    </div>
     <div class="filtros" id="cfg-motor" style="margin:0">
       <button type="button" data-motor="neural">Voz neural (natural)</button>
       <button type="button" data-motor="tablet">Voz do tablet</button>
@@ -1434,6 +1438,15 @@ $("#ia-apagar").onclick = async () => { if (!confirm("Apagar a chave do Claude d
 $("#ia-modelo").onchange = e => api("/api/config", "POST", { ia_modelo: e.target.value }).then(() => aviso("Modelo mudado.", false)).catch(err => aviso(err.message));
 $("#ia-limite").onchange = e => api("/api/config", "POST", { ia_limite: e.target.value }).then(mostrarIA).catch(err => aviso(err.message));
 
+function mostrarEstilo() {
+  document.querySelectorAll("#cfg-estilo button").forEach(b => b.classList.toggle("ativo", b.dataset.estilo === (config.estilo || "descontraido")));
+}
+$("#cfg-estilo").onclick = async e => {
+  const v = e.target.dataset.estilo; if (!v) return;
+  try { await api("/api/config", "POST", { estilo: v }); config.estilo = v; mostrarEstilo();
+    falar(v === "mordomo" ? "Às suas ordens, senhor." : "Ya, voltei ao normal."); } catch (err) { aviso(err.message); }
+};
+
 $("#cfg-tomada").onchange = async e => {
   try { await api("/api/config", "POST", { tomada_ip: e.target.value.trim() }); config.tomada_ip = e.target.value.trim(); aviso("Tomada guardada.", false); }
   catch (err) { aviso(err.message); }
@@ -1507,6 +1520,8 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (r.musica) setTimeout(carregarSpotify, 800);
     if (r.comandos) { await executarComandos(r.comandos); return; }
     await falar(r.falado || r.resposta);
+    // modo conversa: durante 8 s podes continuar a falar sem dizer o nome outra vez
+    if (!noChat && aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); }
   } catch (err) {
     if (noChat) msgAssist("ela", "Não consegui falar com o servidor."); else bolha(texto, "Não consegui falar com o servidor.", null, 6);
   }
@@ -1527,20 +1542,30 @@ function retomarEscuta() {
   if (!navigator.onLine) { estadoEscuta("Sem internet: não consigo ouvir"); setTimeout(retomarEscuta, 15000); return; }
   const r = new Reconhecer(); escuta = r;
   r.lang = "pt-PT"; r.continuous = true; r.interimResults = false; r.maxAlternatives = 4;
-  estadoEscuta(aEsperarComando > Date.now() ? "Diz…" : `Diz "${vozCfg.palavra}"`, aEsperarComando > Date.now());
+  const conversa = aEsperarComando > Date.now();
+  estadoEscuta(conversa ? "Estou a ouvir…" : `Diz "${vozCfg.palavra}"`, conversa);
+  if (conversa) setTimeout(() => { if (escuta === r && aEsperarComando <= Date.now()) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, aEsperarComando - Date.now() + 100);
   r.onresult = ev => {
     const frase = ev.results[ev.results.length - 1][0].transcript.trim();
     // mostra o que a Google percebeu, para sabermos se ouviu o nome certo
     estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
     clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, 3500);
-    if (aEsperarComando > Date.now()) { aEsperarComando = 0; pararEscuta(); comandoVoz(frase); return; }
+    if (aEsperarComando > Date.now()) {
+      aEsperarComando = 0; pararEscuta();
+      if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
+      const semNome = acharPalavra(frase); comandoVoz(semNome ? semNome.depois || frase : frase); return;
+    }
     const res = ev.results[ev.results.length - 1];
     let achou = null;
     for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
     if (!achou) return;
     pararEscuta();
     if (achou.depois.length > 2) comandoVoz(achou.depois);
-    else { aEsperarComando = Date.now() + 8000; falar(["Diz.", "Ya?", "Diz lá."][Math.floor(Math.random() * 3)]); }
+    else {
+      aEsperarComando = Date.now() + 8000;
+      const op = config.estilo === "mordomo" ? ["Sim, senhor?", "Às suas ordens.", "Diga, senhor."] : ["Diz.", "Ya?", "Diz lá."];
+      falar(op[Math.floor(Math.random() * op.length)]);
+    }
   };
   r.onerror = ev => {
     if (ev.error && !["no-speech", "aborted"].includes(ev.error)) estadoEscuta(`Microfone: ${ev.error}`);
@@ -1987,7 +2012,7 @@ $("#abrir-config").onclick = () => {
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
-  $("#cfg-tomada").value = config.tomada_ip || ""; mostrarIA(); mostrarSpotifyCfg(); carregarSpotify();
+  $("#cfg-tomada").value = config.tomada_ip || ""; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
 };
 $("#f-cidade").onsubmit = async e => {

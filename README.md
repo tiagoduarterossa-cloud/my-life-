@@ -80,6 +80,12 @@ chmod +x ~/.termux/boot/central.sh
 
 O router pode dar um IP diferente ao tablet de vez em quando. Para isso não acontecer, nas definições do Wi-Fi do tablet escolhe **IP estático**, ou pede ao teu pai para reservar o IP no router.
 
+## Estilo Jarvis e modo conversa
+
+- Na roda dentada > Assistente, escolhe **Mordomo (estilo Jarvis)**: "Certamente, senhor.", "Lamento incomodar, senhor, mas são horas de acordar."
+- **Modo conversa**: depois de ele responder, fica 8 segundos à escuta. Podes continuar a falar sem repetir o nome. Diz "esquece" para fechar.
+- "Porque é que me acordaste?" explica que alarme foi e o que tens nesse dia. "Obrigado" também tem resposta.
+
 ## Voz neural (o Rosserini a soar a pessoa)
 
 Por defeito o Rosserini usa as vozes do Microsoft Edge (Duarte ou Raquel, de Portugal), que soam muito mais naturais do que a voz do tablet. No Termux:
