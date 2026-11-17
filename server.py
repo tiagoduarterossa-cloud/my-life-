@@ -489,7 +489,9 @@ class Handler(BaseHTTPRequestHandler):
                     criar_roupa(self.corpo_json())
                     return self.enviar(201, {"ok": True})
             if caminho == "/api/assistente" and metodo == "POST":
-                frase = (self.corpo_json().get("texto") or "").strip()[:500]
+                corpo = self.corpo_json()
+                frase = str(corpo.get("texto") or "").strip()[:500]
+                do_telemovel = corpo.get("origem") == "telemovel"   # Atalho da Siri no iPhone
                 direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
                 if direto and ia.disponivel():
                     return self.enviar(200, responder_ia(direto))
@@ -497,11 +499,18 @@ class Handler(BaseHTTPRequestHandler):
                     r = rotinas.por_voz(con, frase)
                     if r:  # "modo estudo", "rotina hora de dormir"...
                         cmds = rotinas.executar(con, r, **extras_rotina(sem_falar=True))
+                        if do_telemovel:
+                            # o iPhone diz o que a rotina fala; o resto (cronometro, ecra...) vai para o tablet
+                            falas = " ".join(c["texto"] for c in cmds if c["acao"] == "falar")
+                            rotinas._por_na_fila([c for c in cmds if c["acao"] != "falar"])
+                            return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": falas or f"Rotina {r['nome']} a correr."})
                         return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
                     r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
                     return self.enviar(200, responder_ia(frase))
-                return self.enviar(200, r)
+                if do_telemovel and r.get("mudou"):
+                    rotinas._por_na_fila([{"acao": "aviso", "texto": f"Do telemóvel: {r.get('resposta', '')}"}])
+                return self.enviar(200, dict(r, falado=r.get("falado") or r.get("resposta", "")))
             # ----- despertador -----
             if caminho == "/api/alarmes":
                 with db() as con:
