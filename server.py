@@ -21,6 +21,7 @@ import assistente
 import avisos
 import casa
 import dispositivos
+import familia
 import ia
 import loja
 import noticias
@@ -124,6 +125,7 @@ def init_db():
         con.executescript(seguranca.TABELAS)
         con.executescript(casa.TABELAS)
         con.executescript(loja.TABELAS)
+        con.executescript(familia.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -418,7 +420,7 @@ def estado_roupa(rid, d):
 
 
 def apagar(tabela, rid):
-    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos", "despesas")
+    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos", "despesas", "familia")
     with db() as con:
         if tabela == "diario":
             row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
@@ -612,6 +614,43 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/estado" and metodo == "GET":
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
+
+            # ----- familia e mapa -----
+            if caminho == "/api/familia":
+                with db() as con:
+                    if metodo == "GET":
+                        ps = familia.listar(con)
+                        if query.get("detalhes"):
+                            for p in ps:
+                                if p.get("lat") is not None:
+                                    p["perigos"] = familia.perigos(p["lat"], p["lon"]); p["graus"] = familia.tempo(p["lat"], p["lon"])
+                                    p["frase"] = familia.frase_pessoa(p, p["perigos"], p["graus"])
+                        return self.enviar(200, ps)
+                    if metodo == "POST":
+                        d = self.corpo_json()
+                        cidade, lat, lon = (str(d.get("cidade") or "").strip()[:60] or None), None, None
+                        if cidade:
+                            try:
+                                g = familia.geocodificar(cidade)
+                            except Exception:
+                                raise Erro("sem ligação ao serviço de mapas (Open-Meteo), tenta mais tarde")
+                            if not g:
+                                raise Erro(f"nao encontrei a cidade '{cidade}'")
+                            cidade, lat, lon = g
+                        aniv = d.get("aniversario") or None
+                        if aniv and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", aniv):
+                            raise Erro("aniversario invalido")
+                        con.execute("INSERT INTO familia (nome, relacao, aniversario, cidade, lat, lon) VALUES (?,?,?,?,?,?)",
+                                    (texto(d, "nome", maximo=40), texto(d, "relacao", obrigatorio=False, maximo=20) or "", aniv, cidade, lat, lon))
+                        return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/familia/(\d+)/contacto", caminho)
+            if m and metodo == "POST":
+                with db() as con:
+                    con.execute("UPDATE familia SET ultimo_contacto = ? WHERE id = ?", (date.today().isoformat(), int(m[1])))
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/mapa" and metodo == "GET":
+                with db() as con:
+                    return self.enviar(200, familia.mapa(con, ler_config()))
 
             # ----- loja (Shopify) -----
             if caminho == "/api/loja/estado" and metodo == "GET":
@@ -828,7 +867,7 @@ class Handler(BaseHTTPRequestHandler):
             if m and metodo == "POST":
                 alternar_tarefa(int(m[1]))
                 return self.enviar(200, {"ok": True})
-            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes|notas|eventos|despesas)/(\d+)", caminho)
+            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes|notas|eventos|despesas|familia)/(\d+)", caminho)
             if m and metodo == "DELETE":
                 apagar(m[1], int(m[2]))
                 return self.enviar(200, {"ok": True})
@@ -924,6 +963,9 @@ if __name__ == "__main__":
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
+    # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
+    familia.vigiar(db, lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "falar", "texto": dizer}])
+                   if rotinas.ecra_ativo() else falar_alarme(dizer))
     # encomendas novas: aviso + som de caixa registadora no ecra; se o ecra estiver apagado, fala pelo tablet
     loja.vigiar(lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "caixa"},
                                                            {"acao": "falar", "texto": dizer}]) if rotinas.ecra_ativo() else falar_alarme(dizer))

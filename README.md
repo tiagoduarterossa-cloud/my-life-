@@ -96,10 +96,23 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 
 - **Fechar o ecrã**: "fecha-te", "desativa o modo Jarvis", "sai do modo Iron Man", "podes ir", "modo normal" (ou tocar no ecrã)
 - **Deixar de ouvir**: "Jarvis, para de ouvir" ou "modo silêncio". Para voltar a ligar, o botão do ouvido no canto de cima (vermelho = desligado).
+- **Trinco "escuta"** (ligado de origem): enquanto não disseres **"escuta"**, a central ignora tudo e não mostra nada do que ouviu. Depois de "escuta" (ouves um bip) tens 15 segundos para dizer "Jarvis, ...". Também dá de seguida: "escuta, Jarvis, que horas são". Desliga-se nas definições, em Voz.
+  Atenção, para não haver enganos: isto evita que a central reaja às tuas conversas, mas o reconhecimento de voz do Chrome continua a enviar o som para a Google para o transformar em texto, mesmo antes do "escuta". Se queres mesmo que nada saia do quarto, desliga a escuta (botão do ouvido) quando não precisas dela.
 
 ## Modo Iron Man
 
 Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca o ecrã completo: sequência de arranque com som, painéis de meteorologia com a previsão por hora, sistemas (energia, servidor, rede, voz, cérebro), agenda, missões (testes, tarefas, alarme), áudio (Spotify) e um registo com tudo o que acontece. Ao centro, a esfera com radar, grelha hexagonal e anéis graduados, sempre no azul do reator. A fita LED fica azul e volta à cor do tema quando dizes "fecha-te". No telemóvel aparecem só a esfera e o topo.
+
+## Família e mapa (só no modo Iron Man)
+
+As coisas privadas (família, mapa, loja) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa.
+
+- No painel **Família** (canto de baixo à esquerda) carrega em **editar** e mete cada pessoa: relação (avó, tio...), nome, cidade e aniversário. Fica só no tablet, não vai para o GitHub.
+- O painel mostra o tempo onde vivem, aniversários a chegar, há quantos dias não falas com eles e **⚠ alerta** se houver perigo perto da casa deles.
+- **Mapa**: "Jarvis, mostra o mapa" ou o botão mapa. Casa a dourado, família a azul (vermelho se houver alerta), incêndios ativos a vermelho a piscar, sismos em círculos laranja. Por baixo diz sempre de que fonte vêm os dados, ou "sem dados" se a fonte falhou.
+- Perguntas: "está tudo bem na casa dos avós?", "quando faz anos o tio?", "há quanto tempo não ligo à avó?", "liguei à avó" (fica anotado).
+- Avisos sozinhos, de 15 em 15 minutos: incêndio a menos de 25 km da casa deles, aviso laranja ou vermelho do IPMA no distrito deles, sismo de magnitude 4 ou mais a menos de 150 km. No dia do aniversário, o resumo do dia lembra-te de ligar.
+- Fontes: IPMA (avisos), fogos.pt com dados da Proteção Civil (incêndios), USGS (sismos), Open-Meteo (tempo e cidades). A central nunca inventa: se uma fonte não responde, diz que não sabe.
 
 ## A loja (Shopify)
 

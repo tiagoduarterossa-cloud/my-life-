@@ -214,7 +214,21 @@ def entender(texto, hoje=None):
             re.search(r"\b(seguro|confiavel|phishing|burla|perigoso|abrir|clicar|verifica|analisa|legit)\b", s):
         m = re.search(r"(https?://\S+|www\.\S+|[\w.-]+\.(?:com|pt|net|org|xyz|io|me|ly|gg|app)\S*)", t)
         return "link", {"link": m[1] if m else ""}
-    m = re.search(r"\bgastei (\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
+    # ----- familia -----
+    m = re.match(r"^(liguei|falei|telefonei|estive|fui visitar|visitei)\b(?: (?:a|ao|aos|as|com|para))?\s*(.+)", s)
+    if m and re.search(r"\b(av[oó]s?|tias?|tios?|prim[oa]s?|madrinha|padrinho|familia|bisav[oó]s?)\b", m[2]):
+        return "familia_contacto", {"quem": m[2]}
+    if re.search(r"\b(ha quanto tempo|quando foi a ultima vez)\b.*\b(ligo|ligar|falo|falar|liguei|falei|vejo|visito|visitei)\b", s):
+        return "familia_tempo", {}
+    if re.search(r"\b(quando faz anos|quando e o aniversario|aniversarios?|faz anos)\b", s):
+        return "familia_anos", {}
+    if re.search(r"\b(mostra o mapa|abre o mapa|mapa|ver o mapa)\b", s):
+        return "mapa", {}
+    if re.search(r"\b(como esta|como estao|ha algum aviso|algum aviso|algum perigo|esta tudo bem|esta tudo ok|que tempo|tempo)\b.*\b(av[oó]s?|av[oô]|tia|tio|tias|tios|prim[oa]s?|madrinha|padrinho|familia|bisav[oó])\b|\bcasa d[aeo]s? (?:avos?|tia|tio|familia|prim)", s) and \
+            not re.search(r"^(marca|tenho de|toma nota)", s):
+        return "familia_estado", {}
+
+    m = re.search(r"\\bgastei (\\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
     if m:
         desc = (m[2] or "").strip()
         loja_ctx = re.search(r"loja|anuncio|ads|tiktok|facebook|meta|instagram|google ads|shopify|app|fornecedor|amostra|dominio|tema", desc + " " + s)
@@ -576,6 +590,15 @@ def responder(texto, con, hoje=None, nome=""):
             atrasadas = [t for t in tar if t["prazo"] < hoje.isoformat()]
             fala.append(("Não te esqueças: " + lista_falada(t["titulo"].lower() for t in tar[:3]) + ".") +
                         (f" E tens {len(atrasadas)} atrasada{'s' if len(atrasadas) > 1 else ''}, despacha isso." if atrasadas else ""))
+        try:
+            import familia
+            for p in familia.listar(con, dia):
+                if p["dias_aniversario"] == 0:
+                    quem = familia.com_artigo(p)
+                    itens.insert(0, f"🎂 Faz anos: {quem}")
+                    fala.insert(0, f"{'Hoje' if dia == hoje else 'Nesse dia'} faz anos {quem}" + (f", {p['faz_anos']} anos" if p["faz_anos"] else "") + ". Não te esqueças de ligar!")
+        except Exception:
+            pass
         ola, ola_f = "", ""
         if d.get("saudacao"):
             ola = {"bom dia": "Bom dia!", "boa tarde": "Boa tarde!", "boa noite": "Boa noite!"}.get(d["saudacao"], "Olá!") + " "
@@ -680,6 +703,58 @@ def responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao.startswith("familia") or intencao == "mapa":
+        import familia
+        if intencao == "mapa":
+            return {"resposta": "A abrir o mapa.", "falado": ya(["Aqui está o mapa.", "A mostrar o mapa."]), "mapa": True}
+        ps = familia.listar(con, hoje)
+        if not ps:
+            return {"resposta": "Ainda não meteste a família. Abre o modo Iron Man e carrega em Família > editar.", "falado": "Ainda não me disseste quem é a tua família. Abre o modo Iron Man e mete-os no painel da família."}
+        if intencao == "familia_contacto":
+            alvo = familia.procurar(con, d["quem"])
+            if not alvo:
+                return {"resposta": f"Não sei quem é '{d['quem']}'.", "falado": "Não sei quem é. Mete-o primeiro no painel da família, no modo Iron Man."}
+            for p in alvo:
+                con.execute("UPDATE familia SET ultimo_contacto = ? WHERE id = ?", (hoje.isoformat(), p["id"]))
+            nomes = lista_falada(familia.com_artigo(p) for p in alvo)
+            return {"resposta": f"Anotado: falaste com {nomes} hoje.", "falado": ya(["Boa!", "Fixe."]) + f" Anotei que falaste com {nomes}.", "mudou": True}
+        if intencao == "familia_tempo":
+            linhas = [(p, p["dias_sem_falar"]) for p in ps]
+            itens = [f"{p['relacao']} {p['nome']}: " + (f"há {x} dias" if x is not None else "ainda não registaste") for p, x in linhas]
+            alvo = familia.procurar(con, simples(texto)) or ps
+            linhas = [(p, p["dias_sem_falar"]) for p in alvo]
+            longe = [p for p, x in linhas if x is not None and x >= 14]
+            nunca = [p for p, x in linhas if x is None]
+            if len(alvo) == 1:
+                x = linhas[0][1]
+                f = (f"Ainda não tenho registo de falares com {familia.com_artigo(alvo[0])}." if x is None else
+                     f"Falaste com {familia.com_artigo(alvo[0])} " + ("hoje." if x == 0 else "ontem." if x == 1 else f"há {x} dias.") + (" Que tal ligares hoje?" if x >= 14 else ""))
+            elif longe:
+                f = "Há mais de duas semanas que não falas com " + lista_falada(familia.com_artigo(p) for p in longe[:3]) + ". Que tal ligares hoje?"
+            elif nunca:
+                f = "Ainda não tenho registo de falares com " + lista_falada(familia.com_artigo(p) for p in nunca[:3]) + ". Quando falares, diz-me: liguei à avó."
+            else:
+                f = "Tens falado com todos nas últimas duas semanas. Muito bem."
+            return {"resposta": f, "falado": f, "itens": itens}
+        if intencao == "familia_anos":
+            pedidos = familia.procurar(con, simples(texto))
+            com = sorted([p for p in (pedidos or ps) if p["dias_aniversario"] is not None], key=lambda p: p["dias_aniversario"])
+            if not com:
+                return {"resposta": "Ainda não meteste aniversários.", "falado": "Ainda não me disseste os aniversários."}
+            p = com[0]; dd = p["dias_aniversario"]
+            quando = "hoje" if dd == 0 else "amanhã" if dd == 1 else f"daqui a {dd} dias"
+            f = (f"{familia.com_artigo(p)[0].upper()}{familia.com_artigo(p)[1:]} faz anos {quando}" if pedidos else
+                 f"O próximo aniversário é d{familia.com_artigo(p)}, {quando}") + (f", faz {p['faz_anos']} anos." if p["faz_anos"] else ".")
+            if dd == 0: f += " Liga-lhe!"
+            return {"resposta": f, "falado": f, "itens": [f"{p['relacao']} {p['nome']}: daqui a {p['dias_aniversario']} dias" for p in com]}
+        # familia_estado: o tempo e os perigos reais perto da casa deles
+        alvo = familia.procurar(con, simples(texto)) or [p for p in ps if p.get("lat") is not None]
+        alvo = [p for p in alvo if p.get("lat") is not None][:3]
+        if not alvo:
+            return {"resposta": "Não sei onde vivem. Mete a cidade no painel da família.", "falado": "Não sei onde vivem. Mete a cidade no painel da família, no modo Iron Man."}
+        frases = [familia.frase_pessoa(p, familia.perigos(p["lat"], p["lon"]), familia.tempo(p["lat"], p["lon"])) for p in alvo]
+        return {"resposta": frases[0], "itens": frases[1:], "falado": " ".join(frases)}
 
     if intencao == "despesa":
         if not d["da_loja"]:

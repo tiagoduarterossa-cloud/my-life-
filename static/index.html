@@ -311,6 +311,22 @@
   .im-horas i { display: block; background: linear-gradient(0deg, rgba(0, 200, 255, .2), rgba(0, 200, 255, .8)); margin-bottom: 2px; }
   #im-term { font: 11px/1.5 ui-monospace, Menlo, monospace; color: #6fe0ff; max-height: 150px; overflow: hidden; }
   #im-term div::before { content: "> "; color: #ffc35a; }
+  /* familia e mapa (so no Iron Man: sao coisas privadas) */
+  #im-familia .pessoa { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0, 200, 255, .1); }
+  #im-familia .pessoa b { color: #fff; font-weight: 500; }
+  #im-familia .alerta { color: #ff6b6b; }
+  #im-familia button, #im-mapa-caixa button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; margin: 8px 6px 0 0; cursor: pointer; }
+  #im-mapa-caixa { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 46vw); height: min(78vh, 760px);
+    display: none !important; border: 1px solid rgba(0, 200, 255, .35); background: rgba(0, 8, 20, .95); z-index: 3; }
+  #hud.ironman.mapa #im-mapa-caixa { display: block !important; }
+  #hud.ironman.mapa #hud-texto { opacity: .25; }
+  #im-mapa { position: static !important; width: 100% !important; height: calc(100% - 80px) !important; display: block; }
+  #im-mapa-caixa .legenda { padding: 6px 12px; font-size: 11px; color: #9fe6ff; letter-spacing: 1px; }
+  #im-mapa-caixa .legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 10px; vertical-align: middle; }
+  #im-mapa-caixa h4 { margin: 0; padding: 8px 12px 0; font-size: 11px; letter-spacing: 4px; color: #4fd2ff; font-weight: 600; }
+  #im-mapa-caixa .fechar { position: absolute; top: 2px; right: 6px; margin: 0; }
+  @media (max-width: 900px) { #im-mapa-caixa { width: 92vw; } }
   #im-boot { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); text-align: center; font-size: 13px; letter-spacing: 6px;
              color: #9fe6ff; text-transform: uppercase; display: none; }
   #hud.a-arrancar #im-boot { display: block; }
@@ -725,7 +741,12 @@
   <div class="im im-faixa"><div id="im-faixa"></div></div>
   <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
   <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
-  <div class="im im-painel" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
+  <div class="im im-painel" id="im-registo" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
+  <div class="im im-painel" id="im-familia" style="bottom:24px;left:24px;animation-delay:.45s" hidden></div>
+  <div class="im" id="im-mapa-caixa"><h4>mapa · família e perigos</h4><button class="fechar" onclick="fecharMapa()">fechar</button>
+    <canvas id="im-mapa"></canvas>
+    <div class="legenda"><i style="background:#ffc35a"></i>casa<i style="background:#38e1ff"></i>família<i style="background:#ff4d4d"></i>incêndio<i style="background:#ff9a3c"></i>sismo
+      <div id="im-mapa-fonte" style="opacity:.7;margin-top:3px"></div></div></div>
   <div class="im im-painel" id="im-agenda" style="top:72px;right:24px;animation-delay:.2s"></div>
   <div class="im im-painel" id="im-missoes" style="top:300px;right:24px;animation-delay:.35s"></div>
   <div class="im im-painel" id="im-loja" style="top:500px;right:24px;animation-delay:.42s" hidden></div>
@@ -785,6 +806,19 @@
   </form>
 </dialog>
 
+<dialog id="d-familia">
+  <h3>Família</h3>
+  <p class="vazio" style="text-align:left;margin:0 0 10px">Fica só neste tablet (não vai para o GitHub). A cidade serve para ver o tempo e os avisos perto da casa deles.</p>
+  <ul id="lista-familia" style="margin-bottom:12px"></ul>
+  <form id="f-familia" style="grid-template-columns: 1fr 1fr">
+    <input name="relacao" placeholder="Avó, tio, prima…" maxlength="20">
+    <input name="nome" placeholder="Nome" required maxlength="40">
+    <input name="cidade" placeholder="Cidade onde vive" maxlength="60">
+    <input name="aniversario" type="date" title="Aniversário">
+    <button class="principal" style="grid-column: 1 / -1">Adicionar</button>
+  </form>
+  <div class="botoes"><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
 <dialog id="d-loja">
   <h3 id="loja-titulo">A minha loja</h3>
   <div class="filtros" id="loja-periodo">
@@ -909,6 +943,7 @@
     <div class="botoes"><button type="button" class="secundario" id="cfg-ensinar">Ensinar a palavra</button></div>
     <div class="vazio" id="cfg-alternativas" style="font-size:13px"></div>
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
+    <label class="interruptor"><input type="checkbox" id="cfg-trinco"> Primeiro tenho de dizer «escuta» (só depois aceita a palavra, durante 15 s)</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
   </div>
   <label>Loja (Shopify)</label>
@@ -1455,6 +1490,8 @@ async function perguntar(texto) {
     if (r.hud === false) fecharHUD();
     if (r.escuta === false) { vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); }
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
+    if (r.mapa) { $("#assist").classList.remove("aberto"); mostrarMapa(); }
+    if (r.mudou) paineisIronMan.famT = 0;
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
   } catch (err) { espera.remove(); msgAssist("ela", "Não consegui falar com o servidor: " + err.message); }
@@ -1477,7 +1514,7 @@ $("#assist-sug").onclick = e => {
 };
 // ---------- VOZ: falar as respostas ----------
 const vozCfg = Object.assign({ motor: "neural", vozNeural: "pt-PT-DuarteNeural", voz: "", rate: 1.08, pitch: 1.05,
-  palavra: "Rosserini", ouvir: false, alternativas: [] }, ler("voz") || {});
+  palavra: "Rosserini", ouvir: false, alternativas: [], trinco: true }, ler("voz") || {});
 let aFalar = false, infoVoz = null;
 async function falarNeural(texto) {
   // parte a resposta em frases, pede-as todas ao mesmo tempo e toca a primeira logo que chega,
@@ -1562,6 +1599,7 @@ async function mostrarMotor() {
 }
 $("#cfg-motor").onclick = e => { const m = e.target.dataset.motor; if (!m) return; vozCfg.motor = m; guardarVoz(); mostrarMotor(); };
 $("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
+$("#cfg-trinco").onchange = () => { vozCfg.trinco = $("#cfg-trinco").checked; guardar("voz", vozCfg); trincoAte = 0; retomarEscuta(); };
 $("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); mostrarBotEscuta(); };
 // ----- Spotify -----
 const ICON = { ant: '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 18V6z"/></svg>', seg: '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
@@ -1676,7 +1714,13 @@ function acharUma(frase, alvo) {
         return { depois: orig.slice(i + n).join(" ").replace(/^[,.!?\s]+/, "") };
   return null;
 }
-let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false;
+let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false, trincoAte = 0;
+const armado = () => vozCfg.trinco === false || Date.now() < trincoAte || aEsperarComando > Date.now();
+const nomeEspera = () => armado() ? `Diz "${vozCfg.palavra}"` : `Diz "escuta"`;
+function bipTrinco() {
+  try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.05, c.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.15); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.16); } catch (e) {}
+}
 function estadoEscuta(txt, ativo) {
   $("#escuta").classList.toggle("ver", !!txt); $("#escuta").classList.toggle("ativo", !!ativo); $("#escuta-txt").textContent = txt || "";
 }
@@ -1712,6 +1756,8 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (r.hud === false) { hudLog("a encerrar"); await falar(r.falado); fecharHUD(); return; }
     if (r.hud === "ironman") { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); hudEstado("falar"); hudTexto("", r.resposta);
       await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
+    if (r.mapa) { mostrarMapa(); }
+    if (r.mudou) paineisIronMan.famT = 0;
     if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
     if (r.musica) setTimeout(carregarSpotify, 800);
@@ -1752,13 +1798,22 @@ function retomarEscuta() {
   const r = new Reconhecer(); escuta = r;
   r.lang = "pt-PT"; r.continuous = true; r.interimResults = false; r.maxAlternatives = 4;
   const conversa = aEsperarComando > Date.now();
-  estadoEscuta(conversa ? "Estou a ouvir…" : `Diz "${vozCfg.palavra}"`, conversa);
-  if (conversa) setTimeout(() => { if (escuta === r && aEsperarComando <= Date.now()) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, aEsperarComando - Date.now() + 100);
+  estadoEscuta(conversa ? "Estou a ouvir…" : nomeEspera(), conversa);
+  if (conversa) setTimeout(() => { if (escuta === r && aEsperarComando <= Date.now()) estadoEscuta(nomeEspera()); }, aEsperarComando - Date.now() + 100);
   r.onresult = ev => {
     const frase = ev.results[ev.results.length - 1][0].transcript.trim();
+    // trinco: enquanto nao disseres "escuta", ignora tudo e nao mostra nada do que ouviu
+    if (!armado()) {
+      const alts = [...ev.results[ev.results.length - 1]].map(x => semAcentos(x.transcript).toLowerCase());
+      if (!alts.some(a => /\b(escuta|escute|escutas|ascuta)\b/.test(a))) return;
+      trincoAte = Date.now() + 15000; bipTrinco(); hudLog("trinco aberto");
+      estadoEscuta(`Diz "${vozCfg.palavra}"`, true);
+      setTimeout(() => { if (escuta && !armado()) estadoEscuta(nomeEspera()); }, 15100);
+      if (!acharPalavra(frase) && !/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) return;   // "escuta" sozinho: espera pelo nome
+    }
     // mostra o que a Google percebeu, para sabermos se ouviu o nome certo
     estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
-    clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(`Diz "${vozCfg.palavra}"`); }, 3500);
+    clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(nomeEspera()); }, 3500);
     if (aEsperarComando > Date.now()) {
       aEsperarComando = 0; pararEscuta();
       if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
@@ -1773,7 +1828,7 @@ function retomarEscuta() {
     let achou = null;
     for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
     if (!achou) return;
-    pararEscuta();
+    trincoAte = 0; pararEscuta();
     if (achou.depois.length > 2) comandoVoz(achou.depois);
     else {
       aEsperarComando = Date.now() + 8000;
@@ -1910,10 +1965,94 @@ async function paineisIronMan() {
     <div class="linha"><span>Vendas</span><span>${eur(lj.receita)}</span></div>
     <div class="linha"><span>Lucro real</span><span style="color:${lj.lucro >= 0 ? "#5dffa0" : "#ff6b6b"}">${eur(lj.lucro)}</span></div>
     <div class="linha"><span>Por enviar</span><span>${lj.por_enviar.length}</span></div>`;
+  // familia (de 10 em 10 minutos: tempo e perigos reais perto da casa deles)
+  if (!paineisIronMan.famT || Date.now() - paineisIronMan.famT > 600000) {
+    paineisIronMan.famT = Date.now();
+    api("/api/familia?detalhes=1").then(r => { paineisIronMan.fam = r; paineisIronMan(); }).catch(() => {});
+  }
+  const fm = paineisIronMan.fam || [];
+  $("#im-familia").hidden = !fm.length; $("#im-registo").hidden = !!fm.length;
+  if (fm.length) {
+    const perigo = p => p.perigos && (p.perigos.fogos?.length || p.perigos.sismos?.length || (p.perigos.avisos || []).some(a => ["laranja", "vermelho"].includes(a.nivel)));
+    $("#im-familia").innerHTML = `<h4>família</h4>` + fm.slice(0, 5).map(p => {
+      const extra = p.dias_aniversario === 0 ? "🎂 hoje" : p.dias_aniversario != null && p.dias_aniversario <= 7 ? `🎂 ${p.dias_aniversario} d` :
+                    p.dias_sem_falar == null ? "" : p.dias_sem_falar >= 14 ? `<span style="color:#ffc35a">${p.dias_sem_falar} d sem falar</span>` : "";
+      const estado = perigo(p) ? `<span class="alerta">⚠ alerta</span>` : p.graus != null ? `${p.graus}°` : "";
+      return `<div class="pessoa"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b><br><small>${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
+    }).join("") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">editar</button>`;
+  }
   // musica
   const a = spotifyInfo?.agora;
   $("#im-musica").innerHTML = `<h4>áudio</h4>` + (a && a.musica ? `<div style="color:#fff">${esc(a.musica)}</div>${esc(a.artista)} · ${a.tocar ? "a tocar" : "em pausa"}` : "Sem música.");
 }
+// ---------- familia e mapa ----------
+// contorno simplificado de Portugal continental (lat, lon)
+const PT = [[41.87,-8.86],[42.03,-8.64],[42.15,-8.26],[41.82,-7.79],[41.95,-7.4],[41.98,-6.75],[41.5,-6.27],[41.0,-6.9],[40.73,-6.9],[40.2,-6.95],
+  [39.45,-7.3],[38.88,-7.05],[38.7,-7.2],[38.38,-7.2],[38.13,-6.98],[37.95,-7.3],[37.6,-7.45],[37.19,-7.42],[37.0,-7.93],[37.0,-8.94],[37.95,-8.87],
+  [38.48,-8.9],[38.41,-9.21],[38.69,-9.42],[38.78,-9.5],[39.36,-9.4],[39.6,-9.07],[40.15,-8.86],[40.64,-8.75],[41.15,-8.68],[41.69,-8.85]];
+const mapa = { dados: null, ate: 0 };
+async function mostrarMapa() {
+  if (!$("#hud").classList.contains("ironman")) { abrirHUD("espera"); arranqueIronMan(); }
+  $("#hud").classList.add("mapa"); mapa.ate = Date.now() + 90000; hud.ate = Math.max(hud.ate, mapa.ate);
+  hudLog("mapa aberto"); desenharMapa();
+  try { mapa.dados = await api("/api/mapa"); } catch (e) { mapa.dados = { erro: e.message }; }
+  desenharMapa();
+}
+function fecharMapa() { $("#hud").classList.remove("mapa"); }
+setInterval(() => { if ($("#hud").classList.contains("mapa")) { if (Date.now() > mapa.ate) fecharMapa(); else desenharMapa(); } }, 500);
+function desenharMapa() {
+  const cv = $("#im-mapa"), dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth * dpr, H = cv.clientHeight * dpr;
+  if (!W || !H) return;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const g = cv.getContext("2d"); g.clearRect(0, 0, W, H);
+  const d = mapa.dados || {}, pts = d.pontos || [];
+  // a vista: Portugal inteiro, alargada se houver familia fora (ex.: Madeira, Espanha)
+  let la = [36.3, 42.3], lo = [-9.8, -6.0];
+  pts.forEach(p => { la = [Math.min(la[0], p.lat - .3), Math.max(la[1], p.lat + .3)]; lo = [Math.min(lo[0], p.lon - .3), Math.max(lo[1], p.lon + .3)]; });
+  const kx = Math.cos((la[0] + la[1]) / 2 * Math.PI / 180), larg = (lo[1] - lo[0]) * kx, alt = la[1] - la[0];
+  const esc2 = Math.min(W / larg, H / alt) * 0.92, ox = (W - larg * esc2) / 2, oy = (H - alt * esc2) / 2;
+  const xy = (lat, lon) => [ox + (lon - lo[0]) * kx * esc2, oy + (la[1] - lat) * esc2];
+  const t = performance.now() / 1000;
+  g.strokeStyle = "rgba(0,200,255,.55)"; g.fillStyle = "rgba(0,120,200,.10)"; g.lineWidth = 1.5 * dpr; g.beginPath();
+  PT.forEach(([a, b], i) => { const [x, y] = xy(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); g.stroke();
+  (d.sismos || []).forEach(s => { const [x, y] = xy(s.lat, s.lon); g.strokeStyle = "rgba(255,154,60,.8)"; g.lineWidth = 1.5 * dpr;
+    g.beginPath(); g.arc(x, y, (3 + s.mag * 3) * dpr, 0, 7); g.stroke(); });
+  (d.fogos || []).forEach(f => { const [x, y] = xy(f.lat, f.lon); g.fillStyle = `rgba(255,77,77,${0.55 + 0.45 * Math.sin(t * 5)})`;
+    g.beginPath(); g.arc(x, y, 4 * dpr, 0, 7); g.fill(); });
+  g.font = `${11 * dpr}px system-ui`; g.textBaseline = "middle";
+  pts.forEach(p => {
+    const [x, y] = xy(p.lat, p.lon), cor = p.tipo === "casa" ? "255,195,90" : p.alerta ? "255,77,77" : "56,225,255";
+    g.strokeStyle = `rgba(${cor},${0.4 + 0.3 * Math.sin(t * 3)})`; g.lineWidth = 1 * dpr; g.beginPath(); g.arc(x, y, (9 + 4 * Math.sin(t * 3)) * dpr, 0, 7); g.stroke();
+    g.fillStyle = `rgb(${cor})`; g.beginPath(); g.arc(x, y, 5 * dpr, 0, 7); g.fill();
+    g.fillText((p.alerta ? "⚠ " : "") + p.nome, x + 12 * dpr, y);
+  });
+  const f = [];
+  if (d.erro) f.push("Não consegui carregar o mapa: " + d.erro);
+  else if (mapa.dados) {
+    f.push(d.fogos === null ? "incêndios: sem dados" : `incêndios: fogos.pt / Proteção Civil (${d.fogos.length})`);
+    f.push(d.sismos === null ? "sismos: sem dados" : `sismos: USGS, últimas 24 h (${d.sismos.length})`);
+    if (!pts.some(p => p.tipo === "familia")) f.push("mete a família em «editar»");
+  } else f.push("a carregar…");
+  $("#im-mapa-fonte").textContent = f.join(" · ");
+}
+function abrirFamilia() { $("#d-familia").showModal(); carregarFamilia(); }
+async function carregarFamilia() {
+  const ps = await api("/api/familia");
+  $("#lista-familia").innerHTML = ps.length ? ps.map(p => `<li><span><b>${esc((p.relacao + " " + p.nome).trim())}</b> <small>${esc(p.cidade || "sem cidade")}${p.aniversario ? " · faz anos " + p.aniversario.slice(8, 10) + "/" + p.aniversario.slice(5, 7) : ""}${p.dias_sem_falar === 0 ? " · falaram hoje" : p.dias_sem_falar != null ? " · falaram há " + p.dias_sem_falar + " d" : ""}</small></span>
+    <span style="display:flex;gap:6px;flex-shrink:0"><button class="secundario" style="padding:6px 10px;font-size:13px" data-falei="${p.id}">Falei hoje</button><button class="secundario" style="padding:6px 10px;font-size:13px;color:var(--perigo)" data-apagar-fam="${p.id}">✕</button></span></li>`).join("")
+    : `<li class="vazio">Ainda ninguém.</li>`;
+}
+$("#lista-familia").onclick = async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.falei) await api(`/api/familia/${b.dataset.falei}/contacto`, "POST", {});
+  if (b.dataset.apagarFam && confirm("Apagar?")) await api(`/api/familia/${b.dataset.apagarFam}`, "DELETE");
+  paineisIronMan.famT = 0; carregarFamilia();
+};
+$("#f-familia").onsubmit = async e => {
+  e.preventDefault(); const f = e.target, d = Object.fromEntries(new FormData(f));
+  try { await api("/api/familia", "POST", d); f.reset(); paineisIronMan.famT = 0; carregarFamilia(); }
+  catch (err) { alert(err.message); }
+};
 function arranqueIronMan() {
   const h = $("#hud"); h.classList.add("ironman", "a-arrancar"); hudLog("protocolo iron man iniciado");
   // som de arranque: um varrimento a subir e tres bips
@@ -1940,7 +2079,7 @@ function abrirHUD(estado = "espera") {
 }
 function fecharHUD() {
   const eraIron = $("#hud").classList.contains("ironman");
-  $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar"); pararCamara(); hud.ate = 0;
+  $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa"); pararCamara(); hud.ate = 0;
   if (eraIron) corNaFita();   // a fita volta a cor do tema
 }
 function hudEstado(e) {
@@ -2579,7 +2718,7 @@ $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
-  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
+  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-trinco").checked = vozCfg.trinco !== false; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
   estadoLoja();
   $("#cfg-tomada").value = config.tomada_ip || ""; $("#cfg-wled").value = config.wled_ip || ""; $("#cfg-hud").checked = vozCfg.hud !== false; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
