@@ -816,7 +816,7 @@ def _responder(texto, con, hoje=None, nome=""):
         if not alvo:
             return {"resposta": "Não sei onde vivem. Mete a cidade no painel da família.", "falado": "Não sei onde vivem. Mete a cidade no painel da família, no modo Iron Man."}
         frases = [familia.frase_pessoa(p, familia.perigos(p["lat"], p["lon"]), familia.tempo(p["lat"], p["lon"])) for p in alvo]
-        return {"resposta": frases[0], "itens": frases[1:], "falado": " ".join(frases)}
+        return {"resposta": frases[0], "itens": frases[1:], "falado": " ".join(frases), **({"pessoa": alvo[0]["id"]} if len(alvo) == 1 else {})}
 
     if intencao == "despesa":
         if not d["da_loja"]:

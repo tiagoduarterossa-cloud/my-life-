@@ -701,6 +701,11 @@ class Handler(BaseHTTPRequestHandler):
                         con.execute("INSERT INTO familia (nome, relacao, aniversario, cidade, lat, lon) VALUES (?,?,?,?,?,?)",
                                     (texto(d, "nome", maximo=40), texto(d, "relacao", obrigatorio=False, maximo=20) or "", aniv, cidade, lat, lon))
                         return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/familia/(\d+)/detalhe", caminho)
+            if m and metodo == "GET":
+                with db() as con:
+                    r = familia.detalhe(con, int(m[1]))
+                return self.enviar(200, r) if r else self.enviar(404, {"erro": "não encontrei essa pessoa"})
             m = re.fullmatch(r"/api/familia/(\d+)/contacto", caminho)
             if m and metodo == "POST":
                 with db() as con:

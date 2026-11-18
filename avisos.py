@@ -95,22 +95,28 @@ def avisos_ipma(lat, lon):
 
 
 def avisos_distritos():
-    """todos os distritos do continente com o pior aviso ativo do IPMA (para pintar o mapa)"""
+    """todos os distritos e zonas das ilhas com o pior aviso ativo do IPMA, separando terra e mar
+    (a agitacao maritima so afeta a costa, por isso nao pinta o distrito todo)"""
     agora = datetime.now().isoformat()[:16]
-    pior = {}
     ordem = {"amarelo": 1, "laranja": 2, "vermelho": 3}
+    por = {}
     for a in _json(IPMA):
         cod, nivel = a.get("idAreaAviso"), NIVEIS.get(a.get("awarenessLevelID"))
         if cod not in DISTRITOS or not nivel or (a.get("endTime") or "9999")[:16] < agora:
             continue
-        x = pior.setdefault(cod, {"nivel": nivel, "tipos": []})
-        if ordem[nivel] > ordem[x["nivel"]]:
-            x["nivel"] = nivel
-        tipo = f"{a.get('awarenessTypeName', 'Tempo').lower()} ({nivel})"
-        if tipo not in x["tipos"]:
-            x["tipos"].append(tipo)
-    return [{"cod": c, "nome": n, "lat": la, "lon": lo, "nivel": pior.get(c, {}).get("nivel"), "tipos": pior.get(c, {}).get("tipos", [])}
-            for c, (n, la, lo) in DISTRITOS.items()]
+        tipo = a.get("awarenessTypeName", "Tempo")
+        t = por.setdefault(cod, {})
+        if ordem[nivel] > ordem.get(t.get(tipo), 0):
+            t[tipo] = nivel
+    out = []
+    for c, (n, la, lo) in DISTRITOS.items():
+        t = por.get(c, {})
+        terra = [v for k, v in t.items() if "mar" not in k.lower()]
+        mar = [v for k, v in t.items() if "mar" in k.lower()]
+        pior = lambda xs: max(xs, key=lambda v: ordem[v]) if xs else None
+        out.append({"cod": c, "nome": n, "lat": la, "lon": lo, "nivel": pior(terra), "mar": pior(mar),
+                    "tipos": [f"{k.lower()} ({v})" for k, v in sorted(t.items(), key=lambda kv: -ordem[kv[1]])]})
+    return out
 
 
 def vento():

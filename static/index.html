@@ -343,6 +343,13 @@
   #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; vertical-align: middle; }
   #apagao .topo button { vertical-align: middle; }
   #d-servicos .linha-sv { padding: 3px 0; }
+  #d-pessoa .sec { margin-top: 14px; } #d-pessoa .sec h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); }
+  #d-pessoa .fonte { font-size: 11px; color: var(--suave); margin-top: 4px; }
+  #d-pessoa .horas { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; font-size: 12px; text-align: center; }
+  #d-pessoa .horas div { min-width: 34px; } #d-pessoa .horas b { display: block; font-size: 14px; }
+  #d-pessoa .aviso { border-left: 4px solid; padding: 4px 8px; margin: 6px 0; border-radius: 4px; background: var(--campo); }
+  #d-pessoa a { color: var(--acento, #8ab4ff); }
+  #im-familia .pessoa { cursor: pointer; }
   @media (max-width: 600px) { #apagao .hora { font-size: 30px; } }
   #apagao .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
   #apagao .bloco { border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 14px; background: #070707; }
@@ -910,6 +917,11 @@
   <button type="button" class="secundario" style="width:100%;margin-top:12px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
+<dialog id="d-pessoa">
+  <h3 id="ps-titulo">…</h3>
+  <div id="ps-corpo" class="vazio">A carregar…</div>
+  <div class="botoes"><button type="button" class="secundario" id="ps-falei">Falei hoje</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
 <dialog id="d-servicos">
   <h3>O que está a funcionar</h3>
   <div class="vazio" style="font-size:13px;text-align:left;margin:0 0 8px">Visto a partir da tua casa: a central tenta mesmo ligar-se a cada serviço. Se só um falha, o problema é desse serviço; se falha tudo, é a tua internet.</div>
@@ -1122,6 +1134,17 @@ function aviso(msg, erro = true) {
   clearTimeout(aviso.t); aviso.t = setTimeout(() => el.style.display = "none", 3500);
 }
 
+// um so motor de som para toda a central: no Android, criar um novo a cada som acumula-os,
+// deixa o tablet lento e rouba o audio ao microfone
+let _somCtx = null, _somUsado = 0;
+function somCtx() {
+  _somUsado = Date.now();
+  if (!_somCtx || _somCtx.state === "closed") _somCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_somCtx.state === "suspended") _somCtx.resume().catch(() => {});
+  return _somCtx;
+}
+// quando nao ha sons a tocar, suspende o motor (deixa de gastar bateria e de ocupar o audio)
+setInterval(() => { if (_somCtx && _somCtx.state === "running" && Date.now() - _somUsado > 5000) _somCtx.suspend().catch(() => {}); }, 15000);
 async function api(caminho, metodo = "GET", corpo, outraVez = true) {
   const r = await fetch(caminho, { method: metodo, headers: { "Content-Type": "application/json" },
     body: corpo ? JSON.stringify(corpo) : undefined });
@@ -1491,7 +1514,7 @@ function tickCrono() {
 }
 function apito() {
   try {
-    const ctx = new AudioContext();
+    const ctx = somCtx();
     [0, .35, .7].forEach(t => { const o = ctx.createOscillator(), g = ctx.createGain();
       o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
       g.gain.setValueAtTime(.25, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .3);
@@ -1728,6 +1751,7 @@ async function perguntar(texto) {
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
     if (r.mapa) { $("#assist").classList.remove("aberto"); mostrarMapa(); }
     if (r.servicos) abrirServicos();
+    if (r.pessoa) abrirPessoa(r.pessoa);
     if (r.mudou) paineisIronMan.famT = 0;
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
@@ -1961,7 +1985,7 @@ let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false, tr
 const armado = () => vozCfg.trinco === false || Date.now() < trincoAte || aEsperarComando > Date.now() || $("#hud")?.classList.contains("ver");
 const nomeEspera = () => armado() ? `Diz "${vozCfg.palavra}"` : `Diz "escuta"`;
 function bipTrinco() {
-  try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.05, c.currentTime);
+  try { const c = somCtx(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.05, c.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.15); o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + 0.16); } catch (e) {}
 }
 function estadoEscuta(txt, ativo) {
@@ -2002,6 +2026,7 @@ async function comandoVoz(texto, { noChat = false } = {}) {
       await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mapa) { mostrarMapa(); }
     if (r.servicos) abrirServicos();
+    if (r.pessoa) abrirPessoa(r.pessoa);
     if (r.mudou) paineisIronMan.famT = 0;
     if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
@@ -2262,7 +2287,7 @@ async function paineisIronMan() {
       const extra = p.dias_aniversario === 0 ? "🎂 hoje" : p.dias_aniversario != null && p.dias_aniversario <= 7 ? `🎂 ${p.dias_aniversario} d` :
                     p.dias_sem_falar == null ? "" : p.dias_sem_falar >= 14 ? `<span style="color:#ffc35a">${p.dias_sem_falar} d sem falar</span>` : "";
       const estado = perigo(p) ? `<span class="alerta">⚠ alerta</span>` : p.graus != null ? `${p.graus}°` : "";
-      return `<div class="pessoa"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b> <small style="opacity:.7">${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
+      return `<div class="pessoa" data-pid="${p.id}" onclick="abrirPessoa(${p.id})"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b> <small style="opacity:.7">${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
     }).join("") + (fm.length > 3 ? `<small style="opacity:.7">e mais ${fm.length - 3}</small><br>` : "") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">+ adicionar</button>`;
   }
   // musica
@@ -2282,6 +2307,15 @@ async function mostrarMapa() {
 function fecharMapa() { $("#hud").classList.remove("mapa"); }
 setInterval(() => { if ($("#hud").classList.contains("mapa")) { if (Date.now() > mapa.ate) fecharMapa(); else desenharMapa(); } }, 500);
 const CORES_AVISO = { amarelo: "rgb(255,214,10)", laranja: "rgb(255,140,0)", vermelho: "rgb(255,45,45)" };
+// que pontos do contorno do continente sao costa (longe da fronteira com Espanha); calcula-se uma vez
+let _costa = null;
+function costaPT(pi, i) {
+  if (!_costa) {
+    const es = MAPA_PT.espanha.flat();
+    _costa = MAPA_PT.continente.map(pl => pl.map(([a, b]) => !es.some(([c, d]) => (a - c) ** 2 + (b - d) ** 2 < 0.004)));
+  }
+  return _costa[pi]?.[i];
+}
 const ILHAS_COD = { "Açores": ["AOC", "ACE", "AOR"], "Madeira": ["MCN", "MCS", "MRM", "MPS"] };
 function vistasMapa(W, H, dpr) {
   // continente a direita, ocupa a altura toda; Acores e Madeira em caixas a esquerda
@@ -2320,9 +2354,9 @@ function desenharMapa() {
   g.fillText("ESPANHA", ...cont.xy(40.2, -6.35)); g.fillText("OCEANO ATLÂNTICO", ...cont.xy(38.2, -9.35).map((v, i) => i ? v : v + 6 * dpr)); g.textAlign = "left";
   g.restore();
   // avisos do IPMA: pinta cada bocado de terra com o aviso da zona do IPMA mais perto (fronteiras aproximadas)
-  const todos = d.distritos || [], comAviso = todos.filter(x => x.nivel);
-  const chave = W + "x" + H + JSON.stringify(comAviso.map(x => x.cod + x.nivel));
-  if (comAviso.length && mapa.ipmaChave !== chave) {
+  const todos = d.distritos || [], comAviso = todos.filter(x => x.nivel || x.mar);
+  const chave = W + "x" + H + JSON.stringify(todos.filter(x => x.nivel).map(x => x.cod + x.nivel));
+  if (todos.some(x => x.nivel) && mapa.ipmaChave !== chave) {
     mapa.ipmaChave = chave; mapa.ipma = document.createElement("canvas"); mapa.ipma.width = W; mapa.ipma.height = H;
     const ig = mapa.ipma.getContext("2d"), passo = 3 * dpr;
     vistas.forEach(v => {
@@ -2340,8 +2374,25 @@ function desenharMapa() {
   }
   vistas.forEach(v => {
     g.fillStyle = "rgba(0,120,200,.16)"; g.fill(v.path);
-    if (comAviso.length && mapa.ipma) { g.save(); g.clip(v.path); g.globalAlpha = 0.45 + 0.12 * Math.sin(t * 2); g.drawImage(mapa.ipma, 0, 0); g.restore(); }
+    if (todos.some(x => x.nivel) && mapa.ipma) { g.save(); g.clip(v.path); g.globalAlpha = 0.45 + 0.12 * Math.sin(t * 2); g.drawImage(mapa.ipma, 0, 0); g.restore(); }
     g.strokeStyle = "rgba(0,210,255,.75)"; g.lineWidth = 1.2 * dpr; g.stroke(v.path);
+    // avisos de agitacao maritima: so a costa fica pintada (o mar nao afeta o interior)
+    const zonasMar = todos.filter(z => z.mar && (v.nome === "continente" ? !ILHAS_COD["Açores"].concat(ILHAS_COD["Madeira"]).includes(z.cod) : ILHAS_COD[v.nome].includes(z.cod)));
+    if (zonasMar.length) {
+      const zonasV = todos.filter(z => v.nome === "continente" ? !ILHAS_COD["Açores"].concat(ILHAS_COD["Madeira"]).includes(z.cod) : ILHAS_COD[v.nome].includes(z.cod));
+      g.lineWidth = 3.5 * dpr; g.lineCap = "round"; g.globalAlpha = 0.8 + 0.2 * Math.sin(t * 2);
+      v.polis.forEach((pl, pi) => {
+        for (let i = 1; i < pl.length; i++) {
+          const [a1, b1] = pl[i - 1], [a2, b2] = pl[i];
+          if (v.nome === "continente" && !(costaPT(pi, i - 1) && costaPT(pi, i))) continue;
+          let m = null, md = 1e9;
+          for (const z of zonasV) { const dd = (z.lat - a2) ** 2 + ((z.lon - b2) * v.kx) ** 2; if (dd < md) { md = dd; m = z; } }
+          if (!m?.mar) continue;
+          g.strokeStyle = CORES_AVISO[m.mar]; g.beginPath(); g.moveTo(...v.xy(a1, b1)); g.lineTo(...v.xy(a2, b2)); g.stroke();
+        }
+      });
+      g.globalAlpha = 1; g.lineCap = "butt";
+    }
     if (v.nome !== "continente") {   // moldura das caixas das ilhas
       g.strokeStyle = "rgba(0,200,255,.3)"; g.lineWidth = 1 * dpr; g.strokeRect(...v.r);
       g.fillStyle = "#9fe6ff"; g.font = `${10 * dpr}px system-ui`; g.fillText(v.nome.toUpperCase(), v.r[0] + 6 * dpr, v.r[1] + 12 * dpr);
@@ -2391,6 +2442,61 @@ function desenharMapa() {
   } else f.push("a carregar…");
   $("#im-mapa-fonte").textContent = f.join(" · ");
 }
+// ---------- ficha de um familiar: tudo o que se passa la, com as fontes ----------
+const CARDEAIS = ["norte", "nordeste", "leste", "sudeste", "sul", "sudoeste", "oeste", "noroeste"];
+const NIVEL_COR = { amarelo: "#ffd60a", laranja: "#ff8c00", vermelho: "#ff3b30" };
+async function abrirPessoa(id) {
+  const d = $("#d-pessoa"); if (!d.open) d.showModal();
+  $("#ps-titulo").textContent = "…"; $("#ps-corpo").innerHTML = '<div class="vazio">A ver o que se passa lá…</div>';
+  $("#ps-falei").onclick = async () => { await api(`/api/familia/${id}/contacto`, "POST", {}).catch(() => {}); paineisIronMan.famT = 0; aviso("Anotado.", false); abrirPessoa(id); };
+  let r;
+  try { r = await api(`/api/familia/${id}/detalhe`); } catch (e) { $("#ps-corpo").textContent = e.message; return; }
+  const p = r.pessoa, quem = (p.relacao + " " + p.nome).trim();
+  $("#ps-titulo").textContent = quem.charAt(0).toUpperCase() + quem.slice(1);
+  const sec = (titulo, html, fonte) => `<div class="sec"><h5>${titulo}</h5>${html}${fonte ? `<div class="fonte">Fonte: ${fonte}</div>` : ""}</div>`;
+  const semDados = q => `<div class="vazio" style="text-align:left">Sem dados: ${q} não respondeu. Não vou adivinhar.</div>`;
+  let h = `<div>${esc(p.cidade || "sem cidade")}${r.km_de_casa != null ? ` · a ${r.km_de_casa} km de casa` : ""}</div>
+    <div class="info">${p.dias_aniversario != null ? (p.dias_aniversario === 0 ? "🎂 Faz anos hoje!" : `🎂 Faz anos daqui a ${p.dias_aniversario} dias`) + (p.faz_anos ? ` (${p.faz_anos} anos)` : "") + " · " : ""}${p.dias_sem_falar == null ? "Ainda não registaste nenhuma conversa" : p.dias_sem_falar === 0 ? "Falaram hoje" : `Falaram há ${p.dias_sem_falar} dias`}</div>`;
+  if (p.lat == null) { $("#ps-corpo").innerHTML = h + '<div class="vazio">Sem cidade, não consigo ver o que se passa lá.</div>'; return; }
+  // tempo
+  const t = r.tempo;
+  if (t) {
+    const c = t.atual, [ic, desc] = meteoDe(c.weather_code, c.is_day), de = CARDEAIS[Math.round(c.wind_direction_10m / 45) % 8];
+    h += sec("Tempo agora", `<div style="display:flex;align-items:center;gap:12px"><span style="width:44px;height:44px;display:inline-block">${ic}</span>
+      <div><b style="font-size:28px">${Math.round(c.temperature_2m)}°</b> ${esc(desc)} · sensação ${Math.round(c.apparent_temperature)}°<br>
+      <span class="info">Vento de ${de}, ${Math.round(c.wind_speed_10m)} km/h, rajadas de ${Math.round(c.wind_gusts_10m)} km/h${c.precipitation ? ` · a chover ${c.precipitation} mm` : ""}</span></div></div>
+      <div class="horas" style="margin-top:8px">${t.horas.map(x => `<div>${x.h}h<b>${Math.round(x.temp)}°</b><span style="color:${x.chuva >= 50 ? "#64d2ff" : "var(--suave)"}">${x.chuva ?? 0}%</span></div>`).join("")}</div>
+      <div class="info" style="margin-top:4px">${t.dias.map((x, i) => `${i ? "Amanhã" : "Hoje"}: ${Math.round(x.min)}° a ${Math.round(x.max)}°, chuva ${x.chuva ?? 0}%`).join(" · ")} · sol ${t.dias[0].nascer}–${t.dias[0].por}</div>`, "Open-Meteo");
+  } else h += sec("Tempo agora", semDados("o Open-Meteo"));
+  // avisos
+  const a = r.avisos;
+  h += sec(`Avisos do IPMA${a ? " · " + esc(a.distrito) : ""}`, !a ? semDados("o IPMA") : !a.avisos.length ? "Sem avisos para a zona. ✅" :
+    a.avisos.map(x => `<div class="aviso" style="border-color:${NIVEL_COR[x.nivel]}"><b>Aviso ${x.nivel}</b> de ${esc(x.tipo.toLowerCase())}${x.ate ? ` até às ${x.ate}` : ""}${x.texto ? `<div class="info">${esc(x.texto)}</div>` : ""}</div>`).join(""), "IPMA");
+  // incendios
+  h += sec("Incêndios a menos de 40 km", r.fogos == null ? semDados("o fogos.pt" + (r.fogos_erro ? ` (${esc(r.fogos_erro)})` : "")) : !r.fogos.length ? "Nenhum incêndio ativo perto. ✅" :
+    r.fogos.map(f => `<div>🔥 <b>${f.km} km</b> · ${esc(f.onde)} <span class="info">${esc(f.estado || "")}</span></div>`).join(""), "fogos.pt, com dados da Proteção Civil");
+  // sismos
+  h += sec("Sismos nas últimas 24 h (até 300 km)", r.sismos == null ? semDados("o USGS") : !r.sismos.length ? "Nenhum. ✅" :
+    r.sismos.map(x => `<div>〰️ magnitude <b>${x.mag}</b> a ${x.km} km, às ${x.hora} <span class="info">${esc(x.onde)}</span></div>`).join(""), "USGS");
+  // noticias da terra
+  h += sec(`Notícias de ${esc(p.cidade)} (últimos 3 dias)`, r.noticias == null ? semDados("o Google Notícias") : !r.noticias.length ? '<div class="vazio" style="text-align:left">Nada nas notícias.</div>' :
+    r.noticias.map(n => `<div style="margin:4px 0"><a href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">${esc(n.titulo)}</a> <span class="info">· ${esc(n.fonte)}${n.quando ? " · " + esc(n.quando) : ""}</span></div>`).join(""),
+    "Google Notícias (cada notícia diz o jornal que a escreveu)");
+  $("#ps-corpo").innerHTML = h;
+}
+// tocar num ponto do mapa abre a ficha dessa pessoa
+$("#im-mapa").addEventListener("click", e => {
+  if (!mapa.vistas || !mapa.dados) return;
+  const cv = $("#im-mapa"), dpr = Math.min(devicePixelRatio || 1, 2), r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * dpr, y = (e.clientY - r.top) * dpr;
+  let melhor = null, md = (28 * dpr) ** 2;
+  (mapa.dados.pontos || []).filter(p => p.tipo === "familia").forEach(p => {
+    const v = mapa.vistas.find(v => v.dentro(p.lat, p.lon)); if (!v) return;
+    const [px, py] = v.xy(p.lat, p.lon), dd = (px - x) ** 2 + (py - y) ** 2;
+    if (dd < md) { md = dd; melhor = p; }
+  });
+  if (melhor?.id) { mapa.ate = Date.now() + 90000; abrirPessoa(melhor.id); }
+});
 function abrirFamilia() { $("#d-familia").showModal(); carregarFamilia(); }
 async function carregarFamilia() {
   const ps = await api("/api/familia");
@@ -2415,7 +2521,7 @@ function arranqueIronMan() {
     (livre() ? api("/api/seguranca") : Promise.reject()).then(x => { paineisIronMan.seg = x; }).catch(() => {}); paineisIronMan(); });
   // som de arranque: um varrimento a subir e tres bips
   try {
-    const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sawtooth";
+    const ctx = somCtx(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sawtooth";
     o.frequency.setValueAtTime(90, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 1.2);
     g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.3);
     o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 1.3);
@@ -2439,6 +2545,7 @@ function fecharHUD() {
   const eraIron = $("#hud").classList.contains("ironman");
   $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa"); pararCamara(); hud.ate = 0;
   if (eraIron) corNaFita();   // a fita volta a cor do tema
+  if (eraIron) trincoAte = Date.now() + 20000;
   if (eraIron && pinEstado.local) { trancar(); paineisIronMan.fam = paineisIronMan.loja = paineisIronMan.seg = null; }   // no tablet: sair do Iron Man tranca
 }
 function hudEstado(e) {
@@ -2601,7 +2708,7 @@ $("#f-despesa").onsubmit = async e => {
 };
 // som de caixa registadora quando ha uma encomenda nova
 function somCaixa() {
-  try { const ctx = new AudioContext();
+  try { const ctx = somCtx();
     [[1568, 0], [2093, 0.09], [2637, 0.18]].forEach(([f, t]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "triangle"; o.frequency.value = f;
       g.gain.setValueAtTime(0.18, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.5);
       o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.55); });
