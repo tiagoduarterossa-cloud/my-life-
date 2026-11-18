@@ -245,6 +245,15 @@ def entender(texto, hoje=None):
             p = "mes"
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
+    # o que esta a funcionar (wi-fi, internet, whatsapp...)
+    import servicos as _sv
+    nomes_sv = {simples(_sv_n): _sv_n for _sv_n, _, _ in _sv.SERVICOS}
+    nomes_sv.update({"teams": "Microsoft Teams", "whats": "WhatsApp", "zap": "WhatsApp", "insta": "Instagram", "sns": "SNS 24",
+                     "comboios": "CP Comboios", "comboio": "CP Comboios", "metro": "Metro de Lisboa", "youtube": "YouTube", "tiktok": "TikTok"})
+    alvo = next((v for k, v in nomes_sv.items() if re.search(r"\b" + re.escape(k), s)), None)
+    if re.search(r"\b(esta tudo a funcionar|o que esta a funcionar|o que nao esta a funcionar|estado dos servicos|servicos|esta em baixo|estao em baixo|foi abaixo|caiu|nao funciona|nao esta a funcionar|esta a funcionar|funciona|ha internet|tenho internet|ha net|tenho net)\b", s) and \
+            (alvo or re.search(r"\b(internet|wi-?fi|wifi|net|router|tudo|servicos)\b", s)):
+        return "servicos", {"alvo": alvo}
     if re.search(r"\b(rede|wi-?fi|wifi|router|internet)\b.*\b(segura|seguro|segurança|seguranca|protegida|protegido)\b|\b(verifica|analisa|testa)\b.*\b(rede|wifi|wi-fi|router)\b", s):
         return "rede", {}
     if re.search(r"\b(janela|janelas|porta|portas|esta tudo fechado|ficou alguma coisa aberta|deixei .* aberta|luzes .*(ligadas|desligadas|acesas|apagadas)|ha luzes ligadas|estado da casa)\b", s):
@@ -834,9 +843,19 @@ def _responder(texto, con, hoje=None, nome=""):
         itens += [f"Mais vendido: {t} ({q})" for t, q in r["mais_vendidos"][:2]]
         return {"resposta": f"Loja, {r['periodo']}: {r['encomendas']} encomendas.", "itens": [i.replace(".", ",") for i in itens], "falado": _l.frase(r)}
 
-    if intencao in ("rede", "casa", "energia", "desastres"):
+    if intencao in ("rede", "casa", "energia", "desastres", "servicos"):
         import avisos, casa
         cfg = {r["chave"]: r["valor"] for r in con.execute("SELECT * FROM config")}
+        if intencao == "servicos":
+            import servicos
+            r = servicos.verificar()
+            if d.get("alvo"):
+                x = next(z for z in r["servicos"] if z["nome"] == d["alvo"])
+                f = (f"O {x['nome']} está a funcionar daqui de casa" + (f", mas lento ({x['ms']} milissegundos)." if x.get("lento") else ".")) if x["ok"] else \
+                    (f"O {x['nome']} não está a responder. " + ("E a tua internet também não, por isso o problema é a ligação." if not (r["internet"] and r["dns"]) else "A tua internet está bem, por isso o problema deve ser do próprio serviço."))
+                return {"resposta": f, "falado": f, "servicos": True}
+            return {"resposta": r["conclusao"], "falado": servicos.frase(r), "servicos": True,
+                    "itens": [f"{'✅' if z['ok'] else '❌'} {z['nome']}" + (f" ({z['ms']} ms)" if z.get("ms") else "") for z in r["servicos"]]}
         if intencao == "rede":
             r = casa.verificar_rede()
             return {"resposta": f"Segurança da rede: {r['nota']}/100" if r["nota"] is not None else "Não consegui verificar a rede.", "itens": [f"{v['titulo']}: {v['texto']}" for v in r["verificacoes"]],

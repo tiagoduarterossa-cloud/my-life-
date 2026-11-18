@@ -27,6 +27,8 @@ import loja
 import noticias
 import pin
 import radio
+import servicos
+import time
 import rotinas
 import seguranca
 import spotify
@@ -439,6 +441,8 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
          ".png": "image/png", ".jpg": "image/jpeg", ".bin": "application/octet-stream", ".wav": "audio/wav", ".svg": "image/svg+xml", ".json": "application/json"}
 
 
+_servicos_cache = None
+
 # o que e privado: so com PIN (tambem no proprio tablet)
 PRIVADOS = ("/api/familia", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
@@ -652,6 +656,13 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/estado" and metodo == "GET":
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
+
+            # ----- o que esta a funcionar -----
+            if caminho == "/api/servicos" and metodo == "GET":
+                global _servicos_cache
+                if not _servicos_cache or time.time() - _servicos_cache[0] > 60 or query.get("agora"):
+                    _servicos_cache = (time.time(), servicos.verificar())
+                return self.enviar(200, _servicos_cache[1])
 
             # ----- modo apagao -----
             if caminho == "/api/radio" and metodo == "GET":

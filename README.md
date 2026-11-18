@@ -119,9 +119,15 @@ Como funciona: o PIN nunca fica guardado. Fica só o hash PBKDF2-SHA256 com um s
 
 O que o PIN **não** resolve: a ligação no Wi-Fi é http, não https, por isso alguém com acesso técnico à rede de casa podia ver o PIN a passar. Em casa, com o Wi-Fi em WPA2/WPA3, o risco é baixo. E quem estiver no quarto ouve as respostas faladas.
 
+## O que está a funcionar (Wi-Fi, internet, WhatsApp...)
+
+"Jarvis, está tudo a funcionar?", "o WhatsApp está em baixo?", "há internet?", "o Teams não funciona". Também no Iron Man (linha Rede > estado) e no modo apagão.
+
+A central testa a sério, a partir da tua casa: o sinal do Wi-Fi (Termux:API), o router, a internet, o DNS e se cada serviço responde (Google, WhatsApp, Instagram, TikTok, YouTube, Teams, Spotify, SNS 24, Proteção Civil, IPMA, RTP, CP, Metro de Lisboa), com o tempo que demora. Não existe nenhuma fonte pública e fiável que diga "o WhatsApp está em baixo em Portugal", por isso a central conclui só o que dá para saber: se a tua internet funciona e só um serviço falha, o problema é desse serviço; se falha tudo, é a tua internet, o router ou um apagão.
+
 ## Modo apagão
 
-Liga-se **sozinho** quando o tablet deixa de carregar (precisa do Termux:API), ou à mão: "Jarvis, modo apagão". Para sair: o botão no fundo, "Jarvis, sai do modo apagão", ou sozinho quando a luz volta.
+Liga-se **sozinho** quando o tablet deixa de carregar (precisa do Termux:API), ou à mão: "Jarvis, modo apagão". Para sair: o botão **"Sair do modo apagão"** no topo (ou no fundo) do ecrã, ou sozinho quando o tablet volta a carregar. A voz não funciona neste modo, porque a escuta é desligada para poupar bateria.
 
 - **Corta o que não é importante**: fecha o Iron Man, desliga a escuta (gasta bateria e precisa de internet), pausa o Spotify, pára as atualizações do ecrã e as animações, e baixa o brilho para 25 (com Termux:API; o Android pode pedir para dares à Termux:API a autorização "Alterar definições do sistema").
 - **Mostra só o essencial**: bateria e quanto tempo dura ao ritmo atual, há quanto tempo falta a luz, se há internet, rádio, notícias (as que falam de energia/apagão primeiro) e o que fazer.

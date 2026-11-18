@@ -340,7 +340,10 @@
   body.apagao *, body.apagao *::before, body.apagao *::after { animation: none !important; transition: none !important; }
   #apagao .topo { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #3a2a00; padding-bottom: 8px; }
   #apagao .topo b { color: #ffb020; letter-spacing: 4px; font-size: 14px; }
-  #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; }
+  #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; vertical-align: middle; }
+  #apagao .topo button { vertical-align: middle; }
+  #d-servicos .linha-sv { padding: 3px 0; }
+  @media (max-width: 600px) { #apagao .hora { font-size: 30px; } }
   #apagao .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
   #apagao .bloco { border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 14px; background: #070707; }
   #apagao h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 3px; color: #ffb020; text-transform: uppercase; font-weight: 600; }
@@ -768,7 +771,7 @@
 </div>
 
 <div id="apagao" aria-label="Modo apagão">
-  <div class="topo"><b>⚡ MODO APAGÃO</b><span class="hora" id="ap-hora"></span></div>
+  <div class="topo"><b>⚡ MODO APAGÃO</b><span><button id="ap-sair-topo">Sair do modo apagão</button> <span class="hora" id="ap-hora"></span></span></div>
   <div class="grelha">
     <div class="bloco"><h4>Bateria do tablet</h4><div class="bat" id="ap-bat">—</div><div class="peq" id="ap-bat-info"></div><div class="peq" id="ap-net" style="margin-top:6px"></div></div>
     <div class="bloco"><h4>Rádio</h4><div id="ap-radio" class="peq">A procurar rádios…</div>
@@ -782,6 +785,7 @@
       <li>Lanterna em vez de velas: uma vela esquecida pode pegar fogo à casa.</li>
       <li>Acredita só em fontes oficiais (Proteção Civil, REN, E-REDES e as rádios). Num apagão há muitos boatos.</li>
     </ol><div class="peq" style="margin-top:6px">Fontes: Proteção Civil (ANEPC), guia de medidas do Observador no apagão de 28/04/2025, E-REDES, FoodSafety.gov (alimentos).</div></div>
+    <div class="bloco"><h4>O que está a funcionar</h4><div class="peq">Wi-Fi, router, internet, WhatsApp, Teams, SNS 24, Proteção Civil...</div><button onclick="abrirServicos(true)">Verificar agora</button></div>
     <div class="bloco" id="ap-familia-bloco" hidden><h4>Família</h4><div id="ap-familia" class="peq"></div></div>
   </div>
   <div style="margin-top:16px"><button id="ap-sair">Sair do modo apagão</button><span class="peq" id="ap-estado"></span></div>
@@ -906,6 +910,14 @@
   <button type="button" class="secundario" style="width:100%;margin-top:12px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
+<dialog id="d-servicos">
+  <h3>O que está a funcionar</h3>
+  <div class="vazio" style="font-size:13px;text-align:left;margin:0 0 8px">Visto a partir da tua casa: a central tenta mesmo ligar-se a cada serviço. Se só um falha, o problema é desse serviço; se falha tudo, é a tua internet.</div>
+  <div id="sv-conclusao" style="font-weight:600;margin:6px 0 10px">A verificar…</div>
+  <div id="sv-base"></div>
+  <ul id="sv-lista" style="margin-top:8px"></ul>
+  <div class="botoes"><button type="button" class="secundario" id="sv-outra">Verificar outra vez</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
 <dialog id="d-pin">
   <h3>acesso restrito</h3>
   <div class="vazio" id="pin-msg" style="font-size:13px;color:#9fe6ff">Mete o PIN</div>
@@ -1122,6 +1134,26 @@ async function api(caminho, metodo = "GET", corpo, outraVez = true) {
   return j;
 }
 
+// ---------- o que esta a funcionar ----------
+async function abrirServicos(agora) {
+  const d = $("#d-servicos"); if (!d.open) d.showModal();
+  $("#sv-conclusao").textContent = "A verificar… (demora uns segundos)"; $("#sv-lista").innerHTML = "";
+  try {
+    const r = await api("/api/servicos" + (agora ? "?agora=1" : ""));
+    $("#sv-conclusao").textContent = r.conclusao + ` (às ${r.quando})`;
+    const w = r.wifi, ok = v => v ? "✅" : v === false ? "❌" : "❔";
+    $("#sv-base").innerHTML = [
+      w ? `${ok(w.ligado)} Wi-Fi «${esc(w.rede || "?")}»: sinal ${w.sinal || "?"}${w.rssi != null ? ` (${w.rssi} dBm)` : ""}${w.velocidade ? `, ${w.velocidade} Mb/s` : ""}` : "❔ Wi-Fi: para ver o sinal é preciso o Termux:API",
+      `${ok(r.router.ok)} Router${r.router.ip ? " (" + esc(r.router.ip) + ")" : ""}`,
+      `${ok(r.internet)} Internet`, `${ok(r.dns)} DNS (os nomes dos sites)`].map(x => `<div class="linha-sv">${x}</div>`).join("");
+    const grupos = {};
+    r.servicos.forEach(x => (grupos[x.grupo] ||= []).push(x));
+    $("#sv-lista").innerHTML = Object.entries(grupos).map(([g, xs]) => `<li style="display:block"><div class="info" style="text-transform:uppercase;letter-spacing:1px">${esc(g)}</div>` +
+      xs.map(x => `<div>${x.ok ? (x.lento ? "🟡" : "✅") : "❌"} ${esc(x.nome)} <span class="info">${x.ms != null ? x.ms + " ms" : x.erro === "sem internet" ? "sem internet" : "não respondeu"}${x.lento ? " · lento" : ""}${x.codigo >= 500 ? " · erro " + x.codigo : ""}</span></div>`).join("") + "</li>").join("");
+  } catch (e) { $("#sv-conclusao").textContent = "Não consegui falar com a central: " + e.message; }
+}
+$("#sv-outra").onclick = () => abrirServicos(true);
+
 // ---------- modo apagao ----------
 // quando falta a luz o tablet passa a viver da bateria: corta tudo o que nao e importante
 // (Iron Man, escuta, Spotify, atualizacoes) e mostra so bateria, radio, noticias e o que fazer.
@@ -1145,6 +1177,7 @@ function sairApagao() {
   if (apOuvia && vozCfg.ouvir) iniciarEscuta(false);
   atualizar().catch(() => {}); carregarMeteo(); corNaFita();
 }
+$("#ap-sair-topo").onclick = () => $("#ap-sair").click();
 $("#ap-sair").onclick = () => api("/api/apagao", "POST", { ligado: false }).catch(() => {}).finally(sairApagao);
 async function atualizarApagao() {
   $("#ap-hora").textContent = new Date().toTimeString().slice(0, 5);
@@ -1694,6 +1727,7 @@ async function perguntar(texto) {
     if (r.escuta === false) { vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); }
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
     if (r.mapa) { $("#assist").classList.remove("aberto"); mostrarMapa(); }
+    if (r.servicos) abrirServicos();
     if (r.mudou) paineisIronMan.famT = 0;
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
@@ -1967,6 +2001,7 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (r.hud === "ironman") { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); hudEstado("falar"); hudTexto("", r.resposta);
       await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mapa) { mostrarMapa(); }
+    if (r.servicos) abrirServicos();
     if (r.mudou) paineisIronMan.famT = 0;
     if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
@@ -2163,7 +2198,7 @@ async function paineisIronMan() {
   $("#im-sistemas").innerHTML = `<h4>sistemas</h4>
     <div class="linha"><span>Energia</span><span>${nivel !== null ? nivel + "%" + (bat.charging ? " ⚡" : "") : "—"}</span></div>${nivel !== null ? `<div class="im-barra"><i style="width:${nivel}%"></i></div>` : ""}
     <div class="linha"><span>Servidor</span><span>${latencia !== null ? latencia + " ms" : "—"}</span></div>
-    <div class="linha"><span>Rede</span><span>${navigator.onLine ? "online" : "offline"}</span></div>
+    <div class="linha"><span>Rede</span><span>${navigator.onLine ? "online" : "offline"} <button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirServicos()">estado ›</button></span></div>
     <div class="linha"><span>Voz</span><span>${vozCfg.motor === "neural" ? "neural" : "tablet"}${aEscutar ? " · à escuta" : ""}</span></div>
     <div class="linha"><span>Cérebro</span><span>${config.ia_ok ? "Claude" : "regras"}</span></div>`;
   // agenda
