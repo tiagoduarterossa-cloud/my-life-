@@ -96,6 +96,7 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 
 - **Fechar o ecrã**: "fecha-te", "desativa o modo Jarvis", "sai do modo Iron Man", "podes ir", "modo normal" (ou tocar no ecrã)
 - **Deixar de ouvir**: "Jarvis, para de ouvir" ou "modo silêncio". Para voltar a ligar, o botão do ouvido no canto de cima (vermelho = desligado).
+- **Se o nome falha muitas vezes**: nas definições, em Voz, usa "Ensinar a palavra" e diz o nome 3 vezes. A central guarda as versões que a Google percebe (Jarbas, Jervis...) e passa a aceitá-las. Fala virado para o tablet e sem música alta, porque com música o reconhecimento falha muito mais.
 - **Trinco "escuta"** (ligado de origem): enquanto não disseres **"escuta"**, a central ignora tudo e não mostra nada do que ouviu. Depois de "escuta" (ouves um bip) tens 15 segundos para dizer "Jarvis, ...". Também dá de seguida: "escuta, Jarvis, que horas são". Desliga-se nas definições, em Voz.
   Atenção, para não haver enganos: isto evita que a central reaja às tuas conversas, mas o reconhecimento de voz do Chrome continua a enviar o som para a Google para o transformar em texto, mesmo antes do "escuta". Se queres mesmo que nada saia do quarto, desliga a escuta (botão do ouvido) quando não precisas dela.
 

@@ -18,6 +18,7 @@ import unicodedata
 import urllib.parse
 import urllib.request
 from datetime import date, timedelta
+from datetime import datetime as _agora_dt
 
 DIAS_SEMANA = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
 NOMES_DIAS = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
@@ -214,6 +215,10 @@ def entender(texto, hoje=None):
             re.search(r"\b(seguro|confiavel|phishing|burla|perigoso|abrir|clicar|verifica|analisa|legit)\b", s):
         m = re.search(r"(https?://\S+|www\.\S+|[\w.-]+\.(?:com|pt|net|org|xyz|io|me|ly|gg|app)\S*)", t)
         return "link", {"link": m[1] if m else ""}
+    if re.fullmatch(r"(diz-me |sabes )?(que|q) horas (sao|e|sao agora)( agora)?|horas|que horas", s.strip(" ?!.,")):
+        return "horas", {}
+    if re.fullmatch(r"(que|q) dia (e|e hoje|e que e hoje|estamos)( hoje)?|em que dia estamos|que data e hoje|a quantos estamos", s.strip(" ?!.,")):
+        return "data_hoje", {}
     # ----- familia -----
     m = re.match(r"^(liguei|falei|telefonei|estive|fui visitar|visitei)\b(?: (?:a|ao|aos|as|com|para))?\s*(.+)", s)
     if m and re.search(r"\b(av[oó]s?|tias?|tios?|prim[oa]s?|madrinha|padrinho|familia|bisav[oó]s?)\b", m[2]):
@@ -305,6 +310,11 @@ def entender(texto, hoje=None):
     if re.search(r"\b(mostra|ver|quais|le|lê|lista)\b.*\bnotas\b|^notas$|^as minhas notas", s):
         return "ver_notas", {}
 
+    m = re.match(r"^(?:tenho|vou ter|marca|mete|ha|temos)(?: um| o)? (?:teste|exame|ficha de avaliacao) d[eao]s? (.+)", s)
+    if m:
+        resto = re.split(r"\s+(?:na|no|para|dia|a|amanha|depois|hoje|segunda|terca|quarta|quinta|sexta|sabado|domingo|\d)\b", " " + m[1])[0].strip() or m[1]
+        datas = achar_datas(t, hoje)
+        return "novo_teste", {"disciplina": resto, "data": datas[0] if datas else None}
     if re.search(r"^(?:marca|marcar|agenda|agendar|mete no calendario|adiciona (?:o |um )?evento|evento)\b", s):
         datas = achar_datas(t, hoje)
         titulo = limpar_titulo(t, [r"^(?:marca|marcar|agenda|agendar|mete no calend[aá]rio|adiciona (?:o |um )?evento|evento)\b(?: (?:o|a|um|uma))?"])
@@ -714,6 +724,28 @@ def _responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "novo_teste":
+        nomes = {"mat": "Matemática", "matematica": "Matemática", "portugues": "Português", "ingles": "Inglês", "frances": "Francês",
+                 "espanhol": "Espanhol", "alemao": "Alemão", "historia": "História", "geografia": "Geografia", "ciencias": "Ciências Naturais",
+                 "cn": "Ciências Naturais", "fq": "Físico-Química", "fisico quimica": "Físico-Química", "fisico-quimica": "Físico-Química",
+                 "tic": "TIC", "ef": "Educação Física", "educacao fisica": "Educação Física", "ev": "Educação Visual"}
+        disc = nomes.get(d["disciplina"], d["disciplina"].capitalize())
+        if not d["data"]:
+            return {"resposta": f"Para quando é o teste de {disc}?", "falado": f"Para quando é o teste de {disc}? Diz, por exemplo: tenho teste de {disc} na sexta."}
+        con.execute("INSERT INTO testes (disciplina, data) VALUES (?,?)", (disc[:60], d["data"].isoformat()))
+        faltam = (d["data"] - hoje).days
+        dica = " Começa a estudar hoje, nem que seja meia hora." if faltam <= 7 else ""
+        return {"resposta": f"Teste de {disc} marcado para {d['data'].strftime('%d/%m')}.", "mudou": True,
+                "falado": f"Marquei o teste de {disc} {dia_falado(d['data'], hoje)}." + dica}
+
+    if intencao == "horas":
+        agora = _agora_dt.now().strftime("%H:%M")
+        return {"resposta": agora, "falado": f"São {hora_falada(agora)}." if not agora.startswith(("01:", "13:")) else f"É {hora_falada(agora)}."}
+    if intencao == "data_hoje":
+        meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+        f = f"Hoje é {NOMES_DIAS[hoje.weekday()]}, {hoje.day} de {meses[hoje.month - 1]}."
+        return {"resposta": f, "falado": f}
 
     if intencao.startswith("familia") or intencao == "mapa":
         import familia

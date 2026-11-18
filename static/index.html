@@ -1889,7 +1889,47 @@ function iniciarEscuta(avisar) {
 }
 function pararEscuta(desligar) {
   if (desligar) { aEscutar = false; estadoEscuta(""); }
+  if (escuta) escuta.abortado = true;
   try { escuta?.abort(); } catch (e) {} escuta = null;
+}
+function abrirTrinco() {
+  trincoAte = Date.now() + 15000; bipTrinco(); hudLog("trinco aberto");
+  estadoEscuta(`Diz "${vozCfg.palavra}"`, true);
+  setTimeout(() => { if (escuta && !armado()) estadoEscuta(nomeEspera()); }, 15100);
+}
+function tratarOuvido(alts) {
+  const frase = alts[0];
+  // trinco: enquanto nao disseres "escuta", ignora tudo e nao mostra nada do que ouviu
+  if (!armado()) {
+    if (!alts.some(a => /\b(escuta|escute|escutas|ascuta)\b/.test(semAcentos(a)))) return;
+    abrirTrinco();
+    if (!alts.some(a => acharPalavra(a)) && !/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) return;   // "escuta" sozinho: espera pelo nome
+  }
+  // mostra o que a Google percebeu, para sabermos se ouviu o nome certo
+  estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
+  clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(nomeEspera()); }, 3500);
+  if (aEsperarComando > Date.now()) {
+    aEsperarComando = 0; pararEscuta();
+    if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
+    const semNome = acharPalavra(frase); comandoVoz(semNome ? semNome.depois || frase : frase); return;
+  }
+  if (/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) {
+    // "sai do modo Iron Man" fecha; so "Iron Man" abre
+    const desliga = /\b(desativ|deslig|sai|sair|fecha|termina|encerra|cancela)/.test(semAcentos(frase));
+    pararEscuta(); comandoVoz(desliga ? frase : "iron man"); return;
+  }
+  let achou = null;
+  for (let k = 0; k < alts.length && !achou; k++) achou = acharPalavra(alts[k]);
+  if (!achou) return;
+  trincoAte = 0; pararEscuta();
+  if (achou.depois.length > 2) comandoVoz(achou.depois);
+  else {
+    abrirHUD("ouvir"); hudTexto("", "");
+    const op = config.estilo === "mordomo" ? ["Sim, senhor?", "Às suas ordens.", "Diga, senhor."] : ["Diz.", "Ya?", "Diz lá."];
+    // os 10 segundos para dizeres o pedido so contam depois de ele acabar de falar
+    aEsperarComando = Date.now() + 30000;
+    Promise.resolve(falar(op[Math.floor(Math.random() * op.length)])).finally(() => { aEsperarComando = Date.now() + 10000; pararEscuta(); retomarEscuta(); });
+  }
 }
 function retomarEscuta() {
   if (!aEscutar || aFalar || aEnsinar || micOcupado || escuta || document.visibilityState !== "visible") return;
@@ -1898,52 +1938,33 @@ function retomarEscuta() {
   if (dentroDoHorario() === false) { estadoEscuta(""); return; } // fora das horas do ecra nao ouve
   if (!navigator.onLine) { estadoEscuta("Sem internet: não consigo ouvir"); setTimeout(retomarEscuta, 15000); return; }
   const r = new Reconhecer(); escuta = r;
-  r.lang = "pt-PT"; r.continuous = true; r.interimResults = false; r.maxAlternatives = 4;
+  r.lang = "pt-PT"; r.continuous = true; r.interimResults = true; r.maxAlternatives = 4;
   const conversa = aEsperarComando > Date.now();
   estadoEscuta(conversa ? "Estou a ouvir…" : nomeEspera(), conversa);
   if (conversa) setTimeout(() => { if (escuta === r && aEsperarComando <= Date.now()) estadoEscuta(nomeEspera()); }, aEsperarComando - Date.now() + 100);
   r.onresult = ev => {
-    const frase = ev.results[ev.results.length - 1][0].transcript.trim();
-    // trinco: enquanto nao disseres "escuta", ignora tudo e nao mostra nada do que ouviu
-    if (!armado()) {
-      const alts = [...ev.results[ev.results.length - 1]].map(x => semAcentos(x.transcript).toLowerCase());
-      if (!alts.some(a => /\b(escuta|escute|escutas|ascuta)\b/.test(a))) return;
-      trincoAte = Date.now() + 15000; bipTrinco(); hudLog("trinco aberto");
-      estadoEscuta(`Diz "${vozCfg.palavra}"`, true);
-      setTimeout(() => { if (escuta && !armado()) estadoEscuta(nomeEspera()); }, 15100);
-      if (!acharPalavra(frase) && !/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) return;   // "escuta" sozinho: espera pelo nome
-    }
-    // mostra o que a Google percebeu, para sabermos se ouviu o nome certo
-    estadoEscuta(`Ouvi: "${frase.slice(0, 50)}"`, false);
-    clearTimeout(retomarEscuta.t); retomarEscuta.t = setTimeout(() => { if (escuta) estadoEscuta(nomeEspera()); }, 3500);
-    if (aEsperarComando > Date.now()) {
-      aEsperarComando = 0; pararEscuta();
-      if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
-      const semNome = acharPalavra(frase); comandoVoz(semNome ? semNome.depois || frase : frase); return;
-    }
-    if (/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) {
-      // "sai do modo Iron Man" fecha; so "Iron Man" abre
-      const desliga = /\b(desativ|deslig|sai|sair|fecha|termina|encerra|cancela)/.test(semAcentos(frase));
-      pararEscuta(); comandoVoz(desliga ? frase : "iron man"); return;
-    }
     const res = ev.results[ev.results.length - 1];
-    let achou = null;
-    for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
-    if (!achou) return;
-    trincoAte = 0; pararEscuta();
-    if (achou.depois.length > 2) comandoVoz(achou.depois);
-    else {
-      aEsperarComando = Date.now() + 8000;
-      abrirHUD("ouvir"); hudTexto("", "");
-      const op = config.estilo === "mordomo" ? ["Sim, senhor?", "Às suas ordens.", "Diga, senhor."] : ["Diz.", "Ya?", "Diz lá."];
-      falar(op[Math.floor(Math.random() * op.length)]);
+    const alts = [...res].map(x => x.transcript.trim()).filter(Boolean);
+    if (!alts.length) return;
+    if (res.isFinal === false) {
+      // resultado provisorio: reage logo, sem esperar que acabes a frase
+      r.parcial = alts;
+      if (!armado() && alts.some(a => /\b(escuta|escute|escutas|ascuta)\b/.test(semAcentos(a)))) abrirTrinco();
+      if (armado() && !r.viuNome && alts.some(a => acharPalavra(a))) { r.viuNome = true; estadoEscuta("Estou a ouvir…", true); }
+      return;
     }
+    r.parcial = null; r.viuNome = false;
+    tratarOuvido(alts);
   };
   r.onerror = ev => {
     if (ev.error && !["no-speech", "aborted"].includes(ev.error)) estadoEscuta(`Microfone: ${ev.error}`);
     if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
     aviso("O tablet não deu acesso ao microfone."); vozCfg.ouvir = false; guardar("voz", vozCfg); $("#cfg-ouvir").checked = false; pararEscuta(true); } };
-  r.onend = () => { if (escuta === r) escuta = null; setTimeout(retomarEscuta, 400); };
+  r.onend = () => {
+    if (escuta === r) escuta = null;
+    if (r.parcial && !r.abortado && aEscutar && !aFalar) { const p = r.parcial; r.parcial = null; tratarOuvido(p); }   // o Android fechou sem resultado final
+    setTimeout(retomarEscuta, 150);
+  };
   try { r.start(); } catch (e) { escuta = null; }
 }
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" ? retomarEscuta() : pararEscuta());
