@@ -760,7 +760,7 @@
   <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
   <div class="im im-painel" id="im-registo" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
   <div class="im im-painel" id="im-familia" style="bottom:24px;left:24px;animation-delay:.45s" hidden></div>
-  <div class="im" id="im-mapa-caixa"><h4>mapa · família e perigos</h4><button class="fechar" onclick="fecharMapa()">fechar</button>
+  <div class="im" id="im-mapa-caixa"><h4>mapa · família e perigos</h4><button class="fechar" onclick="fecharMapa()">fechar</button><button class="fechar" style="right:84px" onclick="abrirFamilia()">+ família</button>
     <canvas id="im-mapa"></canvas>
     <div class="legenda"><i style="background:#ffc35a"></i>casa<i style="background:#38e1ff"></i>família<i style="background:#ff4d4d"></i>incêndio<i style="background:#ff9a3c"></i>sismo
       <div id="im-mapa-fonte" style="opacity:.7;margin-top:3px"></div></div></div>
@@ -2165,7 +2165,7 @@ function desenharMapa() {
   else if (mapa.dados) {
     f.push(d.fogos === null ? "incêndios: sem dados" : `incêndios: fogos.pt / Proteção Civil (${d.fogos.length})`);
     f.push(d.sismos === null ? "sismos: sem dados" : `sismos: USGS, últimas 24 h (${d.sismos.length})`);
-    if (!pts.some(p => p.tipo === "familia")) f.push("mete a família em «editar»");
+    if (!pts.some(p => p.tipo === "familia")) f.push("ainda sem família: carrega em «+ família»");
   } else f.push("a carregar…");
   $("#im-mapa-fonte").textContent = f.join(" · ");
 }
