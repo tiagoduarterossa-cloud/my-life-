@@ -235,6 +235,13 @@
   .fichas button { font-size: 12px; padding: 5px 9px; border-radius: 999px; border: 0; background: var(--campo); color: var(--acento); cursor: pointer; font-family: inherit; }
   .disp-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
 
+  #bot-escuta { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 14px; z-index: 46; width: 38px; height: 38px; border-radius: 50%;
+                border: 0; background: rgba(0,0,0,.35); color: #fff; cursor: pointer; display: none; place-content: center;
+                backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  #bot-escuta.ver { display: grid; }
+  #bot-escuta svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+  #bot-escuta .risco { display: none; } #bot-escuta.desligado .risco { display: inline; } #bot-escuta.desligado { color: #ff6b6b; }
+
   /* bolha da voz: a resposta aparece em cima e some sozinha */
   #bolha-voz { position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 50%; z-index: 47; width: min(560px, calc(100% - 32px));
                transform: translate(-50%, -12px); opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s;
@@ -708,6 +715,9 @@
 <div id="bolha-voz" role="status" aria-live="polite"><div class="disseste" id="bolha-disseste"></div><div class="resp" id="bolha-resp"></div></div>
 
 <div id="escuta"><i></i><span id="escuta-txt"></span></div>
+<button id="bot-escuta" title="Ligar ou desligar a escuta" aria-label="Ligar ou desligar a escuta">
+  <svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 3-2 4-3 5.5S14 18 12 20a2.5 2.5 0 0 1-4-2"/><path d="M9 9a3 3 0 0 1 6 0"/><path class="risco" d="M3 3l18 18"/></svg>
+</button>
 
 <div id="repouso"><div>
   <div class="rel" id="rep-rel"></div>
@@ -1356,6 +1366,8 @@ async function perguntar(texto) {
     if (r.musica) setTimeout(carregarSpotify, 800);
     if (r.ver) { $("#assist").classList.remove("aberto"); verComCamara(r.ver); }
     if (r.hud === true) { $("#assist").classList.remove("aberto"); abrirHUD("espera"); }
+    if (r.hud === false) fecharHUD();
+    if (r.escuta === false) { vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); }
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
@@ -1464,7 +1476,7 @@ async function mostrarMotor() {
 }
 $("#cfg-motor").onclick = e => { const m = e.target.dataset.motor; if (!m) return; vozCfg.motor = m; guardarVoz(); mostrarMotor(); };
 $("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
-$("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); };
+$("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); mostrarBotEscuta(); };
 // ----- Spotify -----
 const ICON = { ant: '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 18V6z"/></svg>', seg: '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>', pausa: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>' };
@@ -1610,6 +1622,7 @@ async function comandoVoz(texto, { noChat = false } = {}) {
       if (comHUD) hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
       else bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
     }
+    if (r.escuta === false) { await falar(r.falado); fecharHUD(); vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); return; }
     if (r.hud === false) { hudLog("a encerrar"); await falar(r.falado); fecharHUD(); return; }
     if (r.hud === "ironman") { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); hudEstado("falar"); hudTexto("", r.resposta);
       await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
@@ -1626,6 +1639,16 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (noChat) msgAssist("ela", "Não consegui falar com o servidor."); else bolha(texto, "Não consegui falar com o servidor.", null, 6);
   }
 }
+function mostrarBotEscuta() {
+  $("#bot-escuta").classList.toggle("ver", podeOuvir);
+  $("#bot-escuta").classList.toggle("desligado", !vozCfg.ouvir);
+}
+$("#bot-escuta").onclick = () => {
+  vozCfg.ouvir = !vozCfg.ouvir; guardar("voz", vozCfg); mostrarBotEscuta();
+  if (vozCfg.ouvir) { iniciarEscuta(true); aviso(`A ouvir outra vez. Diz "${vozCfg.palavra}".`, false); }
+  else { pararEscuta(true); aviso("Escuta desligada.", false); }
+  if ($("#config").open) $("#cfg-ouvir").checked = vozCfg.ouvir;
+};
 function iniciarEscuta(avisar) {
   if (!podeOuvir) { if (avisar) aviso("Para ouvir, abre a central no próprio tablet em http://127.0.0.1:8080"); $("#cfg-ouvir").checked = false; return; }
   aEscutar = true; retomarEscuta();
@@ -1655,7 +1678,11 @@ function retomarEscuta() {
       if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
       const semNome = acharPalavra(frase); comandoVoz(semNome ? semNome.depois || frase : frase); return;
     }
-    if (/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) { pararEscuta(); comandoVoz("iron man"); return; }
+    if (/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) {
+      // "sai do modo Iron Man" fecha; so "Iron Man" abre
+      const desliga = /\b(desativ|deslig|sai|sair|fecha|termina|encerra|cancela)/.test(semAcentos(frase));
+      pararEscuta(); comandoVoz(desliga ? frase : "iron man"); return;
+    }
     const res = ev.results[ev.results.length - 1];
     let achou = null;
     for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
@@ -2349,7 +2376,7 @@ tick(); setInterval(tick, 1000);
 (async () => {
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
-  mostrarIA();
+  mostrarIA(); mostrarBotEscuta();
   if (vozCfg.ouvir) iniciarEscuta(false);
   setTimeout(aquecerVoz, 3000);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);

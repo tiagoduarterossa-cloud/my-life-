@@ -210,7 +210,11 @@ def entender(texto, hoje=None):
         pedido = temas.get(pedido, pedido)
         return "musica", {"o": "tocar", "pedido": pedido}
 
-    if re.search(r"\b(fecha-te|fecha te|podes fechar|fecha o ecra|fecha o jarvis|close yourself|sai do ecra|fecha isso)\b", s):
+    # primeiro o que DESLIGA, para "desativa o modo jarvis" nao ser lido como "modo jarvis"
+    if re.search(r"\b(para de ouvir|pára de ouvir|deixa de ouvir|nao oucas|modo silencio|silencio total|desliga a escuta|desliga o microfone|nao me oucas)\b", s):
+        return "escuta", {"ligar": False}
+    if re.search(r"\b(fecha-te|fecha te|fechate|fecha-se|podes fechar|fecha o ecra|fecha o jarvis|close yourself|sai do ecra|fecha isso|podes ir|modo normal|"
+                 r"(desativa|desativar|desliga|desligar|sai|sair|fecha|fechar|termina|terminar|encerra|encerrar|cancela)\w*\b.*\b(modo|jarvis|iron ?man|ecra|protocolo|homem de ferro))\b", s):
         return "hud", {"abrir": False}
     if re.search(r"\b(iron ?man|ironmen|airon ?man|modo homem de ferro|homem de ferro|protocolo stark|modo stark)\b", s):
         return "hud", {"abrir": True, "modo": "ironman"}
@@ -617,6 +621,10 @@ def responder(texto, con, hoje=None, nome=""):
         curto = {"Música em pausa.": "Pausa.", "Próxima.": "Bora, próxima."}.get(msg, msg)
         return {"resposta": msg, "falado": curto, "musica": True}
 
+    if intencao == "escuta":
+        return {"resposta": "Deixei de ouvir. Para voltar a ligar, toca no botão do ouvido em cima.",
+                "falado": "Ok, deixo de ouvir. Quando precisares, toca no botão em cima.", "escuta": False, "hud": False}
+
     if intencao == "hud":
         if d.get("modo") == "ironman":
             return {"resposta": "Protocolo Iron Man.", "hud": "ironman",
@@ -708,6 +716,7 @@ MORDOMO = [  # (o que diria, como diz um mordomo)
     ("Dorme bem.", "Durma bem, senhor."), ("Boa viagem!", "Faça boa viagem, senhor."), ("despacha isso", "convém tratar disso"),
     ("Bora, hora de acordar.", "Lamento incomodar, senhor, mas são horas de acordar."), ("Está na hora de ir para a cama.", "Senhor, são horas de recolher."),
     ("Apagada.", "Luz apagada, senhor."), ("Ao teu dispor.", "Ao seu dispor, senhor."), ("Estou aqui.", "Às suas ordens, senhor."),
+    ("Ok, deixo de ouvir. Quando precisares, toca no botão em cima.", "Muito bem, senhor. Fico em silêncio até me chamar pelo botão."),
     ("Até já.", "Com licença, senhor."), ("Fui.", "Com licença, senhor."), ("Bora, próxima.", "A seguinte, senhor."), ("Pausa.", "Em pausa, senhor."),
 ]
 
