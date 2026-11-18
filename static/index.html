@@ -334,6 +334,25 @@
   @keyframes im-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (max-width: 900px) { .im-painel { display: none !important; } }
 
+  /* modo apagao: ecra quase preto, sem animacoes, so o essencial */
+  #apagao { position: fixed; inset: 0; z-index: 900; background: #000; color: #e8e8e8; overflow-y: auto; padding: 18px 16px 40px; display: none; font-size: 15px; }
+  body.apagao #apagao { display: block; }
+  body.apagao *, body.apagao *::before, body.apagao *::after { animation: none !important; transition: none !important; }
+  #apagao .topo { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #3a2a00; padding-bottom: 8px; }
+  #apagao .topo b { color: #ffb020; letter-spacing: 4px; font-size: 14px; }
+  #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; }
+  #apagao .grelha { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 14px; }
+  #apagao .bloco { border: 1px solid #2a2a2a; border-radius: 12px; padding: 12px 14px; background: #070707; }
+  #apagao h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 3px; color: #ffb020; text-transform: uppercase; font-weight: 600; }
+  #apagao .bat { font-size: 54px; font-weight: 200; color: #fff; line-height: 1; }
+  #apagao .peq { font-size: 13px; color: #9a9a9a; }
+  #apagao button { background: #151515; color: #fff; border: 1px solid #333; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; margin: 4px 6px 4px 0; cursor: pointer; }
+  #apagao button.ativo { border-color: #ffb020; color: #ffb020; }
+  #apagao ol { margin: 0; padding-left: 20px; list-style: decimal; }
+  #apagao li { display: list-item !important; margin: 6px 0; padding: 0 !important; border: 0 !important; line-height: 1.4; background: none !important; }
+  #apagao .grelha { align-items: start; }
+  #apagao a { color: #8ab4ff; }
+
   /* PIN */
   #d-pin { background: #00060d; color: #c9f1ff; border: 1px solid rgba(0, 200, 255, .35); width: min(340px, 92vw); text-align: center; }
   #d-pin::backdrop { background: rgba(0, 4, 10, .88); backdrop-filter: blur(6px); }
@@ -748,6 +767,25 @@
   </form>
 </div>
 
+<div id="apagao" aria-label="Modo apagão">
+  <div class="topo"><b>⚡ MODO APAGÃO</b><span class="hora" id="ap-hora"></span></div>
+  <div class="grelha">
+    <div class="bloco"><h4>Bateria do tablet</h4><div class="bat" id="ap-bat">—</div><div class="peq" id="ap-bat-info"></div><div class="peq" id="ap-net" style="margin-top:6px"></div></div>
+    <div class="bloco"><h4>Rádio</h4><div id="ap-radio" class="peq">A procurar rádios…</div>
+      <div class="peq" style="margin-top:8px">Rádio pela internet só funciona com internet (hotspot do telemóvel). Num apagão grande, a fonte mais segura é um <b>rádio a pilhas em FM</b>: a Proteção Civil e as rádios informam por aí.</div></div>
+    <div class="bloco"><h4>Notícias</h4><div id="ap-noticias" class="peq">—</div></div>
+    <div class="bloco"><h4>O que fazer</h4><ol>
+      <li>Só liga para o <b>112</b> se for uma emergência. Poupa a bateria do telemóvel.</li>
+      <li>Avaria de luz só na tua casa ou na rua? Linha de avarias da E-REDES: <b>800 506 506</b> (grátis, 24 horas). Num apagão de todo o país não vale a pena ligar: as rádios informam.</li>
+      <li><b>Frigorífico e congelador fechados.</b> Fechado, o frigorífico aguenta cerca de 4 horas; o congelador cheio cerca de 48 horas (meio cheio, 24). Passadas 4 horas sem luz, carne, peixe, ovos e leite do frigorífico vão para o lixo.</li>
+      <li>Desliga da tomada os aparelhos que estavam ligados (TV, computador), para não estragarem quando a luz voltar.</li>
+      <li>Lanterna em vez de velas: uma vela esquecida pode pegar fogo à casa.</li>
+      <li>Acredita só em fontes oficiais (Proteção Civil, REN, E-REDES e as rádios). Num apagão há muitos boatos.</li>
+    </ol><div class="peq" style="margin-top:6px">Fontes: Proteção Civil (ANEPC), guia de medidas do Observador no apagão de 28/04/2025, E-REDES, FoodSafety.gov (alimentos).</div></div>
+    <div class="bloco" id="ap-familia-bloco" hidden><h4>Família</h4><div id="ap-familia" class="peq"></div></div>
+  </div>
+  <div style="margin-top:16px"><button id="ap-sair">Sair do modo apagão</button><span class="peq" id="ap-estado"></span></div>
+</div>
 <div id="hud" aria-label="Jarvis">
   <canvas id="hud-canvas"></canvas>
   <video id="hud-video" playsinline muted></video>
@@ -1082,6 +1120,69 @@ async function api(caminho, metodo = "GET", corpo, outraVez = true) {
   }
   if (!r.ok) throw new Error(j.erro || "erro no servidor");
   return j;
+}
+
+// ---------- modo apagao ----------
+// quando falta a luz o tablet passa a viver da bateria: corta tudo o que nao e importante
+// (Iron Man, escuta, Spotify, atualizacoes) e mostra so bateria, radio, noticias e o que fazer.
+let modoApagao = false, apTimer = null, apAudio = null, apOuvia = false;
+function entrarApagao() {
+  if (modoApagao) return;
+  modoApagao = true; document.body.classList.add("apagao");
+  fecharHUD(); apOuvia = aEscutar; pararEscuta(true);              // a escuta gasta bateria e precisa de internet
+  if (spotifyInfo?.agora?.tocar) api("/api/spotify/pausar", "POST").catch(() => {});
+  atualizarApagao(); apTimer = setInterval(atualizarApagao, 60000);
+  carregarRadios(); carregarNoticiasApagao();
+  const fam = paineisIronMan.fam || [];
+  $("#ap-familia-bloco").hidden = !fam.length;
+  $("#ap-familia").innerHTML = fam.map(p => esc((p.relacao + " " + p.nome).trim()) + (p.cidade ? ` · ${esc(p.cidade)}` : "")).join("<br>") +
+    "<br>Liga só se for preciso: as redes móveis ficam muito carregadas.";
+}
+function sairApagao() {
+  if (!modoApagao) return;
+  modoApagao = false; document.body.classList.remove("apagao"); clearInterval(apTimer);
+  if (apAudio) { apAudio.pause(); apAudio = null; }
+  if (apOuvia && vozCfg.ouvir) iniciarEscuta(false);
+  atualizar().catch(() => {}); carregarMeteo(); corNaFita();
+}
+$("#ap-sair").onclick = () => api("/api/apagao", "POST", { ligado: false }).catch(() => {}).finally(sairApagao);
+async function atualizarApagao() {
+  $("#ap-hora").textContent = new Date().toTimeString().slice(0, 5);
+  try {
+    const e = await api("/api/apagao");
+    $("#ap-bat").textContent = e.bateria != null ? e.bateria + "%" : "—";
+    const desde = e.desde ? `Sem luz desde as ${e.desde}.` : e.a_carregar ? "O tablet está a carregar: a luz pode já ter voltado." : "Modo ligado à mão.";
+    $("#ap-bat-info").textContent = desde + (e.horas_bateria != null ? ` Ao ritmo atual, a bateria dá para cerca de ${e.horas_bateria} h.` : e.bateria != null ? " A calcular quanto tempo dura…" : " Sem dados da bateria (falta o Termux:API).");
+    $("#ap-net").textContent = e.sem_internet ? "Sem internet. Só liga o hotspot do telemóvel se precisares mesmo, porque gasta a bateria dos dois." : "Com internet.";
+  } catch (err) { $("#ap-bat-info").textContent = "Não consegui falar com o servidor."; }
+}
+async function carregarRadios() {
+  try {
+    const r = await api("/api/radio");
+    if (!r.lista.length) { $("#ap-radio").textContent = r.erro || "Não encontrei rádios."; return; }
+    $("#ap-radio").innerHTML = r.lista.map((x, i) => `<button data-r="${i}">${esc(x.nome)}</button>`).join("") +
+      `<div style="margin-top:4px">Endereços: ${esc(r.fonte)}${r.lista[0].verificado ? ", verificados a " + esc(r.lista[0].verificado) : ""}.</div>`;
+    $("#ap-radio").onclick = e => {
+      const b = e.target.closest("[data-r]"); if (!b) return;
+      const x = r.lista[+b.dataset.r], jaEsta = b.classList.contains("ativo");
+      document.querySelectorAll("#ap-radio button").forEach(z => z.classList.remove("ativo"));
+      if (apAudio) { apAudio.pause(); apAudio = null; }
+      if (jaEsta) return;
+      apAudio = new Audio(x.url); b.classList.add("ativo"); $("#ap-estado").textContent = " A ligar " + x.nome + "…";
+      apAudio.onplaying = () => $("#ap-estado").textContent = " A tocar: " + x.nome;
+      apAudio.onerror = () => { $("#ap-estado").textContent = " Não consegui ligar a " + x.nome + " (sem internet?)"; b.classList.remove("ativo"); };
+      apAudio.play().catch(() => {});
+    };
+  } catch (e) { $("#ap-radio").textContent = "Sem ligação para procurar rádios."; }
+}
+async function carregarNoticiasApagao() {
+  try {
+    const r = await api("/api/noticias?c=portugal&n=12");
+    const imp = /apag|energia|eletric|elétric|e-redes|\bren\b|luz|proteção civil|protecao civil|emergência|112/i;
+    const ns = [...r.noticias].sort((a, b) => imp.test(b.titulo) - imp.test(a.titulo)).slice(0, 6);
+    $("#ap-noticias").innerHTML = ns.length ? ns.map(n => `${imp.test(n.titulo) ? "⚡ " : ""}${esc(n.titulo)} <span style="opacity:.6">· ${esc(n.fonte)}</span>`).join("<br>") : "Sem notícias.";
+  } catch (e) { $("#ap-noticias").textContent = "Sem internet: não consigo ver notícias. Usa um rádio a pilhas."; }
+  if (modoApagao) setTimeout(() => modoApagao && carregarNoticiasApagao(), 10 * 60000);
 }
 
 // ---------- PIN ----------
@@ -1746,7 +1847,7 @@ $("#sp-ligar").onclick = () => {
   location.href = "/api/spotify/entrar";
 };
 $("#sp-desligar").onclick = async () => { if (!confirm("Desligar o Spotify da central?")) return; await api("/api/spotify", "DELETE"); carregarSpotify(); };
-setInterval(() => { if (document.visibilityState === "visible" && spotifyInfo?.ligado) carregarSpotify(); }, 10000);
+setInterval(() => { if (document.visibilityState === "visible" && spotifyInfo?.ligado && !modoApagao) carregarSpotify(); }, 10000);
 
 // ----- inteligencia (Claude) -----
 async function mostrarIA() {
@@ -2600,6 +2701,7 @@ async function executarComandos(cmds) {
       if (c.acao === "falar") await falar(c.texto);
       else if (c.acao === "caixa") { somCaixa(); if ($("#d-loja").open) carregarLoja(); paineisIronMan.lojaT = 0; }
       else if (c.acao === "aviso") aviso(c.texto, false);
+      else if (c.acao === "apagao") c.ligado ? entrarApagao() : sairApagao();
       else if (c.acao === "abrir") abrirSeparador(c.separador);
       else if (c.acao === "cronometro") {
         const min = +c.minutos || 25;
@@ -3031,9 +3133,10 @@ tick(); setInterval(tick, 1000);
   if (!pinEstado.ativo || pinEstado.sessao) estadoLoja();
   if (vozCfg.ouvir) iniciarEscuta(false);
   setTimeout(aquecerVoz, 3000);
-  carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);
+  carregarMeteo(); setInterval(() => { if (!modoApagao) carregarMeteo(); }, 15 * 60000);
   atualizar().catch(err => aviso("Não consegui falar com o servidor: " + err.message));
-  setInterval(() => atualizar().catch(() => {}), 60000);
+  setInterval(() => { if (!modoApagao) atualizar().catch(() => {}); }, 60000);
+  api("/api/apagao").then(e => { if (e.sem_luz) entrarApagao(); }).catch(() => {});   // abriu a central durante um apagao
 })();
 </script>
 </body>

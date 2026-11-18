@@ -249,6 +249,9 @@ def entender(texto, hoje=None):
         return "rede", {}
     if re.search(r"\b(janela|janelas|porta|portas|esta tudo fechado|ficou alguma coisa aberta|deixei .* aberta|luzes .*(ligadas|desligadas|acesas|apagadas)|ha luzes ligadas|estado da casa)\b", s):
         return "casa", {}
+    if re.search(r"\b(modo (de )?apagao|modo (de )?emergencia)\b", s):
+        sair = bool(re.search(r"\b(sai|sair|desliga|desativa|acabou|termina|voltou)\b", s))
+        return "apagao", {"ligado": not sair}
     if re.search(r"\b(apagao|apagoes|faltou a luz|falta de luz|ha luz|corte de luz|sem luz|caiu a internet|ha internet)\b", s):
         return "energia", {}
     if re.search(r"\b(avisos?|alerta|alertas|desastres?|catastrofe|sismos?|terramotos?|tremor de terra|incendios?|fogos?|tsunami|tempestade|esta tudo bem la fora|protecao civil|ipma)\b", s):
@@ -724,6 +727,13 @@ def _responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "apagao":
+        if d["ligado"]:
+            f = "Modo apagão ligado. Cortei o que gasta bateria. Se precisares de notícias sem internet, usa um rádio a pilhas."
+        else:
+            f = "Modo apagão desligado. Voltou tudo ao normal."
+        return {"resposta": f, "falado": f, "comandos": [{"acao": "apagao", "ligado": d["ligado"]}, {"acao": "falar", "texto": f}]}
 
     if intencao == "novo_teste":
         nomes = {"mat": "Matemática", "matematica": "Matemática", "portugues": "Português", "ingles": "Inglês", "frances": "Francês",

@@ -119,6 +119,16 @@ Como funciona: o PIN nunca fica guardado. Fica só o hash PBKDF2-SHA256 com um s
 
 O que o PIN **não** resolve: a ligação no Wi-Fi é http, não https, por isso alguém com acesso técnico à rede de casa podia ver o PIN a passar. Em casa, com o Wi-Fi em WPA2/WPA3, o risco é baixo. E quem estiver no quarto ouve as respostas faladas.
 
+## Modo apagão
+
+Liga-se **sozinho** quando o tablet deixa de carregar (precisa do Termux:API), ou à mão: "Jarvis, modo apagão". Para sair: o botão no fundo, "Jarvis, sai do modo apagão", ou sozinho quando a luz volta.
+
+- **Corta o que não é importante**: fecha o Iron Man, desliga a escuta (gasta bateria e precisa de internet), pausa o Spotify, pára as atualizações do ecrã e as animações, e baixa o brilho para 25 (com Termux:API; o Android pode pedir para dares à Termux:API a autorização "Alterar definições do sistema").
+- **Mostra só o essencial**: bateria e quanto tempo dura ao ritmo atual, há quanto tempo falta a luz, se há internet, rádio, notícias (as que falam de energia/apagão primeiro) e o que fazer.
+- **Rádio**: Antena 1, TSF, Renascença e Antena 1 Açores/Madeira pela internet. Os endereços vêm do radio-browser.info (um diretório público que verifica as rádios todos os dias), não estão escritos à mão.
+- **A verdade sobre a internet num apagão**: o router também se desliga. Só há internet se ligares o tablet ao hotspot do telemóvel, e as redes móveis também podem cair (no apagão de 28 de abril de 2025 caíram em muitos sítios). **Tem um rádio a pilhas em casa**: é a única coisa que funciona sempre, e a Proteção Civil recomenda-o no kit de emergência para 72 horas. Escreve num papel, ao lado do rádio, as frequências FM da Antena 1 e da TSF na tua zona (vêm no site de cada rádio).
+- O alarme do despertador continua a funcionar (é o servidor que o toca, não o ecrã).
+
 ## Família e mapa (só no modo Iron Man)
 
 As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa. Se perguntares uma coisa privada no ecrã normal ("quanto vendi hoje?"), ele abre o Iron Man e responde lá; no chat fica só "é privado", e a resposta não fica guardada no histórico.

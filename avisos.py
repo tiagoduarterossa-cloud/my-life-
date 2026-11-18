@@ -201,7 +201,7 @@ def frase(r):
 
 # ---------- apagoes e internet ----------
 
-_energia = {"ligado": None, "desde": None, "sem_internet_desde": None, "historico": []}
+_energia = {"ligado": None, "desde": None, "sem_internet_desde": None, "historico": [], "bateria": None, "leituras": []}
 
 
 def _bateria():
@@ -225,11 +225,18 @@ def _internet():
 
 def estado_energia():
     e = dict(_energia)
+    # quanto tempo de bateria falta: so se ja houver leituras suficientes durante o apagao (10 min e 2% gastos)
+    horas = None
+    lt = e["leituras"]
+    if len(lt) >= 2 and lt[-1][0] - lt[0][0] >= 600 and lt[0][1] - lt[-1][1] >= 2:
+        por_hora = (lt[0][1] - lt[-1][1]) / ((lt[-1][0] - lt[0][0]) / 3600)
+        horas = round(lt[-1][1] / por_hora, 1)
     return {"a_carregar": e["ligado"], "sem_luz": e["ligado"] is False and e["desde"] is not None, "desde": e["desde"],
+            "bateria": e["bateria"], "horas_bateria": horas,
             "sem_internet": e["sem_internet_desde"] is not None, "sem_internet_desde": e["sem_internet_desde"], "historico": e["historico"][-5:]}
 
 
-def vigiar(db, falar=None):
+def vigiar(db, falar=None, ao_mudar=None):
     """thread: a cada 30 s ve se o tablet continua a carregar e se ha internet. Escreve alertas e fala."""
     def alerta(texto, dizer=None):
         with db() as con:
@@ -245,15 +252,25 @@ def vigiar(db, falar=None):
                 if b:
                     ligado = b.get("plugged", "UNPLUGGED") != "UNPLUGGED"
                     agora = datetime.now().strftime("%H:%M")
+                    _energia["bateria"] = b.get("percentage")
+                    if not ligado and _energia["desde"]:
+                        _energia["leituras"] = (_energia["leituras"] + [(time.time(), b.get("percentage") or 0)])[-200:]
                     if _energia["ligado"] is True and not ligado:
                         _energia["desde"] = agora; _energia["t0"] = time.time()
+                        _energia["leituras"] = [(time.time(), b.get("percentage") or 0)]
                         alerta(f"Possível falha de luz às {agora}: o tablet deixou de carregar (bateria a {b.get('percentage')}%).",
-                               "Atenção. Parece que faltou a luz. Estou a funcionar a bateria.")
+                               "Atenção. Parece que faltou a luz. Estou a funcionar a bateria. Vou passar ao modo apagão para poupar energia.")
+                        if ao_mudar:
+                            try: ao_mudar(True)
+                            except Exception as e: print("apagao:", e)
                     elif _energia["ligado"] is False and ligado and _energia.get("t0"):
                         mins = round((time.time() - _energia["t0"]) / 60)
                         _energia["historico"].append(f"{_energia['desde']} a {agora} ({mins} min)")
                         alerta(f"A luz voltou às {agora}. Esteve {mins} minutos sem luz.", f"A luz voltou. Estivemos {mins} minutos sem luz.")
-                        _energia["desde"] = None; _energia["t0"] = None
+                        _energia["desde"] = None; _energia["t0"] = None; _energia["leituras"] = []
+                        if ao_mudar:
+                            try: ao_mudar(False)
+                            except Exception as e: print("apagao:", e)
                     _energia["ligado"] = ligado
                 net = _internet()
                 if not net and _energia["sem_internet_desde"] is None:

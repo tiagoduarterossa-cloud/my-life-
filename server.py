@@ -26,6 +26,7 @@ import ia
 import loja
 import noticias
 import pin
+import radio
 import rotinas
 import seguranca
 import spotify
@@ -652,6 +653,15 @@ class Handler(BaseHTTPRequestHandler):
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
 
+            # ----- modo apagao -----
+            if caminho == "/api/radio" and metodo == "GET":
+                return self.enviar(200, radio.estacoes())
+            if caminho == "/api/apagao" and metodo == "GET":
+                return self.enviar(200, avisos.estado_energia())
+            if caminho == "/api/apagao" and metodo == "POST":   # ligar/desligar a mao
+                modo_apagao(bool(self.corpo_json().get("ligado")))
+                return self.enviar(200, {"ok": True})
+
             # ----- familia e mapa -----
             if caminho == "/api/familia":
                 with db() as con:
@@ -1029,6 +1039,17 @@ def responder_ia(frase, privado_ok=True):
     return {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}
 
 
+def modo_apagao(ligado):
+    """quando falta a luz: baixa o brilho do ecra (Termux:API) e poe o ecra no modo apagao; quando volta, desfaz"""
+    import shutil, subprocess
+    if shutil.which("termux-brightness"):
+        try:
+            subprocess.run(["termux-brightness", "25" if ligado else "auto"], timeout=10)
+        except Exception as e:
+            print("brilho:", e)
+    rotinas._por_na_fila([{"acao": "apagao", "ligado": ligado}])
+
+
 def falar_alarme(texto):
     """quando o alarme toca: usa a voz neural se estiver escolhida, senao a do tablet"""
     cfg = ler_config()
@@ -1054,7 +1075,7 @@ if __name__ == "__main__":
                                                            {"acao": "falar", "texto": dizer}]) if rotinas.ecra_ativo() else falar_alarme(dizer))
     # apagoes e internet: fala pelo tablet (Termux:API) e deixa o aviso no ecra
     avisos.vigiar(db, lambda t: (rotinas._por_na_fila([{"acao": "aviso", "texto": t}]),
-                                 None if rotinas.ecra_ativo() else falar_alarme(t)))
+                                 None if rotinas.ecra_ativo() else falar_alarme(t)), ao_mudar=modo_apagao)
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
