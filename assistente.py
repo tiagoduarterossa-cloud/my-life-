@@ -490,7 +490,18 @@ AJUDA = {
 }
 
 
+PRIVADAS = {"loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+
+
 def responder(texto, con, hoje=None, nome=""):
+    """as respostas privadas (loja, seguranca, familia) levam privado=True: o ecra so as mostra no modo Iron Man"""
+    r = _responder(texto, con, hoje, nome)
+    if isinstance(r, dict) and entender(texto, hoje or date.today())[0] in PRIVADAS:
+        r["privado"] = True
+    return r
+
+
+def _responder(texto, con, hoje=None, nome=""):
     """con = ligacao sqlite (row_factory = Row).
     Devolve {resposta, falado, itens?, sugestoes?, mudou?}. 'falado' e a versao descontraida para a voz."""
     hoje = hoje or date.today()

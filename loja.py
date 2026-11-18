@@ -62,7 +62,7 @@ def apagar():
 
 def _cfg():
     if not TOKEN.exists():
-        raise ErroLoja("ainda não ligaste a loja (roda dentada > Loja)")
+        raise ErroLoja("ainda não ligaste a loja (modo Iron Man > painel Loja)")
     return json.loads(TOKEN.read_text())
 
 

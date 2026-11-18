@@ -315,7 +315,7 @@
   #im-familia .pessoa { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0, 200, 255, .1); }
   #im-familia .pessoa b { color: #fff; font-weight: 500; }
   #im-familia .alerta { color: #ff6b6b; }
-  #im-familia button, #im-mapa-caixa button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
+  #im-familia button, #im-mapa-caixa button, #im-loja button, #im-sistemas button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
     letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; margin: 8px 6px 0 0; cursor: pointer; }
   #im-mapa-caixa { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 46vw); height: min(78vh, 760px);
     display: none !important; border: 1px solid rgba(0, 200, 255, .35); background: rgba(0, 8, 20, .95); z-index: 3; }
@@ -821,6 +821,7 @@
 </dialog>
 <dialog id="d-loja">
   <h3 id="loja-titulo">A minha loja</h3>
+  <div id="loja-dados">
   <div class="filtros" id="loja-periodo">
     <button data-p="hoje" class="ativo">Hoje</button><button data-p="ontem">Ontem</button><button data-p="semana">Semana</button><button data-p="mes">Mês</button>
   </div>
@@ -834,6 +835,19 @@
     <button class="principal">Adicionar despesa</button>
   </form>
   <ul id="loja-despesas" style="margin-top:8px"></ul>
+  </div>
+  <label>Ligação à Shopify</label>
+  <div class="voz-cfg">
+    <div class="vazio" id="loja-estado" style="font-size:14px"></div>
+    <div id="loja-form" class="voz-cfg">
+      <input id="loja-dominio" placeholder="a-tua-loja.myshopify.com" autocomplete="off">
+      <input id="loja-token" type="password" placeholder="Chave da app (shpat_...)" autocomplete="off">
+      <div class="deslizar"><span>Taxa %</span><input id="loja-taxa" type="number" step="0.1" value="2.9" style="padding:8px"><span>Taxa fixa €</span><input id="loja-fixa" type="number" step="0.01" value="0.30" style="padding:8px"></div>
+      <button type="button" class="principal" id="loja-ligar">Ligar a loja</button>
+    </div>
+    <div class="botoes"><button type="button" class="secundario" id="loja-desligar" style="color:var(--perigo)">Desligar</button></div>
+    <div class="vazio" style="font-size:13px">A chave só consegue LER encomendas e produtos. A central não pede nomes nem moradas dos clientes. As taxas são as do teu método de pagamento (vê na Shopify).</div>
+  </div>
   <button type="button" class="secundario" style="width:100%;margin-top:12px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
@@ -946,18 +960,6 @@
     <label class="interruptor"><input type="checkbox" id="cfg-trinco"> Primeiro tenho de dizer «escuta» (só depois aceita a palavra, durante 15 s)</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
   </div>
-  <label>Loja (Shopify)</label>
-  <div class="voz-cfg">
-    <div class="vazio" id="loja-estado" style="font-size:14px"></div>
-    <div id="loja-form" class="voz-cfg">
-      <input id="loja-dominio" placeholder="a-tua-loja.myshopify.com" autocomplete="off">
-      <input id="loja-token" type="password" placeholder="Chave da app (shpat_...)" autocomplete="off">
-      <div class="deslizar"><span>Taxa %</span><input id="loja-taxa" type="number" step="0.1" value="2.9" style="padding:8px"><span>Taxa fixa €</span><input id="loja-fixa" type="number" step="0.01" value="0.30" style="padding:8px"></div>
-      <button type="button" class="principal" id="loja-ligar">Ligar a loja</button>
-    </div>
-    <div class="botoes"><button type="button" class="secundario" id="loja-abrir">Ver a loja</button><button type="button" class="secundario" id="loja-desligar" style="color:var(--perigo)">Desligar</button></div>
-    <div class="vazio" style="font-size:13px">A chave só consegue LER encomendas e produtos. A central não pede nomes nem moradas dos clientes. As taxas são as do teu método de pagamento (vê na Shopify).</div>
-  </div>
   <label>Spotify</label>
   <div class="voz-cfg">
     <div class="vazio" id="sp-estado" style="font-size:14px"></div>
@@ -1002,7 +1004,6 @@
     <button class="principal">Guardar</button>
   </form>
   <button type="button" class="secundario" style="width:100%;margin-top:10px" id="cfg-rotinas">Rotinas</button>
-  <button type="button" class="secundario" style="width:100%;margin-top:10px" id="cfg-seguranca">Segurança e casa</button>
   <a class="secundario" href="/fundos.html" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:14px;border-radius:12px;font-weight:600">Fundos de ecrã para o tablet</a>
   <button class="secundario" style="width:100%;margin-top:10px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
@@ -1475,13 +1476,26 @@ function msgAssist(quem, texto, itens) {
 function sugestoesAssist(lista) {
   $("#assist-sug").innerHTML = (lista || []).map(t => `<button type="button" data-sug="${esc(t)}">${esc(t)}</button>`).join("");
 }
+// loja, seguranca e familia: a resposta so aparece no modo Iron Man (e nao fica no historico do chat)
+async function respostaPrivada(texto, r) {
+  $("#assist").classList.remove("aberto"); $("#bolha-voz").classList.remove("ver");
+  if (!$("#hud").classList.contains("ironman")) { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); }
+  if (r.mapa) mostrarMapa();
+  if (r.mudou) { paineisIronMan.famT = 0; paineisIronMan.lojaT = 0; atualizar(); }
+  const n = (r.itens || []).length;
+  hudEstado("falar"); hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
+  await falar(r.falado || r.resposta); hudEstado("ouvir");
+  if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); }
+}
 async function perguntar(texto) {
   if (!texto.trim()) return;
   msgAssist("eu", texto); sugestoesAssist([]);
   const espera = msgAssist("ela a-pensar", "…");
   try {
     const r = await api("/api/assistente", "POST", { texto });
-    espera.remove(); msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    espera.remove();
+    if (r.privado) { msgAssist("ela", "🔒 É privado: respondi no modo Iron Man."); return respostaPrivada(texto, r); }
+    msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
     if (r.comandos) executarComandos(r.comandos);
     if (r.musica) setTimeout(carregarSpotify, 800);
     if ($("#d-loja").open && r.mudou) carregarLoja();
@@ -1743,6 +1757,7 @@ async function comandoVoz(texto, { noChat = false } = {}) {
   else bolha(texto, "A pensar…", null, 0);
   try {
     const r = await api("/api/assistente", "POST", { texto });
+    if (r.privado) { if (noChat) msgAssist("ela", "🔒 É privado: respondi no modo Iron Man."); return respostaPrivada(texto, r); }
     if (noChat) { msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes); }
     else {
       // fica no historico do chat, sem o abrir
@@ -1952,19 +1967,22 @@ async function paineisIronMan() {
   if (dz || sg) $("#im-sistemas").innerHTML += `
     <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar ? "ligada" : "—"}</span></div>
     <div class="linha"><span>Avisos IPMA</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
-    <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}</span></div>`;
+    <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}
+      <button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirSeguranca()">abrir ›</button></span></div>`;
   // loja (de 3 em 3 minutos, ou logo a seguir a uma encomenda nova)
   if (lojaOk && (!paineisIronMan.lojaT || Date.now() - paineisIronMan.lojaT > 180000)) {
     paineisIronMan.lojaT = Date.now();
     api("/api/loja?p=hoje").then(r => { paineisIronMan.loja = r; }).catch(() => {});
   }
   const lj = paineisIronMan.loja;
-  $("#im-loja").hidden = !(lojaOk && lj);
-  if (lj) $("#im-loja").innerHTML = `<h4>loja · hoje</h4>
+  $("#im-loja").hidden = false;
+  if (!lojaOk) $("#im-loja").innerHTML = `<h4>loja</h4>Ainda não ligada.<br><button onclick="abrirLoja()">ligar a loja</button>`;
+  else if (!lj) $("#im-loja").innerHTML = `<h4>loja · hoje</h4>A carregar…<br><button onclick="abrirLoja()">abrir</button>`;
+  else $("#im-loja").innerHTML = `<h4>loja · hoje</h4>
     <div class="linha"><span>Encomendas</span><span>${lj.encomendas}</span></div>
     <div class="linha"><span>Vendas</span><span>${eur(lj.receita)}</span></div>
     <div class="linha"><span>Lucro real</span><span style="color:${lj.lucro >= 0 ? "#5dffa0" : "#ff6b6b"}">${eur(lj.lucro)}</span></div>
-    <div class="linha"><span>Por enviar</span><span>${lj.por_enviar.length}</span></div>`;
+    <div class="linha"><span>Por enviar</span><span>${lj.por_enviar.length}</span></div><button onclick="abrirLoja()">abrir</button>`;
   // familia (de 10 em 10 minutos: tempo e perigos reais perto da casa deles)
   if (!paineisIronMan.famT || Date.now() - paineisIronMan.famT > 600000) {
     paineisIronMan.famT = Date.now();
@@ -2173,7 +2191,7 @@ function desenharHUD(agora) {
   if (hud.ate && Date.now() > hud.ate && hud.estado !== "falar") return fecharHUD(); // fecha sozinho sem conversa
   hud.anim = requestAnimationFrame(desenharHUD);
 }
-$("#hud").onclick = fecharHUD;
+$("#hud").onclick = e => { if (!e.target.closest("button, .im-painel, #im-mapa-caixa")) fecharHUD(); };   // tocar nos paineis nao fecha
 setInterval(() => { if ($("#hud").classList.contains("ver")) hudCantos(); }, 15000);
 
 // camara: "o que e isto?" -> foto -> Claude
@@ -2203,7 +2221,7 @@ let lojaPeriodo = "hoje", lojaOk = false;
 async function estadoLoja() {
   try { const e = await api("/api/loja/estado"); lojaOk = e.configurada;
     $("#loja-estado").textContent = e.configurada ? `Ligada: ${e.dominio}` : "Ainda não ligada.";
-    $("#loja-form").hidden = e.configurada; $("#loja-abrir").hidden = !e.configurada; $("#loja-desligar").hidden = !e.configurada;
+    $("#loja-form").hidden = e.configurada; $("#loja-desligar").hidden = !e.configurada; $("#loja-dados").hidden = !e.configurada;
   } catch (err) {}
 }
 async function carregarLoja() {
@@ -2228,8 +2246,7 @@ async function carregarLoja() {
       <button class="x" data-apagar="despesas/${x.id}" title="Apagar">×</button></li>`).join("") || vazio("Sem despesas. Diz: gastei 15 euros em anúncios.");
   } catch (e) {}
 }
-function abrirLoja() { $("#config").close(); $("#d-loja").showModal(); $("#f-despesa").data.value = hojeISO(); carregarLoja(); }
-$("#loja-abrir").onclick = abrirLoja;
+async function abrirLoja() { $("#d-loja").showModal(); $("#f-despesa").data.value = hojeISO(); await estadoLoja(); if (lojaOk) carregarLoja(); }
 $("#loja-periodo").onclick = e => { const p = e.target.dataset.p; if (!p) return; lojaPeriodo = p;
   document.querySelectorAll("#loja-periodo button").forEach(b => b.classList.toggle("ativo", b === e.target)); carregarLoja(); };
 $("#loja-ligar").onclick = async () => {
@@ -2271,7 +2288,7 @@ async function abrirSeguranca() {
     $("#seg-desastres").innerHTML = linhas.map(esc).join("<br>");
   }).catch(() => $("#seg-desastres").textContent = "Não consegui ler os avisos.");
 }
-$("#cfg-seguranca").onclick = () => { $("#config").close(); abrirSeguranca(); };
+
 $("#seg-aparelhos").addEventListener("click", async e => {
   const ip = e.target.dataset.meu; if (!ip) return;
   const nome = prompt("Que aparelho é este? (ex: iPhone do Tiago)") || "";

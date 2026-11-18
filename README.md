@@ -105,7 +105,7 @@ Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca 
 
 ## Família e mapa (só no modo Iron Man)
 
-As coisas privadas (família, mapa, loja) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa.
+As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa. Se perguntares uma coisa privada no ecrã normal ("quanto vendi hoje?"), ele abre o Iron Man e responde lá; no chat fica só "é privado", e a resposta não fica guardada no histórico.
 
 - No painel **Família** (canto de baixo à esquerda) carrega em **editar** e mete cada pessoa: relação (avó, tio...), nome, cidade e aniversário. Fica só no tablet, não vai para o GitHub.
 - O painel mostra o tempo onde vivem, aniversários a chegar, há quantos dias não falas com eles e **⚠ alerta** se houver perigo perto da casa deles.
@@ -116,7 +116,7 @@ As coisas privadas (família, mapa, loja) só aparecem no modo Iron Man. O ecrã
 
 ## A loja (Shopify)
 
-"Como está a loja?", "quanto vendi esta semana?", "qual é o lucro do mês?", "há encomendas por enviar?", "gastei 15 euros em anúncios do TikTok". Quando entra uma encomenda nova, toca uma caixa registadora e ele diz o valor. Na roda dentada > **Loja**: o resumo (hoje, ontem, semana, mês) e as despesas. No Iron Man há um painel Loja.
+"Como está a loja?", "quanto vendi esta semana?", "qual é o lucro do mês?", "há encomendas por enviar?", "gastei 15 euros em anúncios do TikTok". Quando entra uma encomenda nova, toca uma caixa registadora e ele diz o valor. No modo Iron Man, painel **Loja** > abrir: o resumo (hoje, ontem, semana, mês) e as despesas.
 
 **Lucro real** = vendas - reembolsos - custo dos produtos - taxas - anúncios e outras despesas. O custo vem do campo **"Custo por artigo"** de cada produto na Shopify: preenche-o, senão o lucro aparece maior do que é.
 
@@ -124,7 +124,7 @@ Para ligar (com os teus pais, que supervisionam a conta):
 1. Na Shopify: **Definições > Apps e canais de vendas > Desenvolver apps** (pode ser preciso "Permitir o desenvolvimento de apps personalizadas") > **Criar uma app** (nome: `Central do quarto`)
 2. **Configurar os âmbitos da Admin API**: marca só `read_orders`, `read_products` e `read_inventory`. Mais nada.
 3. **Instalar a app** e revelar o **token de acesso da Admin API** (começa por `shpat_`; só aparece uma vez)
-4. Na central, roda dentada > **Loja**: o domínio (`a-tua-loja.myshopify.com`), o token e as taxas do teu método de pagamento > **Ligar a loja**
+4. Na central, modo Iron Man > painel **Loja** > ligar a loja: o domínio (`a-tua-loja.myshopify.com`), o token e as taxas do teu método de pagamento > **Ligar a loja**
 
 O token fica em `loja_token.json` (fora do GitHub) e só consegue **ler**. A central não pede dados dos clientes.
 
@@ -142,7 +142,7 @@ Tudo vem de fontes oficiais, e ele diz sempre a fonte. Se uma fonte falhar, diz 
 | "Alguma coisa suspeita?" | A central regista os aparelhos que lhe acedem e avisa quando aparece um novo |
 | "As janelas estão fechadas?" | Sensores de janela (ex.: Shelly Door/Window) a chamar `http://IP:8080/api/sensor?nome=janela-quarto&estado=aberta` e `...estado=fechada` |
 
-Na roda dentada > **Segurança e casa**: os aparelhos (marca os teus com "É meu"), os alertas, a verificação da rede, a análise de links (phishing) e a verificação de palavras-passe roubadas. A palavra-passe nunca sai do aparelho: só vão os 5 primeiros carateres do hash SHA-1 (k-anonimato).
+No modo Iron Man, no painel Sistemas > **segurança e casa**: os aparelhos (marca os teus com "É meu"), os alertas, a verificação da rede, a análise de links (phishing) e a verificação de palavras-passe roubadas. A palavra-passe nunca sai do aparelho: só vão os 5 primeiros carateres do hash SHA-1 (k-anonimato).
 
 A **Hora de dormir** agora também avisa se ficou alguma janela aberta ou luz ligada. A rede e os apagões precisam da **Termux:API** (e de autorização de localização para ver o Wi-Fi).
 
