@@ -105,7 +105,7 @@ def forcar(texto):
     return None
 
 
-def perguntar(texto, db, cfg):
+def perguntar(texto, db, cfg, privado_ok=True):
     """devolve {resposta, mudou} ou {erro}"""
     hoje = date.today()
     if _uso["dia"] != hoje:
@@ -119,7 +119,7 @@ def perguntar(texto, db, cfg):
     from anthropic import beta_tool
 
     nome = cfg.get("nome", "")
-    mudou = {"v": False}
+    mudou = {"v": False, "privado": False}
 
     @beta_tool
     def central(pedido: str) -> str:
@@ -134,6 +134,10 @@ def perguntar(texto, db, cfg):
         Args:
             pedido: o pedido numa frase curta, parecida com os exemplos.
         """
+        if not privado_ok and assistente.entender(pedido)[0] in assistente.PRIVADAS:
+            return "Isso é privado (loja, família, segurança) e está trancado com PIN. Diz-lhe para meter o PIN no ecrã."
+        if assistente.entender(pedido)[0] in assistente.PRIVADAS:
+            mudou["privado"] = True   # esta conversa tocou em coisas privadas: nao fica na memoria para quem nao tem PIN
         with db() as con:
             r = assistente.responder(pedido, con, nome=nome)
         if r is assistente.AJUDA:
@@ -156,7 +160,9 @@ def perguntar(texto, db, cfg):
     with _hist_lock:  # ultimas 6 trocas dos ultimos 15 minutos, para perceber "e na quarta?"
         _hist[:] = [h for h in _hist if time.time() - h[2] < 15 * 60][-6:]
         mensagens = []
-        for p, r, _ in _hist:
+        for p, r, _, priv in _hist:
+            if priv and not privado_ok:
+                continue
             mensagens += [{"role": "user", "content": p}, {"role": "assistant", "content": r}]
     mensagens.append({"role": "user", "content": texto})
 
@@ -194,7 +200,7 @@ def perguntar(texto, db, cfg):
     if not resposta:
         return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
     with _hist_lock:
-        _hist.append((texto, resposta, time.time()))
+        _hist.append((texto, resposta, time.time(), mudou["privado"]))
     return {"resposta": resposta, "mudou": mudou["v"]}
 
 

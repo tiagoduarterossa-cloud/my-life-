@@ -25,11 +25,13 @@ import familia
 import ia
 import loja
 import noticias
+import pin
 import rotinas
 import seguranca
 import spotify
 import voz
 from datetime import date, datetime, timedelta
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urljoin
@@ -126,6 +128,7 @@ def init_db():
         con.executescript(casa.TABELAS)
         con.executescript(loja.TABELAS)
         con.executescript(familia.TABELAS)
+        con.executescript(pin.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -435,6 +438,17 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
          ".png": "image/png", ".jpg": "image/jpeg", ".bin": "application/octet-stream", ".wav": "audio/wav", ".svg": "image/svg+xml", ".json": "application/json"}
 
 
+# o que e privado: so com PIN (tambem no proprio tablet)
+PRIVADOS = ("/api/familia", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+            "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
+ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
+
+
+def alerta_seguranca(texto):
+    with db() as con:
+        con.execute("INSERT INTO alertas (texto) VALUES (?)", (texto,))
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # silencio no terminal
@@ -447,6 +461,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", tipo + "; charset=utf-8")
         self.send_header("Content-Length", str(len(dados)))
         self.send_header("Cache-Control", "no-store")
+        for k, v in getattr(self, "extra", []):
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(dados)
 
@@ -466,7 +482,24 @@ class Handler(BaseHTTPRequestHandler):
             print("seguranca:", e)
         caminho = self.path.split("?")[0].rstrip("/") or "/"
         query = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
+        self.extra = []
         try:
+            # ----- PIN -----
+            local = self.client_address[0] in ("127.0.0.1", "::1")
+            ck = SimpleCookie(self.headers.get("Cookie", ""))
+            token = (ck["central"].value if "central" in ck else None) or self.headers.get("X-Chave") or query.get("chave")
+            ses = None
+            if pin.ativo() and token:
+                with db() as con:
+                    ses = pin.sessao(con, token)
+            self.sessao = ses
+            if pin.ativo() and not caminho.startswith(ABERTOS):
+                e_api = caminho.startswith("/api") or caminho.startswith("/quarto")
+                if not ses and ((e_api and not local) or caminho.startswith(PRIVADOS)):
+                    return self.enviar(401, {"erro": "precisa do PIN", "pin": True})
+            if caminho.startswith("/api/pin"):
+                return self.tratar_pin(metodo, caminho, token, ses, local)
+
             # API
             if caminho == "/api/areas" and metodo == "GET":
                 return self.enviar(200, AREAS)
@@ -509,8 +542,12 @@ class Handler(BaseHTTPRequestHandler):
                 frase = str(corpo.get("texto") or "").strip()[:500]
                 do_telemovel = corpo.get("origem") == "telemovel"   # Atalho da Siri no iPhone
                 direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
+                privado_ok = not pin.ativo() or bool(self.sessao)
                 if direto and ia.disponivel():
-                    return self.enviar(200, responder_ia(direto))
+                    return self.enviar(200, responder_ia(direto, privado_ok))
+                if not privado_ok and assistente.entender(frase)[0] in assistente.PRIVADAS:
+                    return self.enviar(200, {"resposta": "🔒 Isso é privado: mete o PIN.", "falado": "Isso é privado. Mete o PIN no ecrã.",
+                                             "bloqueado": True, "privado": True})
                 with db() as con:
                     r = rotinas.por_voz(con, frase)
                     if r:  # "modo estudo", "rotina hora de dormir"...
@@ -523,7 +560,7 @@ class Handler(BaseHTTPRequestHandler):
                         return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
                     r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
-                    return self.enviar(200, responder_ia(frase))
+                    return self.enviar(200, responder_ia(frase, privado_ok))
                 if r.get("resumir") and ia.disponivel():  # noticias em ingles: o Claude resume em portugues
                     resumo = ia.resumir(r["resumir"], ler_config())
                     if resumo:
@@ -883,6 +920,52 @@ class Handler(BaseHTTPRequestHandler):
         except (Erro, ValueError) as e:
             self.enviar(400, {"erro": str(e)})
 
+    def cookie(self, token, local):
+        idade = "" if local else f"; Max-Age={pin.DURACAO['browser']}"   # no tablet: so ate fechar o browser
+        self.extra.append(("Set-Cookie", f"central={token}; Path=/; HttpOnly; SameSite=Lax{idade}"))
+
+    def tratar_pin(self, metodo, caminho, token, ses, local):
+        ua = self.headers.get("User-Agent", "")
+        aparelho = "Este tablet" if local else ("iPhone" if "iPhone" in ua else "Android" if "Android" in ua else "Mac" if "Macintosh" in ua else "Windows" if "Windows" in ua else "browser")
+        try:
+            with db() as con:
+                if caminho == "/api/pin/estado" and metodo == "GET":
+                    return self.enviar(200, {"ativo": pin.ativo(), "sessao": bool(ses), "tipo": ses and ses["tipo"], "local": local})
+                if caminho == "/api/pin/entrar" and metodo == "POST":
+                    tok = pin.entrar(con, self.corpo_json().get("pin"), self.client_address[0], aparelho, local, alerta_seguranca)
+                    self.cookie(tok, local)
+                    return self.enviar(200, {"ok": True})
+                if caminho == "/api/pin/sair" and metodo == "POST":
+                    if ses and ses["tipo"] != "chave":
+                        pin.sair(con, token)
+                    self.extra.append(("Set-Cookie", "central=; Path=/; Max-Age=0"))
+                    return self.enviar(200, {"ok": True})
+                if caminho == "/api/pin/definir" and metodo == "POST":
+                    d = self.corpo_json()
+                    if not pin.ativo() and not local:
+                        raise pin.ErroPin("o primeiro PIN só se mete no próprio tablet")
+                    if pin.ativo() and not ses:
+                        raise pin.ErroPin("mete primeiro o PIN atual")
+                    pin.definir(con, d.get("novo"), d.get("atual"))
+                    self.cookie(pin.entrar(con, d.get("novo"), self.client_address[0], aparelho, local), local)
+                    return self.enviar(200, {"ok": True})
+                if caminho == "/api/pin/remover" and metodo == "POST":
+                    pin.remover(con, self.corpo_json().get("atual"))
+                    self.extra.append(("Set-Cookie", "central=; Path=/; Max-Age=0"))
+                    return self.enviar(200, {"ok": True})
+                if caminho == "/api/pin/sessoes" and metodo == "GET":
+                    return self.enviar(200, pin.listar(con))
+                m = re.fullmatch(r"/api/pin/sessoes/([0-9a-f]{12})", caminho)
+                if m and metodo == "DELETE":
+                    pin.apagar(con, m[1])
+                    return self.enviar(200, {"ok": True})
+                if caminho == "/api/pin/chave" and metodo == "POST":
+                    nome = texto(self.corpo_json(), "nome", maximo=40)
+                    return self.enviar(201, {"chave": pin.criar_chave(con, nome)})
+        except pin.ErroPin as e:
+            return self.enviar(400, {"erro": str(e)})
+        return self.enviar(404, {"erro": "nao encontrado"})
+
     def do_GET(self):
         self.tratar("GET")
 
@@ -939,8 +1022,8 @@ def extras_rotina(sem_falar=False):
             **({} if sem_falar else {"falar_servidor": falar_alarme})}
 
 
-def responder_ia(frase):
-    r = ia.perguntar(frase, db, ler_config())
+def responder_ia(frase, privado_ok=True):
+    r = ia.perguntar(frase, db, ler_config(), privado_ok=privado_ok)
     if "erro" in r:
         return {"resposta": r["erro"], "falado": r["erro"]}
     return {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}

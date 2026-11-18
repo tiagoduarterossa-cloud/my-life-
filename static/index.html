@@ -334,6 +334,23 @@
   @keyframes im-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (max-width: 900px) { .im-painel { display: none !important; } }
 
+  /* PIN */
+  #d-pin { background: #00060d; color: #c9f1ff; border: 1px solid rgba(0, 200, 255, .35); width: min(340px, 92vw); text-align: center; }
+  #d-pin::backdrop { background: rgba(0, 4, 10, .88); backdrop-filter: blur(6px); }
+  #d-pin h3 { letter-spacing: 6px; text-transform: uppercase; font-size: 13px; color: #4fd2ff; font-weight: 600; margin: 4px 0 4px; }
+  #pin-pontos { display: flex; justify-content: center; gap: 14px; margin: 18px 0 8px; height: 16px; }
+  #pin-pontos i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #38e1ff; }
+  #pin-pontos i.cheio { background: #38e1ff; box-shadow: 0 0 10px #38e1ff; }
+  #pin-erro { min-height: 20px; color: #ff6b6b; font-size: 13px; }
+  #pin-teclas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 10px 8px 6px; }
+  #pin-teclas button { aspect-ratio: 1.3; border-radius: 14px; border: 1px solid rgba(0, 200, 255, .3); background: rgba(0, 120, 200, .1);
+    color: #fff; font-size: 26px; font-weight: 300; font-family: inherit; cursor: pointer; }
+  #pin-teclas button:active { background: rgba(0, 200, 255, .35); }
+  #pin-teclas button.peq { font-size: 13px; letter-spacing: 1px; color: #9fe6ff; }
+  #pin-ok { background: rgba(0, 160, 255, .25) !important; color: #fff !important; border: 1px solid rgba(0, 200, 255, .5) !important; letter-spacing: 2px; }
+  #d-pin.abanar { animation: abanar .35s; }
+  @keyframes abanar { 25% { transform: translateX(-10px); } 50% { transform: translateX(10px); } 75% { transform: translateX(-6px); } }
+
   /* seguranca */
   .seg-nivel { font-weight: 700; } .seg-ok { color: var(--ok); } .seg-cuidado { color: var(--dropshipping); } .seg-perigo { color: var(--perigo); } .seg-info { color: var(--suave); }
   #d-seguranca .bloco-s { margin-top: 14px; }
@@ -851,6 +868,17 @@
   <button type="button" class="secundario" style="width:100%;margin-top:12px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
+<dialog id="d-pin">
+  <h3>acesso restrito</h3>
+  <div class="vazio" id="pin-msg" style="font-size:13px;color:#9fe6ff">Mete o PIN</div>
+  <div id="pin-pontos"></div>
+  <div id="pin-erro"></div>
+  <div id="pin-teclas">
+    <button>1</button><button>2</button><button>3</button><button>4</button><button>5</button><button>6</button>
+    <button>7</button><button>8</button><button>9</button><button class="peq" data-t="cancelar">cancelar</button><button>0</button><button class="peq" data-t="apagar">⌫</button>
+  </div>
+  <button type="button" class="secundario" id="pin-ok" style="width:100%;margin-top:6px">Entrar</button>
+</dialog>
 <dialog id="d-seguranca">
   <h3>Segurança e casa</h3>
   <div class="vazio" id="seg-resumo" style="font-size:14px"></div>
@@ -860,6 +888,9 @@
 
   <label>Casa (janelas e luzes)</label>
   <div id="seg-casa" class="vazio" style="font-size:14px"></div>
+
+  <label>PIN da central</label>
+  <div id="seg-pin" class="voz-cfg"></div>
 
   <label>Aparelhos que acederam à central</label>
   <ul id="seg-aparelhos"></ul>
@@ -1040,12 +1071,64 @@ function aviso(msg, erro = true) {
   clearTimeout(aviso.t); aviso.t = setTimeout(() => el.style.display = "none", 3500);
 }
 
-async function api(caminho, metodo = "GET", corpo) {
+async function api(caminho, metodo = "GET", corpo, outraVez = true) {
   const r = await fetch(caminho, { method: metodo, headers: { "Content-Type": "application/json" },
     body: corpo ? JSON.stringify(corpo) : undefined });
   const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && j.pin && outraVez) {   // precisa do PIN: pede e tenta outra vez
+    if (await pedirPIN()) return api(caminho, metodo, corpo, false);
+    throw new Error("trancado com PIN");
+  }
   if (!r.ok) throw new Error(j.erro || "erro no servidor");
   return j;
+}
+
+// ---------- PIN ----------
+const pinEstado = { ativo: false, sessao: false, local: true };
+let pinPromessa = null;
+async function lerPIN() { try { Object.assign(pinEstado, await (await fetch("/api/pin/estado")).json()); } catch (e) {} return pinEstado; }
+function pedirPIN(msg) {
+  // um so teclado de cada vez, mesmo que varios pedidos precisem do PIN ao mesmo tempo
+  if (pinPromessa) return pinPromessa;
+  pinPromessa = new Promise(ok => {
+    const d = $("#d-pin"); let pin = "";
+    const pontos = () => $("#pin-pontos").innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<i class="${i < pin.length ? "cheio" : ""}"></i>`).join("");
+    $("#pin-msg").textContent = msg || (pinEstado.local ? "Isto é privado. Mete o PIN." : "Mete o PIN para entrar na central.");
+    $("#pin-erro").textContent = ""; pontos();
+    // noutro aparelho nao da para cancelar: sem PIN nao ha central
+    d.querySelector('[data-t="cancelar"]').style.visibility = pinEstado.local ? "visible" : "hidden";
+    const fim = v => { d.close(); document.removeEventListener("keydown", teclado); pinPromessa = null; ok(v); };
+    const tentar = async () => {
+      if (pin.length < 4) return;
+      try {
+        const r = await fetch("/api/pin/entrar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) { pinEstado.sessao = true; hudLog("acesso autorizado"); return fim(true); }
+        $("#pin-erro").textContent = j.erro || "PIN errado";
+      } catch (e) { $("#pin-erro").textContent = "Sem ligação ao servidor."; }
+      pin = ""; pontos(); d.classList.remove("abanar"); void d.offsetWidth; d.classList.add("abanar");
+    };
+    const tecla = t => {
+      if (t === "cancelar") return pinEstado.local && fim(false);
+      if (t === "apagar") pin = pin.slice(0, -1);
+      else if (/^\d$/.test(t) && pin.length < 8) pin += t;
+      $("#pin-erro").textContent = ""; pontos();
+    };
+    const teclado = e => { if (/^\d$/.test(e.key)) tecla(e.key); else if (e.key === "Backspace") tecla("apagar"); else if (e.key === "Enter") tentar(); };
+    $("#pin-teclas").onclick = e => { const b = e.target.closest("button"); if (b) tecla(b.dataset.t || b.textContent); };
+    $("#pin-ok").onclick = tentar;
+    d.oncancel = e => { e.preventDefault(); if (pinEstado.local) fim(false); };
+    document.addEventListener("keydown", teclado);
+    d.showModal();
+  });
+  return pinPromessa;
+}
+const livre = () => !pinEstado.ativo || pinEstado.sessao;
+async function precisaPIN() { if (!pinEstado.ativo || pinEstado.sessao) return true; return pedirPIN(); }
+async function trancar() {
+  if (!pinEstado.ativo || !pinEstado.sessao) return;
+  await fetch("/api/pin/sair", { method: "POST" }).catch(() => {}); pinEstado.sessao = false;
+  if (!pinEstado.local) location.reload();
 }
 
 const vazio = t => `<li><span class="vazio">${t}</span></li>`;
@@ -1480,6 +1563,10 @@ function sugestoesAssist(lista) {
 async function respostaPrivada(texto, r) {
   $("#assist").classList.remove("aberto"); $("#bolha-voz").classList.remove("ver");
   if (!$("#hud").classList.contains("ironman")) { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); }
+  if (r.bloqueado) {   // trancado: primeiro o PIN, depois pergunta outra vez
+    if (!(await precisaPIN())) return;
+    r = await api("/api/assistente", "POST", { texto });
+  }
   if (r.mapa) mostrarMapa();
   if (r.mudou) { paineisIronMan.famT = 0; paineisIronMan.lojaT = 0; atualizar(); }
   const n = (r.itens || []).length;
@@ -1961,7 +2048,7 @@ async function paineisIronMan() {
       $("#im-faixa").innerHTML = itens.join("") || "<b>NOTÍCIAS</b>sem ligação às fontes de notícias";
     });
     api("/api/desastres").then(d => { paineisIronMan.desastres = d; }).catch(() => {});
-    api("/api/seguranca").then(x => { paineisIronMan.seg = x; }).catch(() => {});
+    (livre() ? api("/api/seguranca") : Promise.reject()).then(x => { paineisIronMan.seg = x; }).catch(() => {});
   }
   const dz = paineisIronMan.desastres, sg = paineisIronMan.seg;
   if (dz || sg) $("#im-sistemas").innerHTML += `
@@ -1972,7 +2059,7 @@ async function paineisIronMan() {
   // loja (de 3 em 3 minutos, ou logo a seguir a uma encomenda nova)
   if (lojaOk && (!paineisIronMan.lojaT || Date.now() - paineisIronMan.lojaT > 180000)) {
     paineisIronMan.lojaT = Date.now();
-    api("/api/loja?p=hoje").then(r => { paineisIronMan.loja = r; }).catch(() => {});
+    (livre() ? api("/api/loja?p=hoje") : Promise.reject()).then(r => { paineisIronMan.loja = r; }).catch(() => {});
   }
   const lj = paineisIronMan.loja;
   $("#im-loja").hidden = false;
@@ -1986,7 +2073,7 @@ async function paineisIronMan() {
   // familia (de 10 em 10 minutos: tempo e perigos reais perto da casa deles)
   if (!paineisIronMan.famT || Date.now() - paineisIronMan.famT > 600000) {
     paineisIronMan.famT = Date.now();
-    api("/api/familia?detalhes=1").then(r => { paineisIronMan.fam = r; paineisIronMan(); }).catch(() => {});
+    (livre() ? api("/api/familia?detalhes=1") : Promise.reject()).then(r => { paineisIronMan.fam = r; paineisIronMan(); }).catch(() => {});
   }
   const fm = paineisIronMan.fam || [];
   $("#im-familia").hidden = !fm.length; $("#im-registo").hidden = !!fm.length;
@@ -2073,6 +2160,8 @@ $("#f-familia").onsubmit = async e => {
 };
 function arranqueIronMan() {
   const h = $("#hud"); h.classList.add("ironman", "a-arrancar"); hudLog("protocolo iron man iniciado");
+  precisaPIN().then(async ok => { if (!ok) return fecharHUD(); await estadoLoja(); paineisIronMan.famT = paineisIronMan.lojaT = 0;
+    (livre() ? api("/api/seguranca") : Promise.reject()).then(x => { paineisIronMan.seg = x; }).catch(() => {}); paineisIronMan(); });
   // som de arranque: um varrimento a subir e tres bips
   try {
     const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sawtooth";
@@ -2099,6 +2188,7 @@ function fecharHUD() {
   const eraIron = $("#hud").classList.contains("ironman");
   $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa"); pararCamara(); hud.ate = 0;
   if (eraIron) corNaFita();   // a fita volta a cor do tema
+  if (eraIron && pinEstado.local) { trancar(); paineisIronMan.fam = paineisIronMan.loja = paineisIronMan.seg = null; }   // no tablet: sair do Iron Man tranca
 }
 function hudEstado(e) {
   hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? "";
@@ -2269,8 +2359,49 @@ function somCaixa() {
 
 // ---------- SEGURANCA E CASA ----------
 const NIVEL_TXT = { ok: "✔ seguro", cuidado: "⚠ cuidado", perigo: "✖ perigo", info: "ℹ" };
+async function desenharPinSeg() {
+  await lerPIN();
+  const el = $("#seg-pin");
+  if (!pinEstado.ativo) {
+    el.innerHTML = `<div class="vazio" style="font-size:13px">Sem PIN: qualquer pessoa no Wi-Fi de casa consegue abrir a central. Escolhe 4 a 8 números (nada de 1234 nem a tua data de anos).</div>
+      <input id="pin-novo" type="password" inputmode="numeric" maxlength="8" placeholder="Novo PIN" autocomplete="off">
+      <input id="pin-novo2" type="password" inputmode="numeric" maxlength="8" placeholder="Repete o PIN" autocomplete="off">
+      <button type="button" class="principal" id="pin-definir">Ativar o PIN</button>`;
+  } else {
+    let ses = []; try { ses = await api("/api/pin/sessoes"); } catch (e) {}
+    const nomes = { local: "este tablet (até sair do Iron Man)", browser: "browser (30 dias)", chave: "chave de aparelho" };
+    el.innerHTML = `<div class="vazio" style="font-size:13px">PIN ativo. No tablet, o ecrã normal fica livre e o Iron Man pede o PIN. Nos outros aparelhos pede-se sempre.</div>
+      <ul>${ses.map(x => `<li><div class="meio"><div class="titulo">${esc(x.aparelho)}</div><div class="info">${nomes[x.tipo] || x.tipo}${x.ip ? " · " + esc(x.ip) : ""} · usado ${x.ultimo}</div></div>
+        <button class="saltar-btn" data-tirar="${x.id}" style="color:var(--perigo)">Tirar</button></li>`).join("")}</ul>
+      <div class="botoes"><button type="button" class="secundario" id="pin-chave">Chave para Siri/sensores</button><button type="button" class="secundario" id="pin-trancar">Trancar agora</button></div>
+      <div id="pin-chave-res"></div>
+      <input id="pin-atual" type="password" inputmode="numeric" maxlength="8" placeholder="PIN atual" autocomplete="off">
+      <input id="pin-novo" type="password" inputmode="numeric" maxlength="8" placeholder="Novo PIN" autocomplete="off">
+      <div class="botoes"><button type="button" class="secundario" id="pin-definir">Mudar o PIN</button><button type="button" class="secundario" id="pin-remover" style="color:var(--perigo)">Tirar o PIN</button></div>`;
+  }
+  const v = id => $(id)?.value.trim();
+  $("#pin-definir").onclick = async () => {
+    if (!pinEstado.ativo && v("#pin-novo") !== v("#pin-novo2")) return aviso("Os dois PINs não são iguais.");
+    try { await api("/api/pin/definir", "POST", { novo: v("#pin-novo"), atual: v("#pin-atual") }); aviso("PIN guardado.", false); pinEstado.sessao = true; desenharPinSeg(); }
+    catch (e) { aviso(e.message); }
+  };
+  if ($("#pin-remover")) $("#pin-remover").onclick = async () => {
+    if (!confirm("Tirar o PIN? A central fica aberta a todos no Wi-Fi.")) return;
+    try { await api("/api/pin/remover", "POST", { atual: v("#pin-atual") }); aviso("PIN tirado.", false); desenharPinSeg(); } catch (e) { aviso(e.message); }
+  };
+  if ($("#pin-trancar")) $("#pin-trancar").onclick = async () => { $("#d-seguranca").close(); fecharHUD(); await trancar(); aviso("Trancado.", false); };
+  if ($("#pin-chave")) $("#pin-chave").onclick = async () => {
+    const nome = prompt("Para que aparelho? (ex.: iPhone Siri, sensor janela)"); if (!nome) return;
+    try { const r = await api("/api/pin/chave", "POST", { nome });
+      $("#pin-chave-res").innerHTML = `<div class="vazio" style="font-size:13px;text-align:left">Copia já, só aparece esta vez:<br><code style="user-select:all;word-break:break-all;color:var(--texto)">${esc(r.chave)}</code><br>
+        No atalho da Siri: cabeçalho <b>X-Chave</b> com esta chave. Nos sensores: acrescenta <b>&chave=…</b> ao fim do endereço.</div>`; desenharPinSeg.manter = true;
+    } catch (e) { aviso(e.message); }
+  };
+  el.onclick = async e => { const b = e.target.closest("[data-tirar]"); if (!b || !confirm("Tirar o acesso a este aparelho?")) return;
+    await api(`/api/pin/sessoes/${b.dataset.tirar}`, "DELETE").catch(() => {}); await lerPIN(); if (pinEstado.sessao) desenharPinSeg(); else { $("#d-seguranca").close(); fecharHUD(); } };
+}
 async function abrirSeguranca() {
-  $("#d-seguranca").showModal();
+  $("#d-seguranca").showModal(); desenharPinSeg();
   try {
     const s2 = await api("/api/seguranca");
     $("#seg-resumo").textContent = s2.desconhecidos ? `${s2.desconhecidos} aparelho(s) por confirmar.` : "Todos os aparelhos conhecidos são de confiança.";
@@ -2736,7 +2867,6 @@ $("#abrir-config").onclick = () => {
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-trinco").checked = vozCfg.trinco !== false; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
-  estadoLoja();
   $("#cfg-tomada").value = config.tomada_ip || ""; $("#cfg-wled").value = config.wled_ip || ""; $("#cfg-hud").checked = vozCfg.hud !== false; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
 };
@@ -2778,9 +2908,12 @@ abrirSeparador(ler("separador") || "inicio");
 mostrarCrono();
 tick(); setInterval(tick, 1000);
 (async () => {
+  await lerPIN();
+  if (pinEstado.ativo && !pinEstado.local && !pinEstado.sessao) await pedirPIN();   // noutro aparelho: PIN antes de tudo
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
-  mostrarIA(); mostrarBotEscuta(); estadoLoja();
+  mostrarIA(); mostrarBotEscuta();
+  if (!pinEstado.ativo || pinEstado.sessao) estadoLoja();
   if (vozCfg.ouvir) iniciarEscuta(false);
   setTimeout(aquecerVoz, 3000);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);

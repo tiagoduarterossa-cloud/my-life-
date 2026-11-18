@@ -103,6 +103,21 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 
 Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca o ecrã completo: sequência de arranque com som, painéis de meteorologia com a previsão por hora, sistemas (energia, servidor, rede, voz, cérebro), agenda, missões (testes, tarefas, alarme), áudio (Spotify) e um registo com tudo o que acontece. Ao centro, a esfera com radar, grelha hexagonal e anéis graduados, sempre no azul do reator. A fita LED fica azul e volta à cor do tema quando dizes "fecha-te". No telemóvel aparecem só a esfera e o topo.
 
+## PIN da central
+
+Liga-se no modo Iron Man > painel Sistemas > Segurança > **abrir** > PIN da central (4 a 8 números, nada de 1234 nem datas de anos). O primeiro PIN só se consegue meter no próprio tablet.
+
+- **No tablet**: o ecrã normal (escola, estudo, horário, luzes) fica livre. O **Iron Man pede o PIN** e tranca-se quando sai do Iron Man (ou ao fim de 15 minutos sem uso). Perguntas privadas por voz ("quanto vendi hoje?") abrem o Iron Man e pedem o PIN antes de responder.
+- **Noutro aparelho** (telemóvel, PC): pede o PIN para tudo. Fica lembrado 30 dias nesse aparelho.
+- **Contra adivinhar**: 5 erros seguidos bloqueiam esse aparelho 5 minutos (e o dobro a cada novo erro). Mais de 20 erros numa hora bloqueiam toda a gente 15 minutos. Cada bloqueio fica nos alertas de segurança.
+- **Ver quem tem acesso**: na mesma secção aparece a lista dos aparelhos com sessão aberta. "Tirar" corta o acesso. Mudar o PIN fecha todas as sessões.
+- **Siri e sensores**: carrega em "Chave para Siri/sensores". A chave só aparece uma vez. No atalho da Siri, em "Obter conteúdo do URL", acrescenta o cabeçalho `X-Chave` com essa chave. Nos sensores Shelly, junta `&chave=A-CHAVE` ao fim do endereço (`.../api/sensor?nome=janela-quarto&estado=aberta&chave=...`).
+- **Esqueceste o PIN?** No Termux: `rm ~/my-life-/pin.json` e reinicia a central. Só quem tem o tablet na mão consegue fazer isto, e é essa a ideia.
+
+Como funciona: o PIN nunca fica guardado. Fica só o hash PBKDF2-SHA256 com um sal aleatório e 200 000 iterações, em `pin.json` (fora do GitHub). Quem acerta recebe um token aleatório num cookie que o JavaScript não consegue ler (HttpOnly). Na base de dados só fica o hash desse token.
+
+O que o PIN **não** resolve: a ligação no Wi-Fi é http, não https, por isso alguém com acesso técnico à rede de casa podia ver o PIN a passar. Em casa, com o Wi-Fi em WPA2/WPA3, o risco é baixo. E quem estiver no quarto ouve as respostas faladas.
+
 ## Família e mapa (só no modo Iron Man)
 
 As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa. Se perguntares uma coisa privada no ecrã normal ("quanto vendi hoje?"), ele abre o Iron Man e responde lá; no chat fica só "é privado", e a resposta não fica guardada no histórico.
@@ -140,7 +155,7 @@ Tudo vem de fontes oficiais, e ele diz sempre a fonte. Se uma fonte falhar, diz 
 | "Faltou a luz?" | O tablet: se deixa de carregar, provavelmente faltou a luz. Avisa sozinho, e quando a luz volta diz quanto tempo durou. Também avisa quando cai a internet |
 | "A rede está segura?" | O próprio tablet: encriptação do Wi-Fi (WEP/WPA2/WPA3), WPS, portas perigosas do router. Só a tua rede |
 | "Alguma coisa suspeita?" | A central regista os aparelhos que lhe acedem e avisa quando aparece um novo |
-| "As janelas estão fechadas?" | Sensores de janela (ex.: Shelly Door/Window) a chamar `http://IP:8080/api/sensor?nome=janela-quarto&estado=aberta` e `...estado=fechada` |
+| "As janelas estão fechadas?" | Sensores de janela (ex.: Shelly Door/Window) a chamar `http://IP:8080/api/sensor?nome=janela-quarto&estado=aberta` e `...estado=fechada` (com PIN ligado, junta `&chave=...`) |
 
 No modo Iron Man, no painel Sistemas > **segurança e casa**: os aparelhos (marca os teus com "É meu"), os alertas, a verificação da rede, a análise de links (phishing) e a verificação de palavras-passe roubadas. A palavra-passe nunca sai do aparelho: só vão os 5 primeiros carateres do hash SHA-1 (k-anonimato).
 
@@ -283,7 +298,7 @@ Para o melhorares mais tarde, só tens de trocar o `entender()`:
 
 Coisas que deixei por fazer de propósito, para seres tu a fazer:
 
-1. **PIN de acesso**: agora qualquer pessoa no Wi-Fi de casa consegue abrir a central. Mete um PIN. Pista: guarda só o *hash* do PIN (procura `hashlib` e `pbkdf2_hmac`), nunca o PIN em texto.
+1. ~~**PIN de acesso**~~: já está feito (vê "PIN da central"). Desafio novo: lê o `pin.py` todo e explica a alguém, por palavras tuas, porque é que guardar o hash com sal é melhor do que guardar o PIN, e porque é que 200 000 iterações tornam mais difícil adivinhar.
 2. **Notas encriptadas**: um separador de diário onde o texto é guardado encriptado na base de dados.
 3. **Backup automático**: um script que copia o `vida.db` todos os dias para uma pasta com a data no nome.
 4. **Objetivos semanais**: definir quantas horas queres dar a cada área e ver se estás acima ou abaixo.
