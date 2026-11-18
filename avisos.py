@@ -16,6 +16,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime
 
@@ -28,10 +29,23 @@ DISTRITOS = {  # codigo IPMA: (nome, lat, lon)
     "CBO": ("Castelo Branco", 39.82, -7.49), "CBR": ("Coimbra", 40.21, -8.43), "EVR": ("Évora", 38.57, -7.91), "FAR": ("Faro", 37.02, -7.93),
     "GDA": ("Guarda", 40.54, -7.27), "LRA": ("Leiria", 39.74, -8.81), "LSB": ("Lisboa", 38.72, -9.14), "PTG": ("Portalegre", 39.29, -7.43),
     "PTO": ("Porto", 41.15, -8.61), "STM": ("Santarém", 39.24, -8.69), "STB": ("Setúbal", 38.52, -8.89), "VCT": ("Viana do Castelo", 41.69, -8.83),
-    "VRL": ("Vila Real", 41.30, -7.74), "VIS": ("Viseu", 40.66, -7.91), "MCS": ("Madeira", 32.65, -16.91),
+    "VRL": ("Vila Real", 41.30, -7.74), "VIS": ("Viseu", 40.66, -7.91),
+    # Madeira e Acores: o IPMA divide-os em zonas
+    "MCN": ("Madeira, costa norte", 32.84, -16.95), "MCS": ("Madeira, costa sul", 32.65, -16.91),
+    "MRM": ("Madeira, serras", 32.75, -16.96), "MPS": ("Porto Santo", 33.07, -16.34),
+    "AOC": ("Açores, grupo ocidental", 39.45, -31.18), "ACE": ("Açores, grupo central", 38.62, -27.9),
+    "AOR": ("Açores, grupo oriental", 37.6, -25.4),
 }
+ILHAS = {"MCN", "MCS", "MRM", "MPS", "AOC", "ACE", "AOR"}
 NIVEIS = {"yellow": "amarelo", "orange": "laranja", "red": "vermelho"}
 _cache, _lock = {}, threading.Lock()
+# o fogos.pt passou a pedir uma chave pessoal (cabecalho FOGOS-PT-AUTH). Pede-se em fogos.pt/api e guarda-se assim:
+#   echo A-CHAVE > ~/central/fogos_token.txt
+FOGOS_TOKEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fogos_token.txt")
+
+
+class SemChave(Exception):
+    pass
 
 
 def _json(url, validade=600):
@@ -39,9 +53,17 @@ def _json(url, validade=600):
         c = _cache.get(url)
         if c and time.time() - c[0] < validade:
             return c[1]
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (central do quarto)"})
-    with urllib.request.urlopen(req, timeout=8) as r:
-        d = json.loads(r.read(10_000_000))
+    cab = {"User-Agent": "central-do-quarto/1.0 (painel pessoal, uso privado)"}
+    if url.startswith(FOGOS) and os.path.exists(FOGOS_TOKEN):
+        cab["FOGOS-PT-AUTH"] = open(FOGOS_TOKEN).read().strip()
+    req = urllib.request.Request(url, headers=cab)
+    try:
+        with urllib.request.urlopen(req, timeout=8) as r:
+            d = json.loads(r.read(10_000_000))
+    except urllib.error.HTTPError as e:
+        if url.startswith(FOGOS) and e.code in (401, 403):
+            raise SemChave("o fogos.pt pede uma chave (vê o README)")
+        raise
     with _lock:
         _cache[url] = (time.time(), d)
     return d
@@ -70,6 +92,36 @@ def avisos_ipma(lat, lon):
                     "ate": (a.get("endTime") or "")[11:16], "texto": (a.get("text") or "").strip()})
     ordem = {"vermelho": 0, "laranja": 1, "amarelo": 2}
     return {"distrito": DISTRITOS[cod][0], "avisos": sorted(out, key=lambda x: ordem[x["nivel"]])}
+
+
+def avisos_distritos():
+    """todos os distritos do continente com o pior aviso ativo do IPMA (para pintar o mapa)"""
+    agora = datetime.now().isoformat()[:16]
+    pior = {}
+    ordem = {"amarelo": 1, "laranja": 2, "vermelho": 3}
+    for a in _json(IPMA):
+        cod, nivel = a.get("idAreaAviso"), NIVEIS.get(a.get("awarenessLevelID"))
+        if cod not in DISTRITOS or not nivel or (a.get("endTime") or "9999")[:16] < agora:
+            continue
+        x = pior.setdefault(cod, {"nivel": nivel, "tipos": []})
+        if ordem[nivel] > ordem[x["nivel"]]:
+            x["nivel"] = nivel
+        tipo = f"{a.get('awarenessTypeName', 'Tempo').lower()} ({nivel})"
+        if tipo not in x["tipos"]:
+            x["tipos"].append(tipo)
+    return [{"cod": c, "nome": n, "lat": la, "lon": lo, "nivel": pior.get(c, {}).get("nivel"), "tipos": pior.get(c, {}).get("tipos", [])}
+            for c, (n, la, lo) in DISTRITOS.items()]
+
+
+def vento():
+    """vento agora em cada distrito e zona das ilhas (Open-Meteo): de onde vem, velocidade e rajadas"""
+    cods = list(DISTRITOS)
+    lat = ",".join(str(DISTRITOS[c][1]) for c in cods); lon = ",".join(str(DISTRITOS[c][2]) for c in cods)
+    r = _json(f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+              "&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kmh", 1800)
+    r = r if isinstance(r, list) else [r]
+    return [{"cod": c, "lat": DISTRITOS[c][1], "lon": DISTRITOS[c][2], "de": x["current"]["wind_direction_10m"],
+             "vel": round(x["current"]["wind_speed_10m"]), "rajada": round(x["current"]["wind_gusts_10m"])} for c, x in zip(cods, r)]
 
 
 def sismos(lat, lon):

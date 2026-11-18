@@ -321,12 +321,12 @@
     display: none !important; border: 1px solid rgba(0, 200, 255, .35); background: rgba(0, 8, 20, .95); z-index: 3; }
   #hud.ironman.mapa #im-mapa-caixa { display: block !important; }
   #hud.ironman.mapa #hud-texto { opacity: .25; }
-  #im-mapa { position: static !important; width: 100% !important; height: calc(100% - 80px) !important; display: block; }
-  #im-mapa-caixa .legenda { padding: 6px 12px; font-size: 11px; color: #9fe6ff; letter-spacing: 1px; }
+  #im-mapa { position: static !important; width: 100% !important; height: calc(100% - 118px) !important; display: block; }
+  #im-mapa-caixa .legenda { padding: 6px 12px; font-size: 11px; color: #9fe6ff; letter-spacing: .5px; height: 88px; overflow-y: auto; }
   #im-mapa-caixa .legenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 10px; vertical-align: middle; }
   #im-mapa-caixa h4 { margin: 0; padding: 8px 12px 0; font-size: 11px; letter-spacing: 4px; color: #4fd2ff; font-weight: 600; }
   #im-mapa-caixa .fechar { position: absolute; top: 2px; right: 6px; margin: 0; }
-  @media (max-width: 900px) { #im-mapa-caixa { width: 92vw; } }
+  @media (max-width: 900px) { #im-mapa-caixa { width: 92vw; } #im-mapa-caixa h4 { padding-right: 180px; } }
   #im-boot { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); text-align: center; font-size: 13px; letter-spacing: 6px;
              color: #9fe6ff; text-transform: uppercase; display: none; }
   #hud.a-arrancar #im-boot { display: block; }
@@ -762,7 +762,7 @@
   <div class="im im-painel" id="im-familia" style="bottom:24px;left:24px;animation-delay:.45s" hidden></div>
   <div class="im" id="im-mapa-caixa"><h4>mapa · família e perigos</h4><button class="fechar" onclick="fecharMapa()">fechar</button><button class="fechar" style="right:84px" onclick="abrirFamilia()">+ família</button>
     <canvas id="im-mapa"></canvas>
-    <div class="legenda"><i style="background:#ffc35a"></i>casa<i style="background:#38e1ff"></i>família<i style="background:#ff4d4d"></i>incêndio<i style="background:#ff9a3c"></i>sismo
+    <div class="legenda"><i style="background:#ffc35a"></i>casa<i style="background:#38e1ff"></i>família<i style="background:#ff4d4d"></i>incêndio<i style="background:#ff9a3c"></i>sismo<i style="background:none;width:auto;height:auto;border-radius:0;margin-left:10px">➜</i>vento<i style="background:rgba(255,214,10,.8);border-radius:2px"></i>aviso amarelo<i style="background:rgba(255,140,0,.9);border-radius:2px"></i>laranja<i style="background:rgba(255,45,45,.9);border-radius:2px"></i>vermelho
       <div id="im-mapa-fonte" style="opacity:.7;margin-top:3px"></div></div></div>
   <div class="im im-painel" id="im-agenda" style="top:72px;right:24px;animation-delay:.2s"></div>
   <div class="im im-painel" id="im-missoes" style="top:300px;right:24px;animation-delay:.35s"></div>
@@ -1041,6 +1041,7 @@
 
 <div id="aviso"></div>
 
+<script src="mapa_pt.js"></script>
 <script>
 const DIAS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 const NOMES = { escola: "Escola", dropshipping: "Dropshipping", programar: "Programar",
@@ -1631,7 +1632,9 @@ async function falarNeural(texto) {
     const som = await Promise.race([pedidos[i], limite]);
     if (!som || som === "demorou" || !som.size) break;
     const url = URL.createObjectURL(som);
-    const tocou = await new Promise(ok => { const a = new Audio(url); a.onended = () => ok(true); a.onerror = () => ok(false); a.play().catch(() => ok(false)); });
+    // limite de seguranca: se o som nunca disser que acabou, seguimos na mesma (senao o microfone nunca mais voltava)
+    const tocou = await new Promise(ok => { const a = new Audio(url); const t = setTimeout(() => { try { a.pause(); } catch (e) {} ok(true); }, 3000 + frases[i].length * 110);
+      a.onended = () => { clearTimeout(t); ok(true); }; a.onerror = () => { clearTimeout(t); ok(false); }; a.play().catch(() => { clearTimeout(t); ok(false); }); });
     URL.revokeObjectURL(url);
     if (!tocou) break;
   }
@@ -1662,7 +1665,11 @@ function falarTablet(texto) {
     u.voice = lista.find(v => v.name === vozCfg.voz) || lista.find(v => v.lang === "pt-PT") || lista[0] || null;
     u.lang = u.voice?.lang || "pt-PT"; u.rate = vozCfg.rate; u.pitch = vozCfg.pitch;
     aFalar = true; pararEscuta();
-    u.onend = u.onerror = () => { aFalar = false; ok(); setTimeout(retomarEscuta, 250); };
+    let feito = false;
+    const fim = () => { if (feito) return; feito = true; clearTimeout(limite); aFalar = false; ok(); setTimeout(retomarEscuta, 250); };
+    // o Chrome do Android as vezes nao chama o onend: ao fim do tempo maximo seguimos na mesma
+    const limite = setTimeout(() => { try { speechSynthesis.cancel(); } catch (e) {} fim(); }, 4000 + texto.length * 110);
+    u.onend = u.onerror = fim;
     speechSynthesis.speak(u);
   });
 }
@@ -1816,7 +1823,7 @@ function acharUma(frase, alvo) {
   return null;
 }
 let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false, trincoAte = 0;
-const armado = () => vozCfg.trinco === false || Date.now() < trincoAte || aEsperarComando > Date.now();
+const armado = () => vozCfg.trinco === false || Date.now() < trincoAte || aEsperarComando > Date.now() || $("#hud")?.classList.contains("ver");
 const nomeEspera = () => armado() ? `Diz "${vozCfg.palavra}"` : `Diz "escuta"`;
 function bipTrinco() {
   try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.setValueAtTime(0.05, c.currentTime);
@@ -1921,7 +1928,7 @@ function tratarOuvido(alts) {
   let achou = null;
   for (let k = 0; k < alts.length && !achou; k++) achou = acharPalavra(alts[k]);
   if (!achou) return;
-  trincoAte = 0; pararEscuta();
+  trincoAte = Date.now() + 20000; pararEscuta();   // depois de um pedido ficas 20 s sem precisar de dizer "escuta" outra vez
   if (achou.depois.length > 2) comandoVoz(achou.depois);
   else {
     abrirHUD("ouvir"); hudTexto("", "");
@@ -1968,6 +1975,13 @@ function retomarEscuta() {
   try { r.start(); } catch (e) { escuta = null; }
 }
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" ? retomarEscuta() : pararEscuta());
+// vigia: se por algum motivo o microfone ficou desligado sem querer, volta a liga-lo
+let aFalarDesde = 0;
+setInterval(() => {
+  if (aFalar) { aFalarDesde ||= Date.now(); if (Date.now() - aFalarDesde > 60000) { aFalar = false; aFalarDesde = 0; } return; }   // preso a "falar" ha 1 minuto: destrava
+  aFalarDesde = 0;
+  if (aEscutar && !escuta && !aEnsinar && !micOcupado) retomarEscuta();
+}, 3000);
 
 // ensinar a palavra: diz o nome 3 vezes e guardamos o que a Google percebeu
 function mostrarAlternativas() {
@@ -2079,8 +2093,8 @@ async function paineisIronMan() {
   const dz = paineisIronMan.desastres, sg = paineisIronMan.seg;
   if (dz || sg) $("#im-sistemas").innerHTML += `
     <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar === true ? "ligada" : dz?.energia?.a_carregar === false ? "a bateria" : dz ? '<span style="opacity:.6">sem dados</span>' : "—"}</span></div>
-    <div class="linha"><span>Avisos IPMA</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
-    <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}
+    <div class="linha"><span>Avisos aqui</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
+    <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " novo" + (sg.desconhecidos > 1 ? "s" : "") + "</span>" : "ok"}
       <button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirSeguranca()">abrir ›</button></span></div>`;
   // loja (de 3 em 3 minutos, ou logo a seguir a uma encomenda nova)
   if (lojaOk && (!paineisIronMan.lojaT || Date.now() - paineisIronMan.lojaT > 180000)) {
@@ -2108,22 +2122,19 @@ async function paineisIronMan() {
     : `Trancado com PIN.`) + `<button onclick="mostrarMapa()">mapa</button>`;
   if (fm.length) {
     const perigo = p => p.perigos && (p.perigos.fogos?.length || p.perigos.sismos?.length || (p.perigos.avisos || []).some(a => ["laranja", "vermelho"].includes(a.nivel)));
-    $("#im-familia").innerHTML = `<h4>família</h4>` + fm.slice(0, 5).map(p => {
+    $("#im-familia").innerHTML = `<h4>família</h4>` + fm.slice(0, 3).map(p => {
       const extra = p.dias_aniversario === 0 ? "🎂 hoje" : p.dias_aniversario != null && p.dias_aniversario <= 7 ? `🎂 ${p.dias_aniversario} d` :
                     p.dias_sem_falar == null ? "" : p.dias_sem_falar >= 14 ? `<span style="color:#ffc35a">${p.dias_sem_falar} d sem falar</span>` : "";
       const estado = perigo(p) ? `<span class="alerta">⚠ alerta</span>` : p.graus != null ? `${p.graus}°` : "";
-      return `<div class="pessoa"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b><br><small>${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
-    }).join("") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">+ adicionar / editar</button>`;
+      return `<div class="pessoa"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b> <small style="opacity:.7">${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
+    }).join("") + (fm.length > 3 ? `<small style="opacity:.7">e mais ${fm.length - 3}</small><br>` : "") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">+ adicionar</button>`;
   }
   // musica
   const a = spotifyInfo?.agora;
   $("#im-musica").innerHTML = `<h4>áudio</h4>` + (a && a.musica ? `<div style="color:#fff">${esc(a.musica)}</div>${esc(a.artista)} · ${a.tocar ? "a tocar" : "em pausa"}` : "Sem música.");
 }
 // ---------- familia e mapa ----------
-// contorno simplificado de Portugal continental (lat, lon)
-const PT = [[41.87,-8.86],[42.03,-8.64],[42.15,-8.26],[41.82,-7.79],[41.95,-7.4],[41.98,-6.75],[41.5,-6.27],[41.0,-6.9],[40.73,-6.9],[40.2,-6.95],
-  [39.45,-7.3],[38.88,-7.05],[38.7,-7.2],[38.38,-7.2],[38.13,-6.98],[37.95,-7.3],[37.6,-7.45],[37.19,-7.42],[37.0,-7.93],[37.0,-8.94],[37.95,-8.87],
-  [38.48,-8.9],[38.41,-9.21],[38.69,-9.42],[38.78,-9.5],[39.36,-9.4],[39.6,-9.07],[40.15,-8.86],[40.64,-8.75],[41.15,-8.68],[41.69,-8.85]];
+// contorno real de Portugal e Espanha (Natural Earth, em mapa_pt.js). Madeira e Acores em caixas, como nos mapas a serio.
 const mapa = { dados: null, ate: 0 };
 async function mostrarMapa() {
   if (!$("#hud").classList.contains("ironman")) { abrirHUD("espera"); arranqueIronMan(); }
@@ -2134,37 +2145,112 @@ async function mostrarMapa() {
 }
 function fecharMapa() { $("#hud").classList.remove("mapa"); }
 setInterval(() => { if ($("#hud").classList.contains("mapa")) { if (Date.now() > mapa.ate) fecharMapa(); else desenharMapa(); } }, 500);
+const CORES_AVISO = { amarelo: "rgb(255,214,10)", laranja: "rgb(255,140,0)", vermelho: "rgb(255,45,45)" };
+const ILHAS_COD = { "Açores": ["AOC", "ACE", "AOR"], "Madeira": ["MCN", "MCS", "MRM", "MPS"] };
+function vistasMapa(W, H, dpr) {
+  // continente a direita, ocupa a altura toda; Acores e Madeira em caixas a esquerda
+  const m = 8 * dpr, colE = Math.min(W * 0.42, W - 250 * dpr);
+  return [
+    { nome: "continente", la: [36.9, 42.2], lo: [-9.6, -6.1], polis: MAPA_PT.continente, r: [colE, m, W - colE - m, H - 2 * m] },
+    { nome: "Açores", la: [36.85, 39.85], lo: [-31.35, -24.95], polis: MAPA_PT.acores, r: [m, m, colE - 2 * m, (H - 3 * m) * 0.42] },
+    { nome: "Madeira", la: [32.55, 33.15], lo: [-17.35, -16.2], polis: MAPA_PT.madeira, r: [m, m * 2 + (H - 3 * m) * 0.42, colE - 2 * m, (H - 3 * m) * 0.30] },
+  ].map(v => {
+    const [rx, ry, rw, rh] = v.r, kx = Math.cos((v.la[0] + v.la[1]) / 2 * Math.PI / 180);
+    const esc = Math.min(rw / ((v.lo[1] - v.lo[0]) * kx), rh / (v.la[1] - v.la[0])) * 0.9;
+    const ox = rx + (rw - (v.lo[1] - v.lo[0]) * kx * esc) / 2, oy = ry + (rh - (v.la[1] - v.la[0]) * esc) / 2;
+    v.xy = (lat, lon) => [ox + (lon - v.lo[0]) * kx * esc, oy + (v.la[1] - lat) * esc];
+    v.inv = (x, y) => [v.la[1] - (y - oy) / esc, v.lo[0] + (x - ox) / (kx * esc)];
+    v.dentro = (lat, lon) => lat >= v.la[0] - .2 && lat <= v.la[1] + .2 && lon >= v.lo[0] - .2 && lon <= v.lo[1] + .2;
+    v.kx = kx; v.esc = esc;
+    v.path = new Path2D(); v.polis.forEach(pl => { pl.forEach(([a, b], i) => { const [x, y] = v.xy(a, b); i ? v.path.lineTo(x, y) : v.path.moveTo(x, y); }); v.path.closePath(); });
+    return v;
+  });
+}
 function desenharMapa() {
   const cv = $("#im-mapa"), dpr = Math.min(devicePixelRatio || 1, 2), W = cv.clientWidth * dpr, H = cv.clientHeight * dpr;
-  if (!W || !H) return;
+  if (!W || !H || typeof MAPA_PT === "undefined") return;
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
   const g = cv.getContext("2d"); g.clearRect(0, 0, W, H);
-  const d = mapa.dados || {}, pts = d.pontos || [];
-  // a vista: Portugal inteiro, alargada se houver familia fora (ex.: Madeira, Espanha)
-  let la = [36.3, 42.3], lo = [-9.8, -6.0];
-  pts.forEach(p => { la = [Math.min(la[0], p.lat - .3), Math.max(la[1], p.lat + .3)]; lo = [Math.min(lo[0], p.lon - .3), Math.max(lo[1], p.lon + .3)]; });
-  const kx = Math.cos((la[0] + la[1]) / 2 * Math.PI / 180), larg = (lo[1] - lo[0]) * kx, alt = la[1] - la[0];
-  const esc2 = Math.min(W / larg, H / alt) * 0.92, ox = (W - larg * esc2) / 2, oy = (H - alt * esc2) / 2;
-  const xy = (lat, lon) => [ox + (lon - lo[0]) * kx * esc2, oy + (la[1] - lat) * esc2];
-  const t = performance.now() / 1000;
-  g.strokeStyle = "rgba(0,200,255,.55)"; g.fillStyle = "rgba(0,120,200,.10)"; g.lineWidth = 1.5 * dpr; g.beginPath();
-  PT.forEach(([a, b], i) => { const [x, y] = xy(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); g.stroke();
-  (d.sismos || []).forEach(s => { const [x, y] = xy(s.lat, s.lon); g.strokeStyle = "rgba(255,154,60,.8)"; g.lineWidth = 1.5 * dpr;
-    g.beginPath(); g.arc(x, y, (3 + s.mag * 3) * dpr, 0, 7); g.stroke(); });
-  (d.fogos || []).forEach(f => { const [x, y] = xy(f.lat, f.lon); g.fillStyle = `rgba(255,77,77,${0.55 + 0.45 * Math.sin(t * 5)})`;
-    g.beginPath(); g.arc(x, y, 4 * dpr, 0, 7); g.fill(); });
+  const d = mapa.dados || {}, pts = d.pontos || [], t = performance.now() / 1000;
+  if (!mapa.vistas || mapa.vW !== W || mapa.vH !== H) { mapa.vistas = vistasMapa(W, H, dpr); mapa.vW = W; mapa.vH = H; mapa.ipmaChave = null; }
+  const vistas = mapa.vistas, cont = vistas[0];
+  // mar: um gradiente escuro, e Espanha em cinzento, para se perceber onde acaba Portugal
+  const mar = g.createLinearGradient(0, 0, W, H); mar.addColorStop(0, "rgba(0,40,80,.35)"); mar.addColorStop(1, "rgba(0,15,35,.35)");
+  g.fillStyle = mar; g.fillRect(0, 0, W, H);
+  g.save(); g.beginPath(); g.rect(...cont.r); g.clip();
+  g.fillStyle = "rgba(120,140,160,.10)"; g.strokeStyle = "rgba(150,170,190,.25)"; g.lineWidth = 1 * dpr;
+  MAPA_PT.espanha.forEach(pl => { g.beginPath(); pl.forEach(([a, b], i) => { const [x, y] = cont.xy(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); g.stroke(); });
+  g.fillStyle = "rgba(160,180,200,.35)"; g.font = `${10 * dpr}px system-ui`; g.textAlign = "center";
+  g.fillText("ESPANHA", ...cont.xy(40.2, -6.35)); g.fillText("OCEANO ATLÂNTICO", ...cont.xy(38.2, -9.35).map((v, i) => i ? v : v + 6 * dpr)); g.textAlign = "left";
+  g.restore();
+  // avisos do IPMA: pinta cada bocado de terra com o aviso da zona do IPMA mais perto (fronteiras aproximadas)
+  const todos = d.distritos || [], comAviso = todos.filter(x => x.nivel);
+  const chave = W + "x" + H + JSON.stringify(comAviso.map(x => x.cod + x.nivel));
+  if (comAviso.length && mapa.ipmaChave !== chave) {
+    mapa.ipmaChave = chave; mapa.ipma = document.createElement("canvas"); mapa.ipma.width = W; mapa.ipma.height = H;
+    const ig = mapa.ipma.getContext("2d"), passo = 3 * dpr;
+    vistas.forEach(v => {
+      const zonas = todos.filter(z => v.nome === "continente" ? !ILHAS_COD["Açores"].concat(ILHAS_COD["Madeira"]).includes(z.cod) : ILHAS_COD[v.nome].includes(z.cod));
+      if (!zonas.some(z => z.nivel)) return;
+      const [rx, ry, rw, rh] = v.r;
+      for (let y = ry; y < ry + rh; y += passo) for (let x = rx; x < rx + rw; x += passo) {
+        if (!ig.isPointInPath(v.path, x + passo / 2, y + passo / 2)) continue;
+        const [lat, lon] = v.inv(x + passo / 2, y + passo / 2);
+        let m = null, md = 1e9;
+        for (const z of zonas) { const dd = (z.lat - lat) ** 2 + ((z.lon - lon) * v.kx) ** 2; if (dd < md) { md = dd; m = z; } }
+        if (m?.nivel) { ig.fillStyle = CORES_AVISO[m.nivel]; ig.fillRect(x, y, passo + 1, passo + 1); }
+      }
+    });
+  }
+  vistas.forEach(v => {
+    g.fillStyle = "rgba(0,120,200,.16)"; g.fill(v.path);
+    if (comAviso.length && mapa.ipma) { g.save(); g.clip(v.path); g.globalAlpha = 0.45 + 0.12 * Math.sin(t * 2); g.drawImage(mapa.ipma, 0, 0); g.restore(); }
+    g.strokeStyle = "rgba(0,210,255,.75)"; g.lineWidth = 1.2 * dpr; g.stroke(v.path);
+    if (v.nome !== "continente") {   // moldura das caixas das ilhas
+      g.strokeStyle = "rgba(0,200,255,.3)"; g.lineWidth = 1 * dpr; g.strokeRect(...v.r);
+      g.fillStyle = "#9fe6ff"; g.font = `${10 * dpr}px system-ui`; g.fillText(v.nome.toUpperCase(), v.r[0] + 6 * dpr, v.r[1] + 12 * dpr);
+    }
+  });
+  const onde = (lat, lon) => vistas.find(v => v.dentro(lat, lon));
+  // vento: a seta aponta para onde o vento vai; a cauda fica do lado de onde vem o mau tempo
+  (d.vento || []).forEach(w => {
+    const v = onde(w.lat, w.lon); if (!v || w.vel == null) return;
+    const [x, y] = v.xy(w.lat, w.lon), ang = (w.de + 180) * Math.PI / 180, L = (10 + Math.min(w.vel, 80) * 0.35) * dpr;
+    const dx = Math.sin(ang) * L, dy = -Math.cos(ang) * L;
+    const cor = w.rajada >= 70 ? "255,90,90" : w.rajada >= 50 ? "255,170,60" : "190,230,255";
+    g.strokeStyle = g.fillStyle = `rgba(${cor},.85)`; g.lineWidth = 1.4 * dpr;
+    const fase = (t * 0.6 + w.lat) % 1;   // a seta "corre" no sentido do vento
+    const sx = x - dx / 2 + dx * fase * 0.25, sy = y - dy / 2 + dy * fase * 0.25;
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + dx, sy + dy); g.stroke();
+    const a2 = Math.atan2(dy, dx); g.beginPath(); g.moveTo(sx + dx, sy + dy);
+    g.lineTo(sx + dx - Math.cos(a2 - .5) * 5 * dpr, sy + dy - Math.sin(a2 - .5) * 5 * dpr); g.lineTo(sx + dx - Math.cos(a2 + .5) * 5 * dpr, sy + dy - Math.sin(a2 + .5) * 5 * dpr); g.fill();
+  });
+  (d.sismos || []).forEach(s => { const v = onde(s.lat, s.lon); if (!v) return; const [x, y] = v.xy(s.lat, s.lon);
+    const pulso = (t % 2) / 2; g.strokeStyle = `rgba(255,154,60,${0.9 - pulso * 0.7})`; g.lineWidth = 1.5 * dpr;
+    g.beginPath(); g.arc(x, y, (3 + s.mag * 2.5) * dpr * (1 + pulso * 0.6), 0, 7); g.stroke();
+    g.fillStyle = "rgba(255,154,60,.9)"; g.font = `${9 * dpr}px system-ui`; g.fillText("M" + (+s.mag).toFixed(1), x + 6 * dpr, y - 6 * dpr); });
+  (d.fogos || []).forEach(f => { const v = onde(f.lat, f.lon); if (!v) return; const [x, y] = v.xy(f.lat, f.lon);
+    g.fillStyle = `rgba(255,77,77,${0.55 + 0.45 * Math.sin(t * 5)})`; g.beginPath(); g.arc(x, y, 3.5 * dpr, 0, 7); g.fill(); });
   g.font = `${11 * dpr}px system-ui`; g.textBaseline = "middle";
+  const fora = [];
   pts.forEach(p => {
-    const [x, y] = xy(p.lat, p.lon), cor = p.tipo === "casa" ? "255,195,90" : p.alerta ? "255,77,77" : "56,225,255";
-    g.strokeStyle = `rgba(${cor},${0.4 + 0.3 * Math.sin(t * 3)})`; g.lineWidth = 1 * dpr; g.beginPath(); g.arc(x, y, (9 + 4 * Math.sin(t * 3)) * dpr, 0, 7); g.stroke();
-    g.fillStyle = `rgb(${cor})`; g.beginPath(); g.arc(x, y, 5 * dpr, 0, 7); g.fill();
-    g.fillText((p.alerta ? "⚠ " : "") + p.nome, x + 12 * dpr, y);
+    const v = onde(p.lat, p.lon); if (!v) { fora.push(p.nome); return; }
+    const [x, y] = v.xy(p.lat, p.lon), cor = p.tipo === "casa" ? (p.sem_luz ? "255,77,77" : "255,195,90") : p.alerta ? "255,77,77" : "56,225,255";
+    g.strokeStyle = `rgba(${cor},${0.4 + 0.3 * Math.sin(t * 3)})`; g.lineWidth = 1 * dpr; g.beginPath(); g.arc(x, y, (8 + 3 * Math.sin(t * 3)) * dpr, 0, 7); g.stroke();
+    g.fillStyle = `rgb(${cor})`; g.beginPath(); g.arc(x, y, 4.5 * dpr, 0, 7); g.fill();
+    const rot = (p.alerta || p.sem_luz ? "⚠ " : "") + p.nome + (p.sem_luz ? " · sem luz desde " + p.sem_luz_desde : "");
+    const largura = g.measureText(rot).width, aEsq = x + 12 * dpr + largura > W;   // se nao cabe a direita, escreve a esquerda
+    g.fillStyle = "rgba(0,8,20,.7)"; g.fillRect(aEsq ? x - 14 * dpr - largura : x + 10 * dpr, y - 8 * dpr, largura + 4 * dpr, 16 * dpr);
+    g.fillStyle = `rgb(${cor})`; g.fillText(rot, aEsq ? x - 12 * dpr - largura : x + 12 * dpr, y);
   });
   const f = [];
   if (d.erro) f.push("Não consegui carregar o mapa: " + d.erro);
   else if (mapa.dados) {
-    f.push(d.fogos === null ? "incêndios: sem dados" : `incêndios: fogos.pt / Proteção Civil (${d.fogos.length})`);
-    f.push(d.sismos === null ? "sismos: sem dados" : `sismos: USGS, últimas 24 h (${d.sismos.length})`);
+    f.push(d.distritos == null ? "Avisos: IPMA sem dados" : comAviso.length ? "Avisos (IPMA): " + comAviso.map(x => `${x.nome}: ${x.tipos.join(", ")}`).join(" · ") : "Avisos (IPMA): nenhum");
+    f.push(d.vento == null ? "vento: sem dados" : "vento agora: Open-Meteo (seta = para onde sopra; vermelho = rajadas ≥ 70 km/h)");
+    f.push(d.fogos === null ? `incêndios: sem dados${d.fogos_erro ? " (" + d.fogos_erro + ")" : ""}` : `incêndios ativos: fogos.pt / Proteção Civil (${d.fogos.length})`);
+    f.push(d.sismos === null ? "sismos: sem dados" : `sismos ≥ 2,5 nas últimas 24 h: USGS (${d.sismos.length})`);
+    if (fora.length) f.push("fora do mapa: " + fora.join(", "));
     if (!pts.some(p => p.tipo === "familia")) f.push("ainda sem família: carrega em «+ família»");
   } else f.push("a carregar…");
   $("#im-mapa-fonte").textContent = f.join(" · ");

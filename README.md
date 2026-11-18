@@ -129,6 +129,10 @@ As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no mod
 - Perguntas: "está tudo bem na casa dos avós?", "quando faz anos o tio?", "há quanto tempo não ligo à avó?", "liguei à avó" (fica anotado).
 - Avisos sozinhos, de 15 em 15 minutos: incêndio a menos de 25 km da casa deles, aviso laranja ou vermelho do IPMA no distrito deles, sismo de magnitude 4 ou mais a menos de 150 km. No dia do aniversário, o resumo do dia lembra-te de ligar.
 - Fontes: IPMA (avisos), fogos.pt com dados da Proteção Civil (incêndios), USGS (sismos), Open-Meteo (tempo e cidades). A central nunca inventa: se uma fonte não responde, diz que não sabe.
+- **O mapa**: contorno real de Portugal e Espanha (Natural Earth, domínio público), com os **Açores** e a **Madeira** em caixas à esquerda, como nos mapas oficiais. As **setas do vento** (Open-Meteo, atualizado de meia em meia hora) apontam para onde o vento sopra: a cauda está do lado de onde vem o mau tempo. Seta laranja = rajadas de 50 km/h ou mais, vermelha = 70 ou mais. Os sismos pulsam com a magnitude ao lado.
+- **Cores do IPMA no mapa**: os distritos com aviso ficam pintados a amarelo, laranja ou vermelho, e por baixo aparece o tipo (vento, precipitação, agitação marítima...). As fronteiras são aproximadas: cada sítio fica com a cor da zona do IPMA (distrito, ou zona das ilhas) cujo centro está mais perto. Para saber se uma vila concreta está dentro, confirma em ipma.pt.
+- **Incêndios**: o fogos.pt passou a pedir uma chave pessoal. Pede-a em fogos.pt/api (com os teus pais) e guarda-a no Termux: `echo A-CHAVE > ~/central/fogos_token.txt`, depois reinicia a central. Sem chave, o mapa diz "incêndios: sem dados" e a central não te avisa de fogos. O próprio fogos.pt avisa que os dados não devem ser a única fonte em emergências: numa situação real, segue a Proteção Civil (prociv.gov.pt) e o 112.
+- **Falta de luz**: no mapa, a tua casa fica a vermelho com "sem luz desde ..." quando o tablet deixa de carregar. Para a casa dos avós não há dados abertos fiáveis da E-REDES em tempo real, por isso não aparece (melhor nada do que inventar).
 
 ## A loja (Shopify)
 

@@ -134,7 +134,7 @@ def mapa(con, cfg):
             pg = perigos(p["lat"], p["lon"])
             alerta = bool(pg["fogos"] or pg["sismos"] or any(a["nivel"] in ("laranja", "vermelho") for a in (pg["avisos"] or [])))
             pontos.append({"tipo": "familia", "nome": f"{p['relacao']} {p['nome']}".strip(), "lat": p["lat"], "lon": p["lon"], "alerta": alerta})
-    fogos, sismos = [], []
+    fogos, sismos, fogos_erro = [], [], None
     try:
         d = avisos._json(avisos.FOGOS, 300)
         for f in d.get("data", d if isinstance(d, list) else []):
@@ -142,16 +142,31 @@ def mapa(con, cfg):
                 fogos.append({"lat": float(f["lat"]), "lon": float(f["lng"]), "onde": f.get("location", "")})
             except (KeyError, TypeError, ValueError):
                 pass
+    except avisos.SemChave as e:
+        fogos, fogos_erro = None, str(e)
     except Exception:
         fogos = None
     try:
         for f in avisos._json(avisos.USGS).get("features", []):
             x, y = f["geometry"]["coordinates"][:2]
-            if 30 < y < 45 and -20 < x < 0:   # so a zona de Portugal
+            if 30 < y < 44 and -33 < x < -5:   # Portugal continental, Madeira e Acores
                 sismos.append({"lat": y, "lon": x, "mag": f["properties"].get("mag") or 0})
     except Exception:
         sismos = None
-    return {"pontos": pontos, "fogos": fogos, "sismos": sismos}
+    try:
+        distritos = avisos.avisos_distritos()
+    except Exception:
+        distritos = None
+    try:
+        vento = avisos.vento()
+    except Exception:
+        vento = None
+    # apagao: so sabemos o da TUA casa (o tablet deixou de carregar). Para outras casas nao ha dados abertos fiaveis.
+    en = avisos.estado_energia()
+    for p in pontos:
+        if p["tipo"] == "casa":
+            p["sem_luz"] = en["sem_luz"]; p["sem_luz_desde"] = en["desde"]; p["sem_internet"] = en["sem_internet"]
+    return {"pontos": pontos, "fogos": fogos, "fogos_erro": fogos_erro, "sismos": sismos, "distritos": distritos, "vento": vento}
 
 
 def vigiar(db, avisar):
