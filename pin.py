@@ -11,7 +11,7 @@ PIN da central.
   X-Chave ou em ?chave=. Nao expira, mas pode ser apagado.
 - Contra adivinhar: 5 erros seguidos bloqueiam esse aparelho 5 minutos (e o dobro a cada novo erro);
   20 erros numa hora bloqueiam toda a gente 15 minutos. Cada bloqueio fica nos alertas de seguranca.
-- Esqueceste o PIN? No Termux: rm ~/my-life-/pin.json (so quem tem o tablet na mao consegue).
+- Esqueceste o PIN? No Termux: rm ~/central/pin.json (so quem tem o tablet na mao consegue).
 """
 
 import hashlib

@@ -112,7 +112,7 @@ Liga-se no modo Iron Man > painel Sistemas > Segurança > **abrir** > PIN da cen
 - **Contra adivinhar**: 5 erros seguidos bloqueiam esse aparelho 5 minutos (e o dobro a cada novo erro). Mais de 20 erros numa hora bloqueiam toda a gente 15 minutos. Cada bloqueio fica nos alertas de segurança.
 - **Ver quem tem acesso**: na mesma secção aparece a lista dos aparelhos com sessão aberta. "Tirar" corta o acesso. Mudar o PIN fecha todas as sessões.
 - **Siri e sensores**: carrega em "Chave para Siri/sensores". A chave só aparece uma vez. No atalho da Siri, em "Obter conteúdo do URL", acrescenta o cabeçalho `X-Chave` com essa chave. Nos sensores Shelly, junta `&chave=A-CHAVE` ao fim do endereço (`.../api/sensor?nome=janela-quarto&estado=aberta&chave=...`).
-- **Esqueceste o PIN?** No Termux: `rm ~/my-life-/pin.json` e reinicia a central. Só quem tem o tablet na mão consegue fazer isto, e é essa a ideia.
+- **Esqueceste o PIN?** No Termux: `rm ~/central/pin.json` e reinicia a central. Só quem tem o tablet na mão consegue fazer isto, e é essa a ideia.
 
 Como funciona: o PIN nunca fica guardado. Fica só o hash PBKDF2-SHA256 com um sal aleatório e 200 000 iterações, em `pin.json` (fora do GitHub). Quem acerta recebe um token aleatório num cookie que o JavaScript não consegue ler (HttpOnly). Na base de dados só fica o hash desse token.
 
