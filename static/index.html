@@ -343,6 +343,8 @@
   #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; vertical-align: middle; }
   #apagao .topo button { vertical-align: middle; }
   #d-servicos .linha-sv { padding: 3px 0; }
+  #d-viagem .linha-sv { padding: 3px 0; }
+  #d-viagem label.vg-item { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 400; color: var(--txt); }
   #d-pessoa .sec { margin-top: 14px; } #d-pessoa .sec h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); }
   #d-pessoa .fonte { font-size: 11px; color: var(--suave); margin-top: 4px; }
   #d-pessoa .horas { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; font-size: 12px; text-align: center; }
@@ -922,6 +924,22 @@
   <div id="ps-corpo" class="vazio">A carregar…</div>
   <div class="botoes"><button type="button" class="secundario" id="ps-falei">Falei hoje</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
 </dialog>
+<dialog id="d-viagem">
+  <h3 id="vg-titulo">Modo viagem</h3>
+  <div id="vg-info"></div>
+  <form id="f-viagem" hidden style="grid-template-columns:1fr 1fr">
+    <input name="destino" placeholder="Destino (cidade)" required maxlength="80" style="grid-column:1/-1">
+    <label style="margin:0">Ida<input name="inicio" type="date" required></label>
+    <label style="margin:0">Volta<input name="fim" type="date" required></label>
+    <input name="moeda" placeholder="Moeda (ex.: THB)" maxlength="3">
+    <input name="link" placeholder="Link do guia (opcional)">
+    <label class="vg-item" style="grid-column:1/-1;display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" name="pausar_casa" checked> Pôr a casa em pausa (alarmes e rotinas) enquanto estou fora</label>
+    <button class="principal" style="grid-column:1/-1">Marcar viagem e fazer a mala</button>
+  </form>
+  <div id="vg-mala"></div>
+  <div class="botoes"><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
+
 <dialog id="d-servicos">
   <h3>O que está a funcionar</h3>
   <div class="vazio" style="font-size:13px;text-align:left;margin:0 0 8px">Visto a partir da tua casa: a central tenta mesmo ligar-se a cada serviço. Se só um falha, o problema é desse serviço; se falha tudo, é a tua internet.</div>
@@ -1180,6 +1198,51 @@ async function abrirServicos(agora) {
   } catch (e) { $("#sv-conclusao").textContent = "Não consegui falar com a central: " + e.message; }
 }
 $("#sv-outra").onclick = () => abrirServicos(true);
+
+// ---------- modo viagem (privado: so com PIN) ----------
+let vgPainel = null, vgAtual = null;
+const VG_GRUPOS = { roupa: "Roupa", documentos: "Documentos", saude: "Higiene e saúde", eletronica: "Eletrónica", outros: "Outros" };
+async function abrirViagem() {
+  const d = $("#d-viagem"); if (!d.open) d.showModal();
+  $("#vg-info").innerHTML = '<div class="vazio">A carregar…</div>'; $("#vg-mala").innerHTML = "";
+  let r; try { r = await api("/api/viagens"); } catch (e) { $("#vg-info").innerHTML = `<div class="vazio">${esc(e.message)}</div>`; return; }
+  vgAtual = vgPainel = r.atual; paineisIronMan.vgT = Date.now();
+  const v = r.atual, f = $("#f-viagem");
+  f.hidden = !!v;
+  if (!v) { $("#vg-titulo").textContent = "Nova viagem"; $("#vg-info").innerHTML = '<div class="info">A central faz-te a mala com a roupa que tens no separador Roupa, vê o tempo no destino e põe a casa em pausa enquanto estás fora.</div>'; return; }
+  const dm = iso => new Date(iso + "T12:00").toLocaleDateString("pt-PT", { day: "numeric", month: "short" });
+  $("#vg-titulo").textContent = `${v.destino}${v.pais ? ", " + v.pais : ""}`;
+  const t = v.tempo || {}, c = v.cambio;
+  const linhas = [
+    `<b>${dm(v.inicio)} a ${dm(v.fim)}</b> · ${v.dias} dias · ${v.em_viagem ? "em viagem" : v.faltam_dias === 0 ? "é hoje" : "faltam " + v.faltam_dias + " dias"}`,
+    t.tmax != null ? `🌡️ ${t.tipo === "previsao" ? "Previsão" : "O ano passado nestas datas"}: ${t.tmin}° a ${t.tmax}°, ${esc(t.chuva_txt)} <span class="info">· ${esc(t.fonte)}</span>` : "🌡️ Tempo: sem dados",
+    v.hora_local ? `🕐 Hora lá agora: ${v.hora_local}` : "",
+    c ? (c.taxa ? `💶 1 € = ${c.taxa} ${esc(c.moeda)} <span class="info">· ${esc(c.fonte)}, ${esc(c.data)}</span>` : `💶 Câmbio ${esc(c.moeda)}: sem dados`) : "",
+    `<label class="vg-item" style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" id="vg-casa" ${v.pausar_casa ? "checked" : ""}> Casa em pausa durante a viagem (alarmes de todos os dias e rotinas)</label>`,
+    v.link ? `<a href="${esc(v.link)}" target="_blank" rel="noopener">Abrir o guia da viagem ›</a>` : "",
+    v.para_lavar.length ? `<span style="color:#e0a000">🧺 Para lavar antes de ir: ${v.para_lavar.map(esc).join(", ")}</span>` : ""];
+  $("#vg-info").innerHTML = linhas.filter(Boolean).map(x => `<div class="linha-sv">${x}</div>`).join("");
+  $("#vg-casa").onchange = e => api(`/api/viagens/${v.id}/casa`, "POST", { pausar: e.target.checked }).catch(err => aviso(err.message));
+  const grupos = {}; v.itens.forEach(i => (grupos[i.grupo] ||= []).push(i));
+  $("#vg-mala").innerHTML = `<label>Mala · ${v.feitos} de ${v.total}</label><div class="im-barra" style="height:6px;background:var(--linha,#ddd);border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:${Math.round(100 * v.feitos / Math.max(1, v.total))}%;background:var(--cor,#2a9d8f)"></i></div>` +
+    Object.keys(VG_GRUPOS).filter(g => grupos[g]).map(g => `<div class="info" style="text-transform:uppercase;letter-spacing:1px;margin-top:10px">${VG_GRUPOS[g]}</div>` +
+      grupos[g].map(i => `<label class="vg-item" style="display:flex;gap:8px;align-items:center;margin:4px 0;${i.feito ? "opacity:.55;text-decoration:line-through" : ""}">
+        <input type="checkbox" data-vi="${i.id}" ${i.feito ? "checked" : ""}>${i.imagem ? `<img src="${esc(i.imagem)}" alt="" style="width:28px;height:28px;object-fit:cover;border-radius:6px">` : ""}
+        <span style="flex:1">${esc(i.texto)}${i.estado_roupa === "para lavar" ? ' <span class="info">· para lavar</span>' : ""}</span>${i.auto ? "" : `<button type="button" class="secundario" data-vx="${i.id}" style="padding:2px 8px">×</button>`}</label>`).join("")).join("") +
+    `<form id="f-vg-item" style="grid-template-columns:1fr 110px;margin-top:10px"><input name="texto" placeholder="Mais alguma coisa para levar" required maxlength="120">
+      <select name="grupo">${Object.entries(VG_GRUPOS).map(([k, n]) => `<option value="${k}" ${k === "outros" ? "selected" : ""}>${n}</option>`).join("")}</select>
+      <button class="principal" style="grid-column:1/-1">Adicionar</button></form>
+    <div class="botoes" style="margin-top:10px"><button type="button" class="secundario" id="vg-refazer">Refazer a mala com a roupa atual</button><button type="button" class="secundario" id="vg-apagar">Apagar viagem</button></div>`;
+  $("#vg-mala").querySelectorAll("[data-vi]").forEach(c => c.onchange = async () => { await api(`/api/viagens/itens/${c.dataset.vi}`, "POST", { feito: c.checked }).catch(e => aviso(e.message)); abrirViagem(); });
+  $("#vg-mala").querySelectorAll("[data-vx]").forEach(b => b.onclick = async e => { e.preventDefault(); await api(`/api/viagens/itens/${b.dataset.vx}`, "DELETE").catch(err => aviso(err.message)); abrirViagem(); });
+  $("#f-vg-item").onsubmit = async e => { e.preventDefault(); try { await api(`/api/viagens/${v.id}/itens`, "POST", Object.fromEntries(new FormData(e.target))); abrirViagem(); } catch (err) { aviso(err.message); } };
+  $("#vg-refazer").onclick = async () => { await api(`/api/viagens/${v.id}/refazer`, "POST").catch(e => aviso(e.message)); abrirViagem(); };
+  $("#vg-apagar").onclick = async () => { if (!confirm(`Apagar a viagem para ${v.destino} e a lista da mala?`)) return; await api(`/api/viagens/${v.id}`, "DELETE").catch(e => aviso(e.message)); vgPainel = null; abrirViagem(); };
+}
+$("#f-viagem").onsubmit = async e => {
+  e.preventDefault(); const f = e.target, d = Object.fromEntries(new FormData(f)); d.pausar_casa = f.pausar_casa.checked;
+  try { await api("/api/viagens", "POST", d); f.reset(); abrirViagem(); } catch (err) { aviso(err.message); }
+};
 
 // ---------- modo apagao ----------
 // quando falta a luz o tablet passa a viver da bateria: corta tudo o que nao e importante
@@ -1730,7 +1793,8 @@ async function respostaPrivada(texto, r) {
     r = await api("/api/assistente", "POST", { texto });
   }
   if (r.mapa) mostrarMapa();
-  if (r.mudou) { paineisIronMan.famT = 0; paineisIronMan.lojaT = 0; atualizar(); }
+  if (r.viagem) abrirViagem();
+  if (r.mudou) { paineisIronMan.famT = 0; paineisIronMan.lojaT = 0; paineisIronMan.vgT = 0; atualizar(); }
   const n = (r.itens || []).length;
   hudEstado("falar"); hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
   await falar(r.falado || r.resposta); hudEstado("ouvir");
@@ -2239,7 +2303,13 @@ async function paineisIronMan() {
   const ts = (dados.testes || []).filter(aindaNaoFoi).slice(0, 3), tf = (dados.tarefas || []).filter(t => !t.feita);
   const p = alarmesDados?.proximo;
   $("#im-missoes").innerHTML = `<h4>missões</h4>` + ts.map(t => `<div class="linha"><span>Teste ${esc(t.disciplina)}</span><span>${textoDias(diasAte(t.data))}</span></div>`).join("") +
-    `<div class="linha"><span>Tarefas pendentes</span><span>${tf.length}</span></div>` + (p ? `<div class="linha"><span>Alarme</span><span>${p.hora}</span></div>` : "");
+    `<div class="linha"><span>Tarefas pendentes</span><span>${tf.length}</span></div>` + (p ? `<div class="linha"><span>Alarme</span><span>${p.hora}</span></div>` : "") +
+    (vgPainel ? `<div class="linha"><span>Viagem ${esc(vgPainel.destino)}</span><span>${vgPainel.em_viagem ? "em viagem" : textoDias(vgPainel.faltam_dias)} · mala ${vgPainel.feitos}/${vgPainel.total}</span></div>` : "") +
+    (livre() ? `<button onclick="abrirViagem()">${vgPainel ? "viagem" : "+ viagem"}</button>` : "");
+  if (livre() && (!paineisIronMan.vgT || Date.now() - paineisIronMan.vgT > 600000)) {
+    paineisIronMan.vgT = Date.now();
+    api("/api/viagens").then(r => { vgPainel = r.atual; }).catch(() => {});
+  }
   // faixa de noticias (atualiza de 10 em 10 minutos)
   if (!paineisIronMan.noticias || Date.now() - paineisIronMan.noticias > 600000) {
     paineisIronMan.noticias = Date.now();

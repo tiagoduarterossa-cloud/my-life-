@@ -50,6 +50,9 @@ def alarmes_do_dia(con, dia):
     especiais = con.execute("SELECT * FROM alarmes WHERE ativo = 1 AND data = ?", (iso,)).fetchall()
     if especiais:  # um alarme especial (viagem...) substitui os normais nesse dia
         return sorted([dict(a) for a in especiais], key=lambda a: a["hora"])
+    import viagem
+    if viagem.em_viagem(con, dia):  # estas fora: os alarmes de todos os dias nao tocam numa casa vazia
+        return []
     saltar = {r[0] for r in con.execute("SELECT alarme_id FROM alarmes_saltar WHERE data = ?", (iso,))}
     normais = con.execute("SELECT * FROM alarmes WHERE ativo = 1 AND data IS NULL AND instr(dias, ?) > 0",
                           (str(dia.weekday()),)).fetchall()

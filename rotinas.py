@@ -340,6 +340,9 @@ def vigiar(db, extra):
             try:
                 agora = datetime.now(); hm = agora.strftime("%H:%M"); hoje = agora.date()
                 with db() as con:
+                    import viagem
+                    if viagem.em_viagem(con, hoje):   # estas fora: as rotinas com hora ficam em pausa
+                        time.sleep(10); continue
                     for r in listar(con):
                         q = r["quando"]
                         if not r["ativa"] or q.get("tipo") != "hora" or q.get("hora") != hm:

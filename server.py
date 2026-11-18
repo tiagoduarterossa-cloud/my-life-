@@ -33,6 +33,7 @@ import time
 import rotinas
 import seguranca
 import spotify
+import viagem
 import voz
 from datetime import date, datetime, timedelta
 from http.cookies import SimpleCookie
@@ -133,6 +134,7 @@ def init_db():
         con.executescript(loja.TABELAS)
         con.executescript(familia.TABELAS)
         con.executescript(pin.TABELAS)
+        con.executescript(viagem.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -445,7 +447,7 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
 _servicos_cache = None
 
 # o que e privado: so com PIN (tambem no proprio tablet)
-PRIVADOS = ("/api/familia", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+PRIVADOS = ("/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
 ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
 
@@ -664,6 +666,57 @@ class Handler(BaseHTTPRequestHandler):
                 if not _servicos_cache or time.time() - _servicos_cache[0] > 60 or query.get("agora"):
                     _servicos_cache = (time.time(), servicos.verificar())
                 return self.enviar(200, _servicos_cache[1])
+
+            # ----- modo viagem (privado: as datas em que a casa fica vazia) -----
+            if caminho == "/api/viagens":
+                with db() as con:
+                    if metodo == "GET":
+                        return self.enviar(200, {"atual": viagem.resumo(con), "todas": viagem.listar(con)})
+                    if metodo == "POST":
+                        d = self.corpo_json()
+                        ini, fim = data_ok(d.get("inicio"), "inicio"), data_ok(d.get("fim"), "fim")
+                        if not ini or not fim:
+                            raise Erro("faltam as datas da viagem")
+                        if fim < ini:
+                            raise Erro("a volta é antes da ida")
+                        moeda = (d.get("moeda") or "").strip().upper() or None
+                        if moeda and not re.fullmatch(r"[A-Z]{3}", moeda):
+                            raise Erro("a moeda é o código de 3 letras (ex.: THB, USD, GBP)")
+                        try:
+                            vid = viagem.criar(con, texto(d, "destino", maximo=80), date.fromisoformat(ini), date.fromisoformat(fim), moeda,
+                                               url_ok(d.get("link"), "link"), texto(d, "notas", obrigatorio=False, maximo=500),
+                                               d.get("pausar_casa", True) is not False)
+                        except ValueError as e:
+                            raise Erro(str(e))
+                        except OSError:
+                            raise Erro("sem ligação ao serviço de mapas (Open-Meteo), tenta mais tarde")
+                        return self.enviar(201, {"id": vid})
+            m = re.fullmatch(r"/api/viagens/(\d+)(?:/(refazer|itens|casa))?", caminho)
+            if m:
+                vid = int(m[1])
+                with db() as con:
+                    if not con.execute("SELECT 1 FROM viagens WHERE id = ?", (vid,)).fetchone():
+                        raise Erro("viagem não encontrada")
+                    if not m[2] and metodo == "DELETE":
+                        viagem.apagar(con, vid); return self.enviar(200, {"ok": True})
+                    if m[2] == "refazer" and metodo == "POST":
+                        viagem.gerar_mala(con, vid); return self.enviar(200, {"ok": True})
+                    if m[2] == "casa" and metodo == "POST":
+                        con.execute("UPDATE viagens SET pausar_casa = ? WHERE id = ?", (1 if self.corpo_json().get("pausar") else 0, vid))
+                        return self.enviar(200, {"ok": True})
+                    if m[2] == "itens" and metodo == "POST":
+                        d = self.corpo_json()
+                        g = d.get("grupo") if d.get("grupo") in viagem.GRUPOS else "outros"
+                        con.execute("INSERT INTO viagem_itens (viagem_id, grupo, texto, auto) VALUES (?,?,?,0)", (vid, g, texto(d, "texto", maximo=120)))
+                        return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/viagens/itens/(\d+)", caminho)
+            if m and metodo in ("POST", "DELETE"):
+                with db() as con:
+                    if metodo == "DELETE":
+                        con.execute("DELETE FROM viagem_itens WHERE id = ?", (int(m[1]),))
+                    else:
+                        con.execute("UPDATE viagem_itens SET feito = ? WHERE id = ?", (1 if self.corpo_json().get("feito") else 0, int(m[1])))
+                return self.enviar(200, {"ok": True})
 
             # ----- copias de seguranca do vida.db -----
             if caminho == "/api/backups" and metodo == "GET":

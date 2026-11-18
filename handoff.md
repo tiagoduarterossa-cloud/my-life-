@@ -22,6 +22,7 @@ Funciona e está testado:
 - **Modo apagão**: liga-se sozinho quando o tablet deixa de carregar. Corta o que gasta bateria e mostra bateria, rádio (radio-browser.info), notícias e conselhos com fonte. Sai pelo botão no topo ou no fundo.
 - **O que está a funcionar**: Wi-Fi, router, internet, DNS e 14 serviços testados a partir de casa.
 - **Loja Shopify**: lucro real e despesas por voz. Falta ligar a loja no tablet.
+- **Modo viagem** (Iron Man, com PIN): marcar uma viagem (destino, datas, moeda, link para um guia) no botão "+ viagem" do painel Missões ou por voz ("Jarvis, nova viagem para Madrid de 3 a 7 de março"). Faz a mala com a roupa do separador Roupa conforme o clima, com caixas para marcar, as peças que estão para lavar e coisas postas à mão. Mostra o tempo (previsão do Open-Meteo só quando cobre a viagem toda; antes disso, o que fez nas mesmas datas do ano passado, dito como tal), a hora local e o câmbio do BCE (frankfurter.app). Durante a viagem os alarmes de todos os dias e as rotinas com hora ficam em pausa; os alarmes especiais com data tocam na mesma. Voz: "modo viagem", "quantos dias faltam para a viagem?", "o que falta na mala?". Os dados da viagem ficam só no vida.db, nunca no código.
 - **Cópias de segurança do vida.db**: uma por dia, verificada e comprimida, em `backups/` (14 dias e 6 meses). Com `termux-setup-storage` vai também para Armazenamento interno/Central/backups, que sobrevive a desinstalar o Termux. Aparece em "O que está a funcionar" e por voz ("Jarvis, faz uma cópia de segurança", "quando foi a última cópia de segurança?"). Restaurar: parar a central, `gunzip -c backups/vida-AAAA-MM-DD.db.gz > vida.db`, iniciar.
 
 Falta configurar no tablet (não é código):
@@ -40,6 +41,7 @@ Falta configurar no tablet (não é código):
 - `ia.py`: Claude como plano B quando as regras não percebem. Usa a ferramenta `central` e esconde as conversas privadas a quem não tem PIN.
 - `familia.py`: familiares, perigos perto da casa deles, mapa, ficha (`detalhe`) e a vigia de 15 em 15 minutos.
 - `avisos.py`: IPMA (distritos e ilhas, terra e mar), USGS, fogos.pt (chave), vento, energia e apagões (Termux:API).
+- `viagem.py`: modo viagem (viagens, mala, tempo, câmbio, casa em pausa). `alarmes.py` e `rotinas.py` perguntam-lhe se estás fora.
 - `backups.py`: cópias diárias do vida.db (API de backup do SQLite e integrity_check).
 - `pin.py`, `radio.py`, `servicos.py`, `loja.py`, `seguranca.py`, `casa.py`, `noticias.py`, `rotinas.py`, `alarmes.py`, `voz.py`, `spotify.py`, `dispositivos.py`.
 - `static/index.html`: a interface toda (HTML, CSS e JS sem bibliotecas).
@@ -51,6 +53,8 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Modo viagem.
+- Corrigido "de 3 a 7 de março": dava 3 a 7 do mês seguinte, porque o mês só ficava no último dia.
 - Cópias de segurança automáticas do vida.db (`backups.py`, `/api/backups`, voz e linha em "O que está a funcionar").
 
 Sessão anterior (resumo dos commits):

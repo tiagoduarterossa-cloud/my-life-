@@ -82,8 +82,16 @@ def achar_datas(t, hoje):
         except ValueError:
             pass
     # "de 20 a 22" ou "dia 20 a 23"
-    m = re.search(r"\b(?:de|dia|dias|entre) (\d{1,2}) (?:a|e|ate) (\d{1,2})\b", s2)
-    if m:
+    m = re.search(r"\b(?:de|dia|dias|entre) (\d{1,2}) (?:a|e|ate) (\d{1,2})\b(?: de (" + "|".join(MESES) + r")\b)?", s2)
+    if m and m[3]:   # "de 3 a 7 de marco": o mes vale para os dois dias
+        try:
+            b = date(hoje.year, MESES.index(m[3]) + 1, int(m[2]))
+            if b < hoje: b = b.replace(year=b.year + 1)
+            a = b.replace(day=int(m[1])) if int(m[1]) <= int(m[2]) else (b.replace(day=1) - timedelta(days=1)).replace(day=int(m[1]))
+            achados += [(m.start(), a), (m.start() + 1, b)]
+        except ValueError:
+            pass
+    elif m:
         try:
             a = hoje.replace(day=int(m[1]))
             if a < hoje: a = (a.replace(day=1) + timedelta(days=32)).replace(day=int(m[1]))
@@ -248,6 +256,15 @@ def entender(texto, hoje=None):
     # copias de seguranca do vida.db (antes da "seguranca" da rede e da central)
     if re.search(r"\b(copias? de seguranca|backups?)\b", s):
         return "backup", {"fazer": bool(re.search(r"\b(faz|fazer|faca|cria|criar|guarda|agora)\b", s))}
+
+    # modo viagem (antes da "mala" rapida, que continua a existir para escapadinhas)
+    if re.search(r"\b(nova viagem|marca (?:uma |a )?viagem|cria (?:uma )?viagem|regista (?:uma )?viagem)\b", s):
+        ini, fim = achar_intervalo(t, hoje)
+        return "viagem_criar", {"destino": achar_destino(t), "inicio": ini, "fim": fim, "datas": len(achar_datas(t, hoje)) >= 2}
+    if re.search(r"\bmodo (de )?viagem\b", s) or \
+            (re.search(r"\bviagem\b", s) and re.search(r"\b(falta|faltam|quando|como esta|como vai|estado|quanto tempo)\b", s)) or \
+            re.search(r"\b(o que falta|que falta|ja fiz|como esta|como vai|falta por)\b.*\bmala\b|\bmala\b.*\b(esta feita|falta)\b", s):
+        return "viagem", {}
 
     # o que esta a funcionar (wi-fi, internet, whatsapp...)
     import servicos as _sv
@@ -516,7 +533,7 @@ AJUDA = {
 }
 
 
-PRIVADAS = {"loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+PRIVADAS = {"viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
 
 
 def responder(texto, con, hoje=None, nome=""):
@@ -740,6 +757,31 @@ def _responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "viagem_criar":
+        import viagem
+        if not d["destino"] or not d["datas"]:
+            f = "Para marcar a viagem preciso do destino e das datas. Diz por exemplo: nova viagem para Madrid de 3 a 7 de março."
+            return {"resposta": f, "falado": f}
+        try:
+            viagem.criar(con, d["destino"], d["inicio"], d["fim"])
+        except ValueError as e:
+            f = str(e)[:1].upper() + str(e)[1:] + "."
+            return {"resposta": f, "falado": f}
+        except OSError:
+            f = "Não consegui chegar ao serviço de mapas. Tenta daqui a pouco."
+            return {"resposta": f, "falado": f}
+        r = viagem.resumo(con)
+        f = f"Viagem marcada: {r['destino']}, de {viagem._dm(r['inicio'])} a {viagem._dm(r['fim'])}. Fiz-te a mala com a tua roupa. " + \
+            "Enquanto estiveres fora, os alarmes de todos os dias e as rotinas ficam em pausa."
+        return {"resposta": f, "falado": f, "viagem": True, "mudou": True}
+
+    if intencao == "viagem":
+        import viagem
+        r = viagem.resumo(con)
+        f = viagem.frase(r)
+        return {"resposta": f, "falado": f, "viagem": bool(r),
+                "itens": [i["texto"] for i in (r or {}).get("itens", []) if not i["feito"]][:12]}
 
     if intencao == "backup":
         import backups
