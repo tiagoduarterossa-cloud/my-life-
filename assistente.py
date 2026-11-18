@@ -233,7 +233,7 @@ def entender(texto, hoje=None):
             not re.search(r"^(marca|tenho de|toma nota)", s):
         return "familia_estado", {}
 
-    m = re.search(r"\\bgastei (\\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
+    m = re.search(r"\bgastei (\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
     if m:
         desc = (m[2] or "").strip()
         loja_ctx = re.search(r"loja|anuncio|ads|tiktok|facebook|meta|instagram|google ads|shopify|app|fornecedor|amostra|dominio|tema", desc + " " + s)
@@ -290,7 +290,7 @@ def entender(texto, hoje=None):
         re.search(r"\b(?:poe|mete|muda)\b.*\b(" + "|".join(dispositivos.CORES) + r")\b.*\b(?:luz|luzes|led|fita)\b", s)
     if m:
         return "luz_cor", {"cor": m[1]}
-    m = re.search(r"\b(?:luz|luzes|led|fita|brilho)\b.*?\b(\d{1,3}) ?(?:%|por cento)", s)
+    m = re.search(r"\b(?:luz|luzes|led|fita|brilho)\b.*?\b(\d{1,3}) ?(?:%|por cento)", s) or re.search(r"\bbrilho (?:a|para|em|no) (\d{1,3})\b", s)
     if m:
         return "luz_brilho", {"valor": int(m[1])}
 

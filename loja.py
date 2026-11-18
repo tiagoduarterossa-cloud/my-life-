@@ -16,7 +16,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 TOKEN = Path(__file__).resolve().parent / "loja_token.json"

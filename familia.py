@@ -5,7 +5,6 @@ e os perigos reais perto da casa deles (avisos do IPMA, incendios, sismos).
 Os dados da familia ficam so no tablet (vida.db, fora do GitHub).
 """
 
-import json
 import threading
 import time
 import urllib.parse
@@ -181,7 +180,7 @@ def vigiar(db, avisar):
                     ps = [p for p in listar(con) if p.get("lat") is not None]
                 for p in ps:
                     pg = perigos(p["lat"], p["lon"])
-                    quem, de = f"{p['relacao']} {p['nome']}".strip(), "d" + com_artigo(p)
+                    de = "d" + com_artigo(p)
                     for f in pg["fogos"] or []:
                         k = ("fogo", p["id"], f["onde"])
                         if k not in ja:

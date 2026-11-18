@@ -945,6 +945,16 @@ class Handler(BaseHTTPRequestHandler):
             self.enviar(404, {"erro": "nao encontrado"})
         except (Erro, ValueError) as e:
             self.enviar(400, {"erro": str(e)})
+        except (BrokenPipeError, ConnectionResetError):
+            pass   # o browser fechou a ligacao antes de receber a resposta
+        except Exception as e:
+            # um erro inesperado nao deita a ligacao abaixo: fica no terminal e o ecra recebe uma mensagem clara
+            import traceback
+            traceback.print_exc()
+            try:
+                self.enviar(500, {"erro": f"erro na central ({e.__class__.__name__}). Vê o Termux para saber mais."})
+            except Exception:
+                pass
 
     def cookie(self, token, local):
         idade = "" if local else f"; Max-Age={pin.DURACAO['browser']}"   # no tablet: so ate fechar o browser
