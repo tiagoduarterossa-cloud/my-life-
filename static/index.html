@@ -331,6 +331,14 @@
   @keyframes faixa { to { transform: translateX(-100%); } }
   #hud.ironman .im-painel[style*="top:72px"] { top: 92px !important; }
 
+  /* loja */
+  .loja-grelha { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 10px 0; }
+  .loja-num { background: var(--campo); border-radius: 12px; padding: 10px 12px; }
+  .loja-num .v { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .loja-num .r { font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: .5px; }
+  .loja-num.lucro { grid-column: 1 / -1; } .loja-num.lucro .v { font-size: 34px; }
+  .pos { color: var(--ok); } .neg { color: var(--perigo); }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -720,6 +728,7 @@
   <div class="im im-painel" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
   <div class="im im-painel" id="im-agenda" style="top:72px;right:24px;animation-delay:.2s"></div>
   <div class="im im-painel" id="im-missoes" style="top:300px;right:24px;animation-delay:.35s"></div>
+  <div class="im im-painel" id="im-loja" style="top:500px;right:24px;animation-delay:.42s" hidden></div>
   <div class="im im-painel" id="im-musica" style="bottom:24px;right:24px;animation-delay:.5s"></div>
   <div id="im-boot">a inicializar sistemas<div class="im-barra"><i id="im-boot-barra" style="width:0"></i></div></div>
   <div id="hud-estado"></div>
@@ -774,6 +783,24 @@
     <div class="botoes"><button class="principal">Guardar</button><button type="button" class="secundario" id="rot-cancelar">Cancelar</button></div>
     <button type="button" class="secundario" id="rot-apagar" style="color:var(--perigo)">Apagar rotina</button>
   </form>
+</dialog>
+
+<dialog id="d-loja">
+  <h3 id="loja-titulo">A minha loja</h3>
+  <div class="filtros" id="loja-periodo">
+    <button data-p="hoje" class="ativo">Hoje</button><button data-p="ontem">Ontem</button><button data-p="semana">Semana</button><button data-p="mes">Mês</button>
+  </div>
+  <div id="loja-resumo" class="vazio">A carregar…</div>
+  <label>Despesas da loja (anúncios, apps…)</label>
+  <form id="f-despesa" style="grid-template-columns: 1fr 90px">
+    <input name="descricao" placeholder="Ex: anúncios TikTok" required maxlength="80">
+    <input name="valor" type="number" step="0.01" min="0.01" placeholder="€" required>
+    <select name="tipo"><option value="anuncios">Anúncios</option><option value="apps">Apps</option><option value="mensalidade">Mensalidade</option><option value="outro">Outro</option></select>
+    <input name="data" type="date">
+    <button class="principal">Adicionar despesa</button>
+  </form>
+  <ul id="loja-despesas" style="margin-top:8px"></ul>
+  <button type="button" class="secundario" style="width:100%;margin-top:12px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
 <dialog id="d-seguranca">
@@ -883,6 +910,18 @@
     <div class="vazio" id="cfg-alternativas" style="font-size:13px"></div>
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
+  </div>
+  <label>Loja (Shopify)</label>
+  <div class="voz-cfg">
+    <div class="vazio" id="loja-estado" style="font-size:14px"></div>
+    <div id="loja-form" class="voz-cfg">
+      <input id="loja-dominio" placeholder="a-tua-loja.myshopify.com" autocomplete="off">
+      <input id="loja-token" type="password" placeholder="Chave da app (shpat_...)" autocomplete="off">
+      <div class="deslizar"><span>Taxa %</span><input id="loja-taxa" type="number" step="0.1" value="2.9" style="padding:8px"><span>Taxa fixa €</span><input id="loja-fixa" type="number" step="0.01" value="0.30" style="padding:8px"></div>
+      <button type="button" class="principal" id="loja-ligar">Ligar a loja</button>
+    </div>
+    <div class="botoes"><button type="button" class="secundario" id="loja-abrir">Ver a loja</button><button type="button" class="secundario" id="loja-desligar" style="color:var(--perigo)">Desligar</button></div>
+    <div class="vazio" style="font-size:13px">A chave só consegue LER encomendas e produtos. A central não pede nomes nem moradas dos clientes. As taxas são as do teu método de pagamento (vê na Shopify).</div>
   </div>
   <label>Spotify</label>
   <div class="voz-cfg">
@@ -1410,6 +1449,7 @@ async function perguntar(texto) {
     espera.remove(); msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
     if (r.comandos) executarComandos(r.comandos);
     if (r.musica) setTimeout(carregarSpotify, 800);
+    if ($("#d-loja").open && r.mudou) carregarLoja();
     if (r.ver) { $("#assist").classList.remove("aberto"); verComCamara(r.ver); }
     if (r.hud === true) { $("#assist").classList.remove("aberto"); abrirHUD("espera"); }
     if (r.hud === false) fecharHUD();
@@ -1858,6 +1898,18 @@ async function paineisIronMan() {
     <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar ? "ligada" : "—"}</span></div>
     <div class="linha"><span>Avisos IPMA</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
     <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}</span></div>`;
+  // loja (de 3 em 3 minutos, ou logo a seguir a uma encomenda nova)
+  if (lojaOk && (!paineisIronMan.lojaT || Date.now() - paineisIronMan.lojaT > 180000)) {
+    paineisIronMan.lojaT = Date.now();
+    api("/api/loja?p=hoje").then(r => { paineisIronMan.loja = r; }).catch(() => {});
+  }
+  const lj = paineisIronMan.loja;
+  $("#im-loja").hidden = !(lojaOk && lj);
+  if (lj) $("#im-loja").innerHTML = `<h4>loja · hoje</h4>
+    <div class="linha"><span>Encomendas</span><span>${lj.encomendas}</span></div>
+    <div class="linha"><span>Vendas</span><span>${eur(lj.receita)}</span></div>
+    <div class="linha"><span>Lucro real</span><span style="color:${lj.lucro >= 0 ? "#5dffa0" : "#ff6b6b"}">${eur(lj.lucro)}</span></div>
+    <div class="linha"><span>Por enviar</span><span>${lj.por_enviar.length}</span></div>`;
   // musica
   const a = spotifyInfo?.agora;
   $("#im-musica").innerHTML = `<h4>áudio</h4>` + (a && a.musica ? `<div style="color:#fff">${esc(a.musica)}</div>${esc(a.artista)} · ${a.tocar ? "a tocar" : "em pausa"}` : "Sem música.");
@@ -2006,6 +2058,59 @@ async function verComCamara(pergunta) {
   } catch (err) { hudTexto(pergunta, "Não consegui analisar."); }
 }
 
+// ---------- LOJA (Shopify) ----------
+const eur = v => (v < 0 ? "-" : "") + Math.abs(v).toFixed(2).replace(".", ",") + " €";
+let lojaPeriodo = "hoje", lojaOk = false;
+async function estadoLoja() {
+  try { const e = await api("/api/loja/estado"); lojaOk = e.configurada;
+    $("#loja-estado").textContent = e.configurada ? `Ligada: ${e.dominio}` : "Ainda não ligada.";
+    $("#loja-form").hidden = e.configurada; $("#loja-abrir").hidden = !e.configurada; $("#loja-desligar").hidden = !e.configurada;
+  } catch (err) {}
+}
+async function carregarLoja() {
+  $("#loja-resumo").innerHTML = '<div class="vazio">A carregar…</div>';
+  try {
+    const r = await api(`/api/loja?p=${lojaPeriodo}`);
+    $("#loja-resumo").innerHTML = `<div class="loja-grelha">
+      <div class="loja-num lucro"><div class="r">Lucro real · ${esc(r.periodo)}</div><div class="v ${r.lucro >= 0 ? "pos" : "neg"}">${eur(r.lucro)}</div></div>
+      <div class="loja-num"><div class="r">Vendas</div><div class="v">${eur(r.receita)}</div></div>
+      <div class="loja-num"><div class="r">Encomendas</div><div class="v">${r.encomendas}</div></div>
+      <div class="loja-num"><div class="r">Custo produtos</div><div class="v">${eur(-r.custo_produtos)}</div></div>
+      <div class="loja-num"><div class="r">Anúncios e despesas</div><div class="v">${eur(-r.despesas)}</div></div>
+      <div class="loja-num"><div class="r">Taxas (estimadas)</div><div class="v">${eur(-r.taxas)}</div></div>
+      <div class="loja-num"><div class="r">Reembolsos</div><div class="v">${eur(-r.reembolsos)}</div></div></div>
+      ${r.por_enviar.length ? `<div class="seg-cuidado seg-nivel">📦 ${r.por_enviar.length} por enviar: ${r.por_enviar.slice(0, 6).map(esc).join(", ")}</div>` : ""}
+      ${r.sem_custo.length ? `<div class="vazio" style="font-size:13px;margin-top:6px">⚠ Sem "custo por artigo" na Shopify: ${r.sem_custo.slice(0, 3).map(esc).join(", ")}. O lucro está a contar por cima até preencheres.</div>` : ""}
+      ${r.mais_vendidos.length ? `<div class="vazio" style="font-size:13px;margin-top:6px">Mais vendidos: ${r.mais_vendidos.map(([t, q]) => `${esc(t)} (${q})`).join(" · ")}</div>` : ""}`;
+  } catch (e) { $("#loja-resumo").innerHTML = `<div class="vazio">${esc(e.message)}</div>`; }
+  try {
+    const ds = await api("/api/despesas");
+    $("#loja-despesas").innerHTML = ds.map(x => `<li><div class="meio"><div class="titulo">${esc(x.descricao)} · ${eur(x.valor)}</div><div class="info">${fmtData(x.data)} · ${x.tipo}</div></div>
+      <button class="x" data-apagar="despesas/${x.id}" title="Apagar">×</button></li>`).join("") || vazio("Sem despesas. Diz: gastei 15 euros em anúncios.");
+  } catch (e) {}
+}
+function abrirLoja() { $("#config").close(); $("#d-loja").showModal(); $("#f-despesa").data.value = hojeISO(); carregarLoja(); }
+$("#loja-abrir").onclick = abrirLoja;
+$("#loja-periodo").onclick = e => { const p = e.target.dataset.p; if (!p) return; lojaPeriodo = p;
+  document.querySelectorAll("#loja-periodo button").forEach(b => b.classList.toggle("ativo", b === e.target)); carregarLoja(); };
+$("#loja-ligar").onclick = async () => {
+  try { const r = await api("/api/loja/ligar", "POST", { dominio: $("#loja-dominio").value, token: $("#loja-token").value, taxa_pct: $("#loja-taxa").value, taxa_fixa: $("#loja-fixa").value });
+    $("#loja-token").value = ""; aviso(`Loja "${r.nome}" ligada!`, false); estadoLoja(); } catch (err) { aviso(err.message); }
+};
+$("#loja-desligar").onclick = async () => { if (!confirm("Desligar a loja da central?")) return; await api("/api/loja", "DELETE"); estadoLoja(); };
+$("#f-despesa").onsubmit = async e => {
+  e.preventDefault(); const f = e.target;
+  try { await api("/api/despesas", "POST", Object.fromEntries(new FormData(f))); f.descricao.value = ""; f.valor.value = ""; carregarLoja(); } catch (err) { aviso(err.message); }
+};
+// som de caixa registadora quando ha uma encomenda nova
+function somCaixa() {
+  try { const ctx = new AudioContext();
+    [[1568, 0], [2093, 0.09], [2637, 0.18]].forEach(([f, t]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "triangle"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.18, ctx.currentTime + t); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.5);
+      o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.55); });
+  } catch (e) {}
+}
+
 // ---------- SEGURANCA E CASA ----------
 const NIVEL_TXT = { ok: "✔ seguro", cuidado: "⚠ cuidado", perigo: "✖ perigo", info: "ℹ" };
 async function abrirSeguranca() {
@@ -2091,6 +2196,7 @@ async function executarComandos(cmds) {
   for (const c of cmds || []) {
     try {
       if (c.acao === "falar") await falar(c.texto);
+      else if (c.acao === "caixa") { somCaixa(); if ($("#d-loja").open) carregarLoja(); paineisIronMan.lojaT = 0; }
       else if (c.acao === "aviso") aviso(c.texto, false);
       else if (c.acao === "abrir") abrirSeparador(c.separador);
       else if (c.acao === "cronometro") {
@@ -2474,6 +2580,7 @@ $("#abrir-config").onclick = () => {
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
+  estadoLoja();
   $("#cfg-tomada").value = config.tomada_ip || ""; $("#cfg-wled").value = config.wled_ip || ""; $("#cfg-hud").checked = vozCfg.hud !== false; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
 };
@@ -2517,7 +2624,7 @@ tick(); setInterval(tick, 1000);
 (async () => {
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
-  mostrarIA(); mostrarBotEscuta();
+  mostrarIA(); mostrarBotEscuta(); estadoLoja();
   if (vozCfg.ouvir) iniciarEscuta(false);
   setTimeout(aquecerVoz, 3000);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);

@@ -214,6 +214,18 @@ def entender(texto, hoje=None):
             re.search(r"\b(seguro|confiavel|phishing|burla|perigoso|abrir|clicar|verifica|analisa|legit)\b", s):
         m = re.search(r"(https?://\S+|www\.\S+|[\w.-]+\.(?:com|pt|net|org|xyz|io|me|ly|gg|app)\S*)", t)
         return "link", {"link": m[1] if m else ""}
+    m = re.search(r"\bgastei (\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
+    if m:
+        desc = (m[2] or "").strip()
+        loja_ctx = re.search(r"loja|anuncio|ads|tiktok|facebook|meta|instagram|google ads|shopify|app|fornecedor|amostra|dominio|tema", desc + " " + s)
+        tipo = "anuncios" if re.search(r"anuncio|ads|tiktok|facebook|meta|instagram|publicidade", desc) else "apps" if re.search(r"\bapp|aplicacao|shopify|tema|dominio", desc) else "outro"
+        return "despesa", {"valor": float(m[1].replace(",", ".")), "descricao": desc or "despesa", "tipo": tipo, "da_loja": bool(loja_ctx)}
+    if re.search(r"\b(loja|vendas|vendi|lucro|lucrei|encomendas?|shopify|faturei|faturacao)\b", s) and not re.search(r"\b(marca|tarefa|tenho de)\b", s):
+        p = "ontem" if "ontem" in s else "semana" if "semana" in s else "mes" if re.search(r"\bmes\b", s) else "hoje"
+        if re.search(r"por enviar|enviar|pendentes|preparar", s):
+            p = "mes"
+        return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
+
     if re.search(r"\b(rede|wi-?fi|wifi|router|internet)\b.*\b(segura|seguro|segurança|seguranca|protegida|protegido)\b|\b(verifica|analisa|testa)\b.*\b(rede|wifi|wi-fi|router)\b", s):
         return "rede", {}
     if re.search(r"\b(janela|janelas|porta|portas|esta tudo fechado|ficou alguma coisa aberta|deixei .* aberta|luzes .*(ligadas|desligadas|acesas|apagadas)|ha luzes ligadas|estado da casa)\b", s):
@@ -668,6 +680,31 @@ def responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "despesa":
+        if not d["da_loja"]:
+            return {"resposta": "Isso foi da loja? Diz por exemplo: gastei 15 euros em anúncios do TikTok.",
+                    "falado": "Foi para a loja? Se foi, diz por exemplo: gastei 15 euros em anúncios."}
+        con.execute("INSERT INTO despesas (data, descricao, valor, tipo) VALUES (?,?,?,?)", (hoje.isoformat(), d["descricao"][:80], d["valor"], d["tipo"]))
+        import loja as _l
+        return {"resposta": f"Despesa da loja registada: {d['valor']:.2f} € ({d['descricao']}).".replace(".", ",", 1), "mudou": True,
+                "falado": ya(["Anotado.", "Registado."]) + f" {_l.euros(d['valor'])} em {d['descricao']}. Isso conta para o lucro."}
+
+    if intencao == "loja":
+        import loja as _l
+        try:
+            r = _l.resumo(con, d["periodo"])
+        except _l.ErroLoja as e:
+            m = str(e)[:1].upper() + str(e)[1:] + "."
+            return {"resposta": m, "falado": m}
+        if d["enviar"]:
+            n = len(r["por_enviar"])
+            f = (f"Tens {n} encomenda{'s' if n > 1 else ''} por enviar: {', '.join(r['por_enviar'][:5])}." if n else "Não tens encomendas por enviar. Tudo despachado!")
+            return {"resposta": f, "falado": f, "itens": r["por_enviar"]}
+        itens = [f"Vendas: {r['receita']:.2f} €", f"Reembolsos: -{r['reembolsos']:.2f} €", f"Custo dos produtos: -{r['custo_produtos']:.2f} €",
+                 f"Taxas (estimadas): -{r['taxas']:.2f} €", f"Anúncios e despesas: -{r['despesas']:.2f} €", f"LUCRO REAL: {r['lucro']:.2f} €"]
+        itens += [f"Mais vendido: {t} ({q})" for t, q in r["mais_vendidos"][:2]]
+        return {"resposta": f"Loja, {r['periodo']}: {r['encomendas']} encomendas.", "itens": [i.replace(".", ",") for i in itens], "falado": _l.frase(r)}
 
     if intencao in ("rede", "casa", "energia", "desastres"):
         import avisos, casa

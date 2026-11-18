@@ -101,6 +101,20 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 
 Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca o ecrã completo: sequência de arranque com som, painéis de meteorologia com a previsão por hora, sistemas (energia, servidor, rede, voz, cérebro), agenda, missões (testes, tarefas, alarme), áudio (Spotify) e um registo com tudo o que acontece. Ao centro, a esfera com radar, grelha hexagonal e anéis graduados, sempre no azul do reator. A fita LED fica azul e volta à cor do tema quando dizes "fecha-te". No telemóvel aparecem só a esfera e o topo.
 
+## A loja (Shopify)
+
+"Como está a loja?", "quanto vendi esta semana?", "qual é o lucro do mês?", "há encomendas por enviar?", "gastei 15 euros em anúncios do TikTok". Quando entra uma encomenda nova, toca uma caixa registadora e ele diz o valor. Na roda dentada > **Loja**: o resumo (hoje, ontem, semana, mês) e as despesas. No Iron Man há um painel Loja.
+
+**Lucro real** = vendas - reembolsos - custo dos produtos - taxas - anúncios e outras despesas. O custo vem do campo **"Custo por artigo"** de cada produto na Shopify: preenche-o, senão o lucro aparece maior do que é.
+
+Para ligar (com os teus pais, que supervisionam a conta):
+1. Na Shopify: **Definições > Apps e canais de vendas > Desenvolver apps** (pode ser preciso "Permitir o desenvolvimento de apps personalizadas") > **Criar uma app** (nome: `Central do quarto`)
+2. **Configurar os âmbitos da Admin API**: marca só `read_orders`, `read_products` e `read_inventory`. Mais nada.
+3. **Instalar a app** e revelar o **token de acesso da Admin API** (começa por `shpat_`; só aparece uma vez)
+4. Na central, roda dentada > **Loja**: o domínio (`a-tua-loja.myshopify.com`), o token e as taxas do teu método de pagamento > **Ligar a loja**
+
+O token fica em `loja_token.json` (fora do GitHub) e só consegue **ler**. A central não pede dados dos clientes.
+
 ## Notícias, avisos e segurança (só fontes reais)
 
 Tudo vem de fontes oficiais, e ele diz sempre a fonte. Se uma fonte falhar, diz que não sabe em vez de adivinhar.

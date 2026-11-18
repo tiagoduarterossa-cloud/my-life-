@@ -22,6 +22,7 @@ import avisos
 import casa
 import dispositivos
 import ia
+import loja
 import noticias
 import rotinas
 import seguranca
@@ -122,6 +123,7 @@ def init_db():
         con.executescript(rotinas.TABELAS)
         con.executescript(seguranca.TABELAS)
         con.executescript(casa.TABELAS)
+        con.executescript(loja.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -416,7 +418,7 @@ def estado_roupa(rid, d):
 
 
 def apagar(tabela, rid):
-    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos")
+    assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos", "despesas")
     with db() as con:
         if tabela == "diario":
             row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
@@ -611,6 +613,41 @@ class Handler(BaseHTTPRequestHandler):
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
 
+            # ----- loja (Shopify) -----
+            if caminho == "/api/loja/estado" and metodo == "GET":
+                return self.enviar(200, {"configurada": loja.configurada(),
+                                         "dominio": json.loads(loja.TOKEN.read_text())["dominio"] if loja.configurada() else None})
+            if caminho == "/api/loja/ligar" and metodo == "POST":
+                d = self.corpo_json()
+                try:
+                    loja.guardar(str(d.get("dominio", "")), str(d.get("token", "")), float(d.get("taxa_pct") or 2.9), float(d.get("taxa_fixa") or 0.30))
+                    nome = loja._gql("{ shop { name } }")["shop"]["name"]
+                except loja.ErroLoja as e:
+                    loja.apagar(); raise Erro(str(e))
+                return self.enviar(200, {"ok": True, "nome": nome})
+            if caminho == "/api/loja" and metodo == "DELETE":
+                loja.apagar(); return self.enviar(200, {"ok": True})
+            if caminho == "/api/loja" and metodo == "GET":
+                try:
+                    with db() as con:
+                        r = loja.resumo(con, query.get("p", "hoje"))
+                except loja.ErroLoja as e:
+                    raise Erro(str(e))
+                return self.enviar(200, dict(r, frase=loja.frase(r)))
+            if caminho == "/api/despesas":
+                with db() as con:
+                    if metodo == "GET":
+                        return self.enviar(200, [dict(x) for x in con.execute("SELECT * FROM despesas ORDER BY data DESC, id DESC LIMIT 60")])
+                    if metodo == "POST":
+                        d = self.corpo_json()
+                        v = float(str(d.get("valor", "0")).replace(",", "."))
+                        if not 0 < v < 100000:
+                            raise Erro("valor invalido")
+                        tipo = d.get("tipo") if d.get("tipo") in ("anuncios", "apps", "mensalidade", "outro") else "outro"
+                        con.execute("INSERT INTO despesas (data, descricao, valor, tipo) VALUES (?,?,?,?)",
+                                    (data_ok(d.get("data"), "data") or date.today().isoformat(), texto(d, "descricao", maximo=80), v, tipo))
+                        return self.enviar(201, {"ok": True})
+
             # ----- casa, rede, desastres -----
             if caminho == "/api/sensor" and metodo in ("GET", "POST"):
                 # chamado pelos sensores (ex.: Shelly Door/Window): /api/sensor?nome=janela&estado=aberta
@@ -791,7 +828,7 @@ class Handler(BaseHTTPRequestHandler):
             if m and metodo == "POST":
                 alternar_tarefa(int(m[1]))
                 return self.enviar(200, {"ok": True})
-            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes|notas|eventos)/(\d+)", caminho)
+            m = re.fullmatch(r"/api/(tarefas|horario|registo|diario|roupa|testes|notas|eventos|despesas)/(\d+)", caminho)
             if m and metodo == "DELETE":
                 apagar(m[1], int(m[2]))
                 return self.enviar(200, {"ok": True})
@@ -887,6 +924,9 @@ if __name__ == "__main__":
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
+    # encomendas novas: aviso + som de caixa registadora no ecra; se o ecra estiver apagado, fala pelo tablet
+    loja.vigiar(lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "caixa"},
+                                                           {"acao": "falar", "texto": dizer}]) if rotinas.ecra_ativo() else falar_alarme(dizer))
     # apagoes e internet: fala pelo tablet (Termux:API) e deixa o aviso no ecra
     avisos.vigiar(db, lambda t: (rotinas._por_na_fila([{"acao": "aviso", "texto": t}]),
                                  None if rotinas.ecra_ativo() else falar_alarme(t)))
