@@ -123,7 +123,7 @@ O que o PIN **não** resolve: a ligação no Wi-Fi é http, não https, por isso
 
 As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no modo Iron Man. O ecrã normal fica para escola, estudo e casa. Se perguntares uma coisa privada no ecrã normal ("quanto vendi hoje?"), ele abre o Iron Man e responde lá; no chat fica só "é privado", e a resposta não fica guardada no histórico.
 
-- No painel **Família** (canto de baixo à esquerda) carrega em **editar** e mete cada pessoa: relação (avó, tio...), nome, cidade e aniversário. Fica só no tablet, não vai para o GitHub.
+- No painel **Família** (canto de baixo à esquerda) carrega em **+ adicionar família** e mete cada pessoa: relação (avó, tio...), nome, cidade e aniversário. Fica só no tablet, não vai para o GitHub.
 - O painel mostra o tempo onde vivem, aniversários a chegar, há quantos dias não falas com eles e **⚠ alerta** se houver perigo perto da casa deles.
 - **Mapa**: "Jarvis, mostra o mapa" ou o botão mapa. Casa a dourado, família a azul (vermelho se houver alerta), incêndios ativos a vermelho a piscar, sismos em círculos laranja. Por baixo diz sempre de que fonte vêm os dados, ou "sem dados" se a fonte falhou.
 - Perguntas: "está tudo bem na casa dos avós?", "quando faz anos o tio?", "há quanto tempo não ligo à avó?", "liguei à avó" (fica anotado).

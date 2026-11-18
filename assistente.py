@@ -753,7 +753,7 @@ def _responder(texto, con, hoje=None, nome=""):
             return {"resposta": "A abrir o mapa.", "falado": ya(["Aqui está o mapa.", "A mostrar o mapa."]), "mapa": True}
         ps = familia.listar(con, hoje)
         if not ps:
-            return {"resposta": "Ainda não meteste a família. Abre o modo Iron Man e carrega em Família > editar.", "falado": "Ainda não me disseste quem é a tua família. Abre o modo Iron Man e mete-os no painel da família."}
+            return {"resposta": "Ainda não meteste a família. Abre o modo Iron Man e carrega em Família > adicionar.", "falado": "Ainda não me disseste quem é a tua família. Abre o modo Iron Man e mete-os no painel da família."}
         if intencao == "familia_contacto":
             alvo = familia.procurar(con, d["quem"])
             if not alvo:

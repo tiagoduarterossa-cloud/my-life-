@@ -2102,7 +2102,10 @@ async function paineisIronMan() {
     (livre() ? api("/api/familia?detalhes=1") : Promise.reject()).then(r => { paineisIronMan.fam = r; paineisIronMan(); }).catch(() => {});
   }
   const fm = paineisIronMan.fam || [];
-  $("#im-familia").hidden = !fm.length; $("#im-registo").hidden = !!fm.length;
+  // o painel da familia aparece sempre: sem ninguem, mostra o botao para adicionar
+  $("#im-familia").hidden = false; $("#im-registo").hidden = true;
+  if (!fm.length) $("#im-familia").innerHTML = `<h4>família</h4>` + (livre() ? `Ainda não meteste ninguém.<br><button onclick="abrirFamilia()">+ adicionar família</button>`
+    : `Trancado com PIN.`) + `<button onclick="mostrarMapa()">mapa</button>`;
   if (fm.length) {
     const perigo = p => p.perigos && (p.perigos.fogos?.length || p.perigos.sismos?.length || (p.perigos.avisos || []).some(a => ["laranja", "vermelho"].includes(a.nivel)));
     $("#im-familia").innerHTML = `<h4>família</h4>` + fm.slice(0, 5).map(p => {
@@ -2110,7 +2113,7 @@ async function paineisIronMan() {
                     p.dias_sem_falar == null ? "" : p.dias_sem_falar >= 14 ? `<span style="color:#ffc35a">${p.dias_sem_falar} d sem falar</span>` : "";
       const estado = perigo(p) ? `<span class="alerta">⚠ alerta</span>` : p.graus != null ? `${p.graus}°` : "";
       return `<div class="pessoa"><span><b>${esc((p.relacao + " " + p.nome).trim())}</b><br><small>${esc(p.cidade || "")} ${extra}</small></span><span>${estado}</span></div>`;
-    }).join("") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">editar</button>`;
+    }).join("") + `<button onclick="mostrarMapa()">mapa</button><button onclick="abrirFamilia()">+ adicionar / editar</button>`;
   }
   // musica
   const a = spotifyInfo?.agora;
