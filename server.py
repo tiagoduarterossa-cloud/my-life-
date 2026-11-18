@@ -17,6 +17,7 @@ import sqlite3
 import urllib.request
 
 import alarmes
+import backups
 import assistente
 import avisos
 import casa
@@ -370,7 +371,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
+                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo", "wled_ip", "backup_fora"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -412,6 +413,8 @@ def gravar_config(d):
             raise Erro("valor de voz invalido")
         if k == "repouso" and v not in ("0", "1", "3", "5", "10"):
             raise Erro("repouso invalido")
+        if k == "backup_fora" and v not in ("0", "1"):
+            raise Erro("backup_fora tem de ser 0 ou 1")
         if k in ("lat", "lon"):
             float(v)
         with db() as con:
@@ -663,6 +666,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not _servicos_cache or time.time() - _servicos_cache[0] > 60 or query.get("agora"):
                     _servicos_cache = (time.time(), servicos.verificar())
                 return self.enviar(200, _servicos_cache[1])
+
+            # ----- copias de seguranca do vida.db -----
+            if caminho == "/api/backups":
+                if metodo == "GET":
+                    return self.enviar(200, {"ultima": backups.ultima(), "copias": backups.listar(),
+                                             "fora": ler_config().get("backup_fora") == "1"})
+                if metodo == "POST":
+                    r = backups.fazer(DB_PATH, fora=ler_config().get("backup_fora") == "1")
+                    return self.enviar(200 if r["ok"] else 500, r)
 
             # ----- modo apagao -----
             if caminho == "/api/radio" and metodo == "GET":
@@ -1102,6 +1114,9 @@ if __name__ == "__main__":
     # apagoes e internet: fala pelo tablet (Termux:API) e deixa o aviso no ecra
     avisos.vigiar(db, lambda t: (rotinas._por_na_fila([{"acao": "aviso", "texto": t}]),
                                  None if rotinas.ecra_ativo() else falar_alarme(t)), ao_mudar=modo_apagao)
+    # copia de seguranca do vida.db todas as noites (backups/)
+    backups.vigiar(DB_PATH, lambda: ler_config().get("backup_fora") == "1",
+                   lambda t: rotinas._por_na_fila([{"acao": "aviso", "texto": t}]))
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

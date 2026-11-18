@@ -22,12 +22,14 @@ Funciona e está testado:
 - **Modo apagão**: liga-se sozinho quando o tablet deixa de carregar. Corta o que gasta bateria e mostra bateria, rádio (radio-browser.info), notícias e conselhos com fonte. Sai pelo botão no topo ou no fundo.
 - **O que está a funcionar**: Wi-Fi, router, internet, DNS e 14 serviços testados a partir de casa.
 - **Loja Shopify**: lucro real e despesas por voz. Falta ligar a loja no tablet.
+- **Cópias de segurança do vida.db** (`backups.py`): uma ao arrancar se a última tiver mais de um dia, depois todas as noites às 04:00. Usa a API de backup do SQLite e confirma cada cópia com `integrity_check`, e uma cópia estragada é apagada. Guarda 14 diárias e a primeira de cada mês dos últimos 6 meses em `backups/`. Se falhar, deixa um aviso no ecrã. Por voz: "faz uma cópia de segurança" e "quando foi a última cópia". Endereço: `GET/POST /api/backups`.
 
 Falta configurar no tablet (não é código):
 - Ligar o Spotify (definições).
 - Ligar a loja (Iron Man > Loja).
 - Pedir a chave do fogos.pt e guardá-la em `fogos_token.txt`.
 - Dar à Termux:API as autorizações de localização, notificações e "Alterar definições do sistema" (para o brilho).
+- Decidir se as cópias também vão para fora da Termux (`backup_fora` = 1, precisa de `termux-setup-storage`). Sem isto, desinstalar a Termux apaga a central e as cópias juntas. Com isto, a última cópia fica em `Central/vida-ultima.db` nos ficheiros do tablet, onde outras apps a podem ler, e lá estão os dados da família.
 - Ter um rádio a pilhas em casa, com as frequências FM escritas num papel.
 
 ## Ficheiros
@@ -42,11 +44,15 @@ Falta configurar no tablet (não é código):
 - `static/mapa_pt.js`: contornos do Natural Earth (domínio público).
 - `static/quarto.js`: visualizador 3D do quarto.
 - `iniciar.sh`, `instalar.sh`, `atualizar.sh`: no Termux, a central está em `~/central`.
-- Fora do GitHub (.gitignore): `vida.db`, `pin.json`, `chave_claude.txt`, `spotify_token.json`, `loja_token.json`, `fogos_token.txt`, `radio_cache.json`, `static/quarto/`.
+- Fora do GitHub (.gitignore): `vida.db`, `pin.json`, `chave_claude.txt`, `spotify_token.json`, `loja_token.json`, `fogos_token.txt`, `radio_cache.json`, `static/quarto/`, `backups/`.
+- Para repor uma cópia: parar a central, `cp backups/vida-AAAA-MM-DD.db vida.db`, voltar a arrancar.
 
 ## O que mudou
 
-Nesta sessão (resumo dos commits):
+Na última sessão:
+- Cópias de segurança automáticas do vida.db, com verificação, limpeza das antigas, voz e aviso quando falham.
+
+Na sessão anterior (resumo dos commits):
 - Família e mapa no Iron Man, loja e segurança passadas para o Iron Man, respostas privadas que não ficam no histórico do chat.
 - PIN completo.
 - Voz: o trinco "escuta", os resultados provisórios (o Android fecha o microfone sem dar a frase), 150 ms entre sessões de escuta, os 10 s para o pedido a contar depois da resposta, os limites de segurança e a vigia do microfone.
@@ -71,5 +77,5 @@ Nesta sessão (resumo dos commits):
 1. **Usar a central durante uma semana**: registar o estudo, marcar os testes por voz, usar a rotina de dormir. No fim, dizer o que se usou e o que nunca se abriu.
 2. No tablet: atualizar (`cd ~/central && ./atualizar.sh`), pôr o PIN, meter a família e testar o "escuta" e o modo apagão ("Jarvis, modo apagão" e o botão de sair).
 3. Se alguma parte disser "sem dados" durante mais de um dia, tirar uma foto ao ecrã e ao Termux.
-4. Ideias por fazer, por ordem de utilidade: backups automáticos do `vida.db`, relatório semanal do estudo, trabalhos novos do Teams (pelas notificações do Android), ações da bolsa, Tailscale, ligação entre o quarto 3D e a roupa.
+4. Ideias por fazer, por ordem de utilidade: relatório semanal do estudo, trabalhos novos do Teams (pelas notificações do Android), ações da bolsa, Tailscale, ligação entre o quarto 3D e a roupa.
 5. Pensar em tornar o repositório privado (o código não tem dados pessoais, mas mostra como a central funciona).

@@ -245,6 +245,10 @@ def entender(texto, hoje=None):
             p = "mes"
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
+    # copias de seguranca do vida.db
+    if re.search(r"\b(backups?|copias? de seguranca|copia de seguranca)\b", s):
+        return "backup", {"fazer": bool(re.search(r"\b(faz|fazer|faze|cria|criar|guarda|agora)\b", s))}
+
     # o que esta a funcionar (wi-fi, internet, whatsapp...)
     import servicos as _sv
     nomes_sv = {simples(_sv_n): _sv_n for _sv_n, _, _ in _sv.SERVICOS}
@@ -736,6 +740,29 @@ def _responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "backup":
+        import backups
+        if d["fazer"]:
+            caminho = con.execute("PRAGMA database_list").fetchone()[2]
+            fora = (con.execute("SELECT valor FROM config WHERE chave = 'backup_fora'").fetchone() or [""])[0] == "1"
+            r = backups.fazer(caminho, fora=fora)
+            if not r["ok"]:
+                f = f"A cópia falhou: {r['erro']}."
+                return {"resposta": f, "falado": "A cópia falhou. Vê a mensagem no ecrã."}
+            f = f"Cópia feita e verificada ({r['kb']} KB)." + (" Também ficou nos ficheiros do tablet." if r.get("fora") else "")
+            return {"resposta": f, "falado": f.split(" (")[0] + "."}
+        u = backups.ultima()
+        if not u:
+            f = "Ainda não há nenhuma cópia de segurança. Diz: faz uma cópia de segurança."
+            return {"resposta": f, "falado": f}
+        n = len(backups.listar())
+        dias = (hoje - date.fromisoformat(u["data"])).days
+        quando = "hoje" if dias == 0 else "ontem" if dias == 1 else f"há {dias} dias"
+        f = f"A última cópia de segurança é de {quando}. Tenho {n} guardada" + ("s." if n != 1 else ".")
+        if dias >= 2:
+            f += " Está atrasada, por isso vale a pena ver o Termux."
+        return {"resposta": f, "falado": f}
 
     if intencao == "apagao":
         if d["ligado"]:
