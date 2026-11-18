@@ -1,4 +1,5 @@
 vida.db
+backups/
 __pycache__/
 
 # o scan do quarto e privado: nunca vai para o GitHub

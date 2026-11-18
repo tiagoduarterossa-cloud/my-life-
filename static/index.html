@@ -1169,6 +1169,10 @@ async function abrirServicos(agora) {
       w ? `${ok(w.ligado)} Wi-Fi «${esc(w.rede || "?")}»: sinal ${w.sinal || "?"}${w.rssi != null ? ` (${w.rssi} dBm)` : ""}${w.velocidade ? `, ${w.velocidade} Mb/s` : ""}` : "❔ Wi-Fi: para ver o sinal é preciso o Termux:API",
       `${ok(r.router.ok)} Router${r.router.ip ? " (" + esc(r.router.ip) + ")" : ""}`,
       `${ok(r.internet)} Internet`, `${ok(r.dns)} DNS (os nomes dos sites)`].map(x => `<div class="linha-sv">${x}</div>`).join("");
+    api("/api/backups").then(b => {
+      const velha = !b.ultima || Date.now() - new Date(b.ultima.replace(" ", "T")) > 36 * 3600e3;
+      $("#sv-base").insertAdjacentHTML("beforeend", `<div class="linha-sv">${b.erro ? "❌" : velha ? "🟡" : "✅"} Cópia de segurança: ${b.ultima ? esc(b.ultima) + ` (${b.quantas} ${b.quantas == 1 ? "guardada" : "guardadas"}${b.espelho == null ? ", só no Termux" : ", também no armazenamento do tablet"})` : "ainda nenhuma"}${b.erro ? " · " + esc(b.erro) : ""}</div>`);
+    }).catch(() => {});
     const grupos = {};
     r.servicos.forEach(x => (grupos[x.grupo] ||= []).push(x));
     $("#sv-lista").innerHTML = Object.entries(grupos).map(([g, xs]) => `<li style="display:block"><div class="info" style="text-transform:uppercase;letter-spacing:1px">${esc(g)}</div>` +

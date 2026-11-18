@@ -22,12 +22,15 @@ Funciona e está testado:
 - **Modo apagão**: liga-se sozinho quando o tablet deixa de carregar. Corta o que gasta bateria e mostra bateria, rádio (radio-browser.info), notícias e conselhos com fonte. Sai pelo botão no topo ou no fundo.
 - **O que está a funcionar**: Wi-Fi, router, internet, DNS e 14 serviços testados a partir de casa.
 - **Loja Shopify**: lucro real e despesas por voz. Falta ligar a loja no tablet.
+- **Cópias de segurança do vida.db**: uma por dia, verificada e comprimida, em `backups/` (14 dias e 6 meses). Com `termux-setup-storage` vai também para Armazenamento interno/Central/backups, que sobrevive a desinstalar o Termux. Aparece em "O que está a funcionar" e por voz ("Jarvis, faz uma cópia de segurança", "quando foi a última cópia de segurança?"). Restaurar: parar a central, `gunzip -c backups/vida-AAAA-MM-DD.db.gz > vida.db`, iniciar.
 
 Falta configurar no tablet (não é código):
 - Ligar o Spotify (definições).
 - Ligar a loja (Iron Man > Loja).
 - Pedir a chave do fogos.pt e guardá-la em `fogos_token.txt`.
 - Dar à Termux:API as autorizações de localização, notificações e "Alterar definições do sistema" (para o brilho).
+- Correr `termux-setup-storage` uma vez, para as cópias irem também para o armazenamento do tablet.
+- De vez em quando, copiar um ficheiro de Central/backups para o computador ou para a nuvem. Se o tablet morrer, as cópias morrem com ele.
 - Ter um rádio a pilhas em casa, com as frequências FM escritas num papel.
 
 ## Ficheiros
@@ -37,16 +40,20 @@ Falta configurar no tablet (não é código):
 - `ia.py`: Claude como plano B quando as regras não percebem. Usa a ferramenta `central` e esconde as conversas privadas a quem não tem PIN.
 - `familia.py`: familiares, perigos perto da casa deles, mapa, ficha (`detalhe`) e a vigia de 15 em 15 minutos.
 - `avisos.py`: IPMA (distritos e ilhas, terra e mar), USGS, fogos.pt (chave), vento, energia e apagões (Termux:API).
+- `backups.py`: cópias diárias do vida.db (API de backup do SQLite e integrity_check).
 - `pin.py`, `radio.py`, `servicos.py`, `loja.py`, `seguranca.py`, `casa.py`, `noticias.py`, `rotinas.py`, `alarmes.py`, `voz.py`, `spotify.py`, `dispositivos.py`.
 - `static/index.html`: a interface toda (HTML, CSS e JS sem bibliotecas).
 - `static/mapa_pt.js`: contornos do Natural Earth (domínio público).
 - `static/quarto.js`: visualizador 3D do quarto.
 - `iniciar.sh`, `instalar.sh`, `atualizar.sh`: no Termux, a central está em `~/central`.
-- Fora do GitHub (.gitignore): `vida.db`, `pin.json`, `chave_claude.txt`, `spotify_token.json`, `loja_token.json`, `fogos_token.txt`, `radio_cache.json`, `static/quarto/`.
+- Fora do GitHub (.gitignore): `vida.db`, `pin.json`, `chave_claude.txt`, `spotify_token.json`, `loja_token.json`, `fogos_token.txt`, `radio_cache.json`, `backups/`, `static/quarto/`.
 
 ## O que mudou
 
-Nesta sessão (resumo dos commits):
+Última sessão:
+- Cópias de segurança automáticas do vida.db (`backups.py`, `/api/backups`, voz e linha em "O que está a funcionar").
+
+Sessão anterior (resumo dos commits):
 - Família e mapa no Iron Man, loja e segurança passadas para o Iron Man, respostas privadas que não ficam no histórico do chat.
 - PIN completo.
 - Voz: o trinco "escuta", os resultados provisórios (o Android fecha o microfone sem dar a frase), 150 ms entre sessões de escuta, os 10 s para o pedido a contar depois da resposta, os limites de segurança e a vigia do microfone.
@@ -71,5 +78,5 @@ Nesta sessão (resumo dos commits):
 1. **Usar a central durante uma semana**: registar o estudo, marcar os testes por voz, usar a rotina de dormir. No fim, dizer o que se usou e o que nunca se abriu.
 2. No tablet: atualizar (`cd ~/central && ./atualizar.sh`), pôr o PIN, meter a família e testar o "escuta" e o modo apagão ("Jarvis, modo apagão" e o botão de sair).
 3. Se alguma parte disser "sem dados" durante mais de um dia, tirar uma foto ao ecrã e ao Termux.
-4. Ideias por fazer, por ordem de utilidade: backups automáticos do `vida.db`, relatório semanal do estudo, trabalhos novos do Teams (pelas notificações do Android), ações da bolsa, Tailscale, ligação entre o quarto 3D e a roupa.
+4. Ideias por fazer, por ordem de utilidade: relatório semanal do estudo, trabalhos novos do Teams (pelas notificações do Android), ações da bolsa, Tailscale, ligação entre o quarto 3D e a roupa.
 5. Pensar em tornar o repositório privado (o código não tem dados pessoais, mas mostra como a central funciona).

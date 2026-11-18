@@ -245,6 +245,10 @@ def entender(texto, hoje=None):
             p = "mes"
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
+    # copias de seguranca do vida.db (antes da "seguranca" da rede e da central)
+    if re.search(r"\b(copias? de seguranca|backups?)\b", s):
+        return "backup", {"fazer": bool(re.search(r"\b(faz|fazer|faca|cria|criar|guarda|agora)\b", s))}
+
     # o que esta a funcionar (wi-fi, internet, whatsapp...)
     import servicos as _sv
     nomes_sv = {simples(_sv_n): _sv_n for _sv_n, _, _ in _sv.SERVICOS}
@@ -736,6 +740,12 @@ def _responder(texto, con, hoje=None, nome=""):
             falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
         return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
                 "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao == "backup":
+        import backups
+        e = backups.fazer(con.execute("PRAGMA database_list").fetchone()[2]) if d["fazer"] else backups.estado()
+        f = ("Feito. " if d["fazer"] and not e["erro"] else "") + backups.frase(e)
+        return {"resposta": f, "falado": f}
 
     if intencao == "apagao":
         if d["ligado"]:

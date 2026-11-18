@@ -19,6 +19,7 @@ import urllib.request
 import alarmes
 import assistente
 import avisos
+import backups
 import casa
 import dispositivos
 import familia
@@ -664,6 +665,12 @@ class Handler(BaseHTTPRequestHandler):
                     _servicos_cache = (time.time(), servicos.verificar())
                 return self.enviar(200, _servicos_cache[1])
 
+            # ----- copias de seguranca do vida.db -----
+            if caminho == "/api/backups" and metodo == "GET":
+                return self.enviar(200, backups.estado())
+            if caminho == "/api/backups" and metodo == "POST":
+                return self.enviar(200, backups.fazer(DB_PATH))
+
             # ----- modo apagao -----
             if caminho == "/api/radio" and metodo == "GET":
                 return self.enviar(200, radio.estacoes())
@@ -1093,6 +1100,7 @@ if __name__ == "__main__":
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
+    backups.vigiar(DB_PATH)   # uma copia verificada por dia em backups/ (e no armazenamento do tablet, se houver)
     # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
     familia.vigiar(db, lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "falar", "texto": dizer}])
                    if rotinas.ecra_ativo() else falar_alarme(dizer))
