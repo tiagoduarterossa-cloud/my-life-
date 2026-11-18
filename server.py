@@ -18,9 +18,13 @@ import urllib.request
 
 import alarmes
 import assistente
+import avisos
+import casa
 import dispositivos
 import ia
+import noticias
 import rotinas
+import seguranca
 import spotify
 import voz
 from datetime import date, datetime, timedelta
@@ -116,6 +120,8 @@ def init_db():
         )
         con.executescript(alarmes.TABELAS)
         con.executescript(rotinas.TABELAS)
+        con.executescript(seguranca.TABELAS)
+        con.executescript(casa.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -450,6 +456,10 @@ class Handler(BaseHTTPRequestHandler):
             raise Erro("JSON invalido")
 
     def tratar(self, metodo):
+        try:
+            seguranca.registar(db, self.client_address[0], self.headers.get("User-Agent", ""))
+        except Exception as e:
+            print("seguranca:", e)
         caminho = self.path.split("?")[0].rstrip("/") or "/"
         query = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
         try:
@@ -510,6 +520,10 @@ class Handler(BaseHTTPRequestHandler):
                     r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
                     return self.enviar(200, responder_ia(frase))
+                if r.get("resumir") and ia.disponivel():  # noticias em ingles: o Claude resume em portugues
+                    resumo = ia.resumir(r["resumir"], ler_config())
+                    if resumo:
+                        r = dict(r, falado=resumo)
                 if do_telemovel and r.get("mudou"):
                     rotinas._por_na_fila([{"acao": "aviso", "texto": f"Do telemóvel: {r.get('resposta', '')}"}])
                 return self.enviar(200, dict(r, falado=r.get("falado") or r.get("resposta", "")))
@@ -596,6 +610,45 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/estado" and metodo == "GET":
                 depois = int(query.get("depois", 0) or 0)
                 return self.enviar(200, {"alarme": alarmes.estado(), **rotinas.comandos_para_ecra(depois)})
+
+            # ----- casa, rede, desastres -----
+            if caminho == "/api/sensor" and metodo in ("GET", "POST"):
+                # chamado pelos sensores (ex.: Shelly Door/Window): /api/sensor?nome=janela&estado=aberta
+                from urllib.parse import unquote_plus
+                with db() as con:
+                    nome, estado = casa.registar_sensor(con, unquote_plus(query.get("nome", "")), unquote_plus(query.get("estado", "")))
+                return self.enviar(200, {"ok": True, "nome": nome, "estado": estado})
+            if caminho == "/api/casa" and metodo == "GET":
+                with db() as con:
+                    e = casa.estado_casa(con, ler_config())
+                return self.enviar(200, dict(e, frase=casa.frase_casa(e)))
+            if caminho == "/api/rede" and metodo == "GET":
+                return self.enviar(200, casa.verificar_rede())
+            if caminho == "/api/desastres" and metodo == "GET":
+                r = avisos.resumo(ler_config())
+                return self.enviar(200, dict(r, frase=avisos.frase(r)))
+
+            # ----- noticias e seguranca -----
+            if caminho == "/api/noticias" and metodo == "GET":
+                return self.enviar(200, noticias.obter(query.get("c", "portugal"), int(query.get("n", 6))))
+            if caminho == "/api/ciber" and metodo == "GET":
+                try: return self.enviar(200, noticias.vulnerabilidades())
+                except Exception: raise Erro("nao consegui ler a lista da CISA (sem internet?)")
+            if caminho == "/api/seguranca" and metodo == "GET":
+                with db() as con:
+                    return self.enviar(200, seguranca.resumo(con))
+            if caminho == "/api/seguranca/aparelho" and metodo == "POST":
+                d = self.corpo_json()
+                with db() as con:
+                    con.execute("UPDATE aparelhos SET confiavel = ?, nome = COALESCE(?, nome) WHERE ip = ?",
+                                (1 if d.get("confiavel") else 0, texto(d, "nome", obrigatorio=False, maximo=40), str(d.get("ip"))))
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/seguranca/visto" and metodo == "POST":
+                with db() as con:
+                    con.execute("UPDATE alertas SET visto = 1")
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/seguranca/link" and metodo == "POST":
+                return self.enviar(200, seguranca.analisar_link(str(self.corpo_json().get("link", ""))[:2000]))
 
             # ----- spotify -----
             if caminho == "/api/spotify" and metodo == "GET":
@@ -834,6 +887,9 @@ if __name__ == "__main__":
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
+    # apagoes e internet: fala pelo tablet (Termux:API) e deixa o aviso no ecra
+    avisos.vigiar(db, lambda t: (rotinas._por_na_fila([{"acao": "aviso", "texto": t}]),
+                                 None if rotinas.ecra_ativo() else falar_alarme(t)))
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

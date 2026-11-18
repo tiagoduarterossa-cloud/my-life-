@@ -235,3 +235,23 @@ def ver(pergunta, jpeg, cfg):
         return {"erro": "Com isso não te posso ajudar."}
     txt = " ".join(b.text for b in r.content if b.type == "text").strip()
     return {"resposta": txt} if txt else {"erro": "Não consegui perceber a imagem."}
+
+
+def resumir(texto, cfg):
+    """resume/traduz um texto curto (ex.: titulos de noticias em ingles) para ser dito em voz alta. Devolve texto ou None."""
+    try:
+        import anthropic
+        estilo = "como um mordomo britânico elegante, tratando-o por senhor" if cfg.get("estilo") == "mordomo" else "num tom descontraído e jovem"
+        modelo = cfg.get("ia_modelo", MODELO_PADRAO)
+        params = dict(model=modelo if modelo in {m for m, _ in MODELOS} else MODELO_PADRAO, max_tokens=3000, output_config={"effort": "low"},
+                      system=f"Resume em português de Portugal, {estilo}, em 2 a 4 frases curtas para ler em voz alta. Sem listas nem markdown. Usa SÓ a informação que está no texto: não acrescentes factos, números, nomes nem explicações que lá não estejam. Diz de que fonte vêm as notícias.",
+                      messages=[{"role": "user", "content": texto[:4000]}])
+        if params["model"] != "claude-haiku-5-5":
+            params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+        r = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=30).beta.messages.create(**params)
+        if r.stop_reason == "refusal":
+            return None
+        return " ".join(b.text for b in r.content if b.type == "text").strip() or None
+    except Exception as e:
+        print("resumir falhou:", e)
+        return None

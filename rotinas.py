@@ -48,6 +48,7 @@ ACOES = {
     "tarefa":         {"onde": "servidor", "descricao": "Cria uma tarefa"},
     "som":            {"onde": "servidor", "descricao": "Toca o som do alarme uma vez"},
     "tomada":         {"onde": "servidor", "descricao": "Liga ou desliga a tomada inteligente (luz LED)"},
+    "verificar_casa": {"onde": "servidor", "descricao": "Diz se ficou alguma janela aberta ou luz ligada"},
     "musica":         {"onde": "servidor", "descricao": "Spotify: toca uma playlist, pausa ou muda o volume"},
 }
 
@@ -149,6 +150,7 @@ PADRAO = [
                {"acao": "nao_incomodar", "minutos": 45}]},
     {"nome": "Hora de dormir", "quando": {"tipo": "hora", "hora": "22:00", "dias": "0123456"}, "se": "",
      "acoes": [{"acao": "falar", "texto": "Está na hora de ir para a cama. {resumo_amanha_curto} {alarme_amanha} Boa noite."},
+               {"acao": "verificar_casa"},
                {"acao": "ecra", "modo": "noite"}]},
     {"nome": "Véspera de teste", "quando": {"tipo": "hora", "hora": "18:00", "dias": "0123456"}, "se": "teste_amanha",
      "acoes": [{"acao": "falar", "texto": "Ei, amanhã tens teste de {teste_amanha}. Quando estiveres pronto, diz modo estudo."},
@@ -278,6 +280,12 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
             con.execute("INSERT INTO tarefas (titulo, area, prioridade) VALUES (?, 'outro', 2)", (a.get("titulo", "Tarefa")[:200],))
         elif a["acao"] == "som":
             alarmes.tocar_ficheiro(alarmes.SOM)
+        elif a["acao"] == "verificar_casa":
+            import casa
+            cfg = {r["chave"]: r["valor"] for r in con.execute("SELECT * FROM config")}
+            e = casa.estado_casa(con, cfg)
+            if e["abertos"] or e["luzes_ligadas"]:  # so fala se houver alguma coisa
+                cmds.append({"acao": "falar", "texto": "Antes de dormires: " + casa.frase_casa(e)})
         elif a["acao"] == "musica":
             try:
                 if a.get("o") == "pausar": spotify.pausar()

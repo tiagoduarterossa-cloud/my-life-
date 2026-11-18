@@ -318,6 +318,19 @@
   @keyframes im-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (max-width: 900px) { .im-painel { display: none !important; } }
 
+  /* seguranca */
+  .seg-nivel { font-weight: 700; } .seg-ok { color: var(--ok); } .seg-cuidado { color: var(--dropshipping); } .seg-perigo { color: var(--perigo); } .seg-info { color: var(--suave); }
+  #d-seguranca .bloco-s { margin-top: 14px; }
+  #d-seguranca li .info { white-space: normal; }
+  .nota-rede { font-size: 44px; font-weight: 300; }
+  /* faixa de noticias no modo Iron Man */
+  .im-faixa { position: absolute; top: 52px; left: 0; right: 0; height: 26px; overflow: hidden; border-bottom: 1px solid rgba(0, 200, 255, .15);
+              background: rgba(0, 30, 60, .35); font-size: 12px; letter-spacing: 1px; color: #9fe6ff; }
+  .im-faixa div { position: absolute; white-space: nowrap; top: 5px; animation: faixa 90s linear infinite; padding-left: 100%; }
+  .im-faixa b { color: #ffc35a; margin: 0 6px 0 22px; }
+  @keyframes faixa { to { transform: translateX(-100%); } }
+  #hud.ironman .im-painel[style*="top:72px"] { top: 92px !important; }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -701,6 +714,7 @@
   <div class="hud-canto" id="hud-tempo"></div>
   <div class="hud-canto" id="hud-agenda"></div>
   <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span></div>
+  <div class="im im-faixa"><div id="im-faixa"></div></div>
   <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
   <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
   <div class="im im-painel" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
@@ -760,6 +774,37 @@
     <div class="botoes"><button class="principal">Guardar</button><button type="button" class="secundario" id="rot-cancelar">Cancelar</button></div>
     <button type="button" class="secundario" id="rot-apagar" style="color:var(--perigo)">Apagar rotina</button>
   </form>
+</dialog>
+
+<dialog id="d-seguranca">
+  <h3>Segurança e casa</h3>
+  <div class="vazio" id="seg-resumo" style="font-size:14px"></div>
+
+  <label>Avisos (IPMA, sismos, incêndios) e energia</label>
+  <div id="seg-desastres" class="vazio" style="font-size:14px">A carregar…</div>
+
+  <label>Casa (janelas e luzes)</label>
+  <div id="seg-casa" class="vazio" style="font-size:14px"></div>
+
+  <label>Aparelhos que acederam à central</label>
+  <ul id="seg-aparelhos"></ul>
+
+  <label>Alertas</label>
+  <ul id="seg-alertas"></ul>
+
+  <label>A rede de casa está segura?</label>
+  <button type="button" class="secundario" id="seg-rede-btn" style="width:100%">Verificar a rede</button>
+  <div id="seg-rede"></div>
+
+  <label>Este link é seguro?</label>
+  <form id="f-link" style="grid-template-columns: 1fr auto"><input name="link" placeholder="Cola aqui o link" required><button class="chip ativo" style="padding:0 16px">Analisar</button></form>
+  <div id="seg-link"></div>
+
+  <label>A minha palavra-passe já foi roubada?</label>
+  <form id="f-pass" style="grid-template-columns: 1fr auto"><input name="p" type="password" placeholder="Palavra-passe a verificar" autocomplete="off" required><button class="chip ativo" style="padding:0 16px">Verificar</button></form>
+  <div id="seg-pass" class="vazio" style="font-size:13px">A palavra-passe nunca sai deste aparelho: só os primeiros 5 carateres do seu "hash" SHA-1 vão para o site haveibeenpwned.com (k-anonimato).</div>
+
+  <button type="button" class="secundario" style="width:100%;margin-top:14px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
 
 <dialog id="d-alarmes">
@@ -883,6 +928,7 @@
     <button class="principal">Guardar</button>
   </form>
   <button type="button" class="secundario" style="width:100%;margin-top:10px" id="cfg-rotinas">Rotinas</button>
+  <button type="button" class="secundario" style="width:100%;margin-top:10px" id="cfg-seguranca">Segurança e casa</button>
   <a class="secundario" href="/fundos.html" style="display:block;text-align:center;text-decoration:none;margin-top:10px;padding:14px;border-radius:12px;font-weight:600">Fundos de ecrã para o tablet</a>
   <button class="secundario" style="width:100%;margin-top:10px" onclick="this.closest('dialog').close()">Fechar</button>
 </dialog>
@@ -1797,6 +1843,21 @@ async function paineisIronMan() {
   const p = alarmesDados?.proximo;
   $("#im-missoes").innerHTML = `<h4>missões</h4>` + ts.map(t => `<div class="linha"><span>Teste ${esc(t.disciplina)}</span><span>${textoDias(diasAte(t.data))}</span></div>`).join("") +
     `<div class="linha"><span>Tarefas pendentes</span><span>${tf.length}</span></div>` + (p ? `<div class="linha"><span>Alarme</span><span>${p.hora}</span></div>` : "");
+  // faixa de noticias (atualiza de 10 em 10 minutos)
+  if (!paineisIronMan.noticias || Date.now() - paineisIronMan.noticias > 600000) {
+    paineisIronMan.noticias = Date.now();
+    Promise.all(["portugal", "ciber", "f1"].map(c => api(`/api/noticias?c=${c}&n=4`).catch(() => null))).then(rs => {
+      const itens = rs.filter(Boolean).flatMap(r => r.noticias.map(n => `<b>${esc(r.nome.toUpperCase())}</b>${esc(n.titulo)} <span style="opacity:.5">· ${esc(n.fonte)}</span>`));
+      $("#im-faixa").innerHTML = itens.join("") || "<b>NOTÍCIAS</b>sem ligação às fontes de notícias";
+    });
+    api("/api/desastres").then(d => { paineisIronMan.desastres = d; }).catch(() => {});
+    api("/api/seguranca").then(x => { paineisIronMan.seg = x; }).catch(() => {});
+  }
+  const dz = paineisIronMan.desastres, sg = paineisIronMan.seg;
+  if (dz || sg) $("#im-sistemas").innerHTML += `
+    <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar ? "ligada" : "—"}</span></div>
+    <div class="linha"><span>Avisos IPMA</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
+    <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}</span></div>`;
   // musica
   const a = spotifyInfo?.agora;
   $("#im-musica").innerHTML = `<h4>áudio</h4>` + (a && a.musica ? `<div style="color:#fff">${esc(a.musica)}</div>${esc(a.artista)} · ${a.tocar ? "a tocar" : "em pausa"}` : "Sem música.");
@@ -1945,6 +2006,85 @@ async function verComCamara(pergunta) {
   } catch (err) { hudTexto(pergunta, "Não consegui analisar."); }
 }
 
+// ---------- SEGURANCA E CASA ----------
+const NIVEL_TXT = { ok: "✔ seguro", cuidado: "⚠ cuidado", perigo: "✖ perigo", info: "ℹ" };
+async function abrirSeguranca() {
+  $("#d-seguranca").showModal();
+  try {
+    const s2 = await api("/api/seguranca");
+    $("#seg-resumo").textContent = s2.desconhecidos ? `${s2.desconhecidos} aparelho(s) por confirmar.` : "Todos os aparelhos conhecidos são de confiança.";
+    $("#seg-aparelhos").innerHTML = s2.aparelhos.map(a => `<li><div class="meio"><div class="titulo">${esc(a.nome || a.tipo)} ${a.confiavel ? "" : '<span class="seg-cuidado">· novo</span>'}</div>
+      <div class="info">${esc(a.ip)} · ${esc(a.tipo)} · visto ${a.ultimo.slice(5, 16)} · ${a.pedidos} vezes</div></div>
+      ${a.confiavel ? "" : `<button class="saltar-btn" data-meu="${esc(a.ip)}">É meu</button>`}</li>`).join("") || vazio("Ainda nenhum.");
+    $("#seg-alertas").innerHTML = s2.alertas.slice(0, 10).map(a => `<li><div class="meio"><div class="titulo">${esc(a.texto)}</div><div class="info">${a.quando.slice(5, 16)}</div></div></li>`).join("") || vazio("Sem alertas.");
+    api("/api/seguranca/visto", "POST").catch(() => {});
+  } catch (e) {}
+  api("/api/casa").then(c => $("#seg-casa").textContent = c.frase).catch(() => {});
+  api("/api/desastres").then(d => {
+    const linhas = [d.frase];
+    (d.ipma?.avisos || []).forEach(a => linhas.push(`IPMA: aviso ${a.nivel} de ${a.tipo}${a.ate ? " até às " + a.ate : ""}`));
+    if (d.energia?.historico?.length) linhas.push("Apagões: " + d.energia.historico.join(" · "));
+    $("#seg-desastres").innerHTML = linhas.map(esc).join("<br>");
+  }).catch(() => $("#seg-desastres").textContent = "Não consegui ler os avisos.");
+}
+$("#cfg-seguranca").onclick = () => { $("#config").close(); abrirSeguranca(); };
+$("#seg-aparelhos").addEventListener("click", async e => {
+  const ip = e.target.dataset.meu; if (!ip) return;
+  const nome = prompt("Que aparelho é este? (ex: iPhone do Tiago)") || "";
+  await api("/api/seguranca/aparelho", "POST", { ip, confiavel: true, nome }); abrirSeguranca();
+});
+$("#seg-rede-btn").onclick = async () => {
+  $("#seg-rede").innerHTML = '<div class="vazio">A verificar… (uns segundos)</div>';
+  try {
+    const r = await api("/api/rede");
+    $("#seg-rede").innerHTML = (r.nota === null ? '<div class="vazio" style="margin:8px 0">Não consegui verificar: falta informação (vê em baixo).</div><ul>'
+      : `<div class="nota-rede">${r.nota}<span style="font-size:18px">/100</span></div><ul>`) +
+      r.verificacoes.map(v => `<li><div class="meio"><div class="titulo"><span class="seg-nivel seg-${v.nivel}">${NIVEL_TXT[v.nivel]}</span> ${esc(v.titulo)}</div>
+      <div class="info">${esc(v.texto)}</div></div></li>`).join("") + "</ul>";
+  } catch (e) { $("#seg-rede").textContent = e.message; }
+};
+$("#f-link").onsubmit = async e => {
+  e.preventDefault();
+  const r = await api("/api/seguranca/link", "POST", { link: e.target.link.value });
+  $("#seg-link").innerHTML = `<div class="seg-nivel seg-${r.nivel}" style="margin:8px 0">${{ ok: "Parece normal", cuidado: "Cuidado", perigo: "Parece perigoso" }[r.nivel]} · ${esc(r.dominio)}</div>
+    <ul>${r.sinais.map(x => `<li><div class="meio"><div class="info">${esc(x)}</div></div></li>`).join("")}</ul>`;
+};
+// SHA-1 feito aqui (a palavra-passe nunca sai do aparelho). Usa o do browser se existir; senao uma versao simples.
+async function sha1(txt) {
+  const dados = new TextEncoder().encode(txt);
+  if (window.crypto?.subtle) { const h = await crypto.subtle.digest("SHA-1", dados); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase(); }
+  const rot = (n, b) => (n << b) | (n >>> (32 - b));
+  const len = dados.length, palavras = [];
+  for (let i = 0; i < len; i++) palavras[i >> 2] |= dados[i] << (24 - (i % 4) * 8);
+  palavras[len >> 2] |= 0x80 << (24 - (len % 4) * 8);
+  palavras[(((len + 8) >> 6) + 1) * 16 - 1] = len * 8;
+  let [a, b, c, d, e] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
+  for (let i = 0; i < palavras.length; i += 16) {
+    const w = [], [a0, b0, c0, d0, e0] = [a, b, c, d, e];
+    for (let t = 0; t < 80; t++) {
+      w[t] = t < 16 ? (palavras[i + t] | 0) : rot(w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16], 1);
+      const f = t < 20 ? (b & c) | (~b & d) : t < 40 ? b ^ c ^ d : t < 60 ? (b & c) | (b & d) | (c & d) : b ^ c ^ d;
+      const k = t < 20 ? 0x5A827999 : t < 40 ? 0x6ED9EBA1 : t < 60 ? 0x8F1BBCDC : 0xCA62C1D6;
+      const tmp = (rot(a, 5) + f + e + k + w[t]) | 0; e = d; d = c; c = rot(b, 30); b = a; a = tmp;
+    }
+    a = (a + a0) | 0; b = (b + b0) | 0; c = (c + c0) | 0; d = (d + d0) | 0; e = (e + e0) | 0;
+  }
+  return [a, b, c, d, e].map(x => (x >>> 0).toString(16).padStart(8, "0")).join("").toUpperCase();
+}
+$("#f-pass").onsubmit = async e => {
+  e.preventDefault();
+  const h = await sha1(e.target.p.value); e.target.p.value = "";
+  const prefixo = h.slice(0, 5), resto = h.slice(5);
+  $("#seg-pass").textContent = "A verificar…";
+  try {
+    const txt = await (await fetch(`https://api.pwnedpasswords.com/range/${prefixo}`)).text();
+    const linha = txt.split("\n").find(l => l.startsWith(resto));
+    const n = linha ? +linha.split(":")[1] : 0;
+    $("#seg-pass").innerHTML = n ? `<span class="seg-perigo seg-nivel">✖ Esta palavra-passe apareceu ${n.toLocaleString("pt-PT")} vezes em fugas de dados.</span> Não a uses em lado nenhum.`
+      : `<span class="seg-ok seg-nivel">✔ Não aparece em nenhuma fuga conhecida.</span> Mesmo assim: comprida, única para cada site, e de preferência num gestor de palavras-passe.`;
+  } catch (err) { $("#seg-pass").textContent = "Sem ligação ao haveibeenpwned.com."; }
+};
+
 // ---------- ROTINAS: as acoes que correm no ecra ----------
 let pausaEscutaAte = 0, forcarNoite = false, ultimoComando = null;
 async function executarComandos(cmds) {
@@ -1987,6 +2127,7 @@ function descreverAcao(a) {
     nao_incomodar: `Não te interrompe durante ${a.minutos} min`, ecra: a.modo === "noite" ? "Põe o ecrã em modo noite" : "Acende o ecrã",
     abrir: `Abre o separador ${a.separador}`, cor: `Muda a cor para ${a.cor}`, tarefa: `Cria a tarefa "${a.titulo}"`, som: "Toca o som do alarme",
     musica: a.o === "pausar" ? "Pausa a música" : a.o === "volume" ? `Volume da música a ${a.valor}` : `Toca no Spotify: ${a.pedido || "continua o que estava"}`,
+    verificar_casa: "Avisa se ficou alguma janela aberta ou luz ligada",
     tomada: a.estado === "desligar" ? "Desliga a tomada (luz)" : a.estado === "alternar" ? "Troca a tomada (luz)" : "Liga a tomada (luz)" }[a.acao] || a.acao;
 }
 async function carregarRotinas() {
@@ -2009,7 +2150,7 @@ function abrirRotinas() { mostrarEditor(false); carregarRotinas(); $("#d-rotinas
 
 // ----- editor de rotinas -----
 const NOMES_ACAO = { falar: "Falar", aviso: "Mostrar aviso", cronometro: "Cronómetro de estudo", nao_incomodar: "Não incomodar",
-  ecra: "Ecrã", abrir: "Abrir separador", cor: "Mudar a cor", tarefa: "Criar tarefa", som: "Tocar som", tomada: "Tomada (luz)", musica: "Música (Spotify)" };
+  ecra: "Ecrã", abrir: "Abrir separador", cor: "Mudar a cor", tarefa: "Criar tarefa", som: "Tocar som", tomada: "Tomada (luz)", musica: "Música (Spotify)", verificar_casa: "Verificar janelas e luzes" };
 const OPCOES = {
   ecra: [["normal", "Acender"], ["noite", "Modo noite"]],
   separador: ["inicio", "tarefas", "estudo", "horario", "tempo", "quarto", "roupa"].map(x => [x, x[0].toUpperCase() + x.slice(1)]),

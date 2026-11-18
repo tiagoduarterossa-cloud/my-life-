@@ -101,6 +101,24 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 
 Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca o ecrã completo: sequência de arranque com som, painéis de meteorologia com a previsão por hora, sistemas (energia, servidor, rede, voz, cérebro), agenda, missões (testes, tarefas, alarme), áudio (Spotify) e um registo com tudo o que acontece. Ao centro, a esfera com radar, grelha hexagonal e anéis graduados, sempre no azul do reator. A fita LED fica azul e volta à cor do tema quando dizes "fecha-te". No telemóvel aparecem só a esfera e o topo.
 
+## Notícias, avisos e segurança (só fontes reais)
+
+Tudo vem de fontes oficiais, e ele diz sempre a fonte. Se uma fonte falhar, diz que não sabe em vez de adivinhar.
+
+| Pergunta | Fonte |
+|---|---|
+| "Notícias", "notícias de cibersegurança / F1 / tecnologia / mundo" | Observador, Público, RTP, BBC, The Hacker News, BleepingComputer... (RSS). Em inglês, o Claude resume em português sem acrescentar nada |
+| "Que ciberataques há esta semana?" | CISA (lista oficial de falhas exploradas em ataques reais) |
+| "Há algum aviso?", "houve sismos?", "há incêndios perto?" | IPMA, USGS, fogos.pt (dados da Proteção Civil) |
+| "Faltou a luz?" | O tablet: se deixa de carregar, provavelmente faltou a luz. Avisa sozinho, e quando a luz volta diz quanto tempo durou. Também avisa quando cai a internet |
+| "A rede está segura?" | O próprio tablet: encriptação do Wi-Fi (WEP/WPA2/WPA3), WPS, portas perigosas do router. Só a tua rede |
+| "Alguma coisa suspeita?" | A central regista os aparelhos que lhe acedem e avisa quando aparece um novo |
+| "As janelas estão fechadas?" | Sensores de janela (ex.: Shelly Door/Window) a chamar `http://IP:8080/api/sensor?nome=janela-quarto&estado=aberta` e `...estado=fechada` |
+
+Na roda dentada > **Segurança e casa**: os aparelhos (marca os teus com "É meu"), os alertas, a verificação da rede, a análise de links (phishing) e a verificação de palavras-passe roubadas. A palavra-passe nunca sai do aparelho: só vão os 5 primeiros carateres do hash SHA-1 (k-anonimato).
+
+A **Hora de dormir** agora também avisa se ficou alguma janela aberta ou luz ligada. A rede e os apagões precisam da **Termux:API** (e de autorização de localização para ver o Wi-Fi).
+
 ## Voz neural (o Rosserini a soar a pessoa)
 
 Por defeito o Rosserini usa as vozes do Microsoft Edge (Duarte ou Raquel, de Portugal), que soam muito mais naturais do que a voz do tablet. No Termux:

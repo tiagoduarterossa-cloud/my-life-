@@ -210,6 +210,26 @@ def entender(texto, hoje=None):
         pedido = temas.get(pedido, pedido)
         return "musica", {"o": "tocar", "pedido": pedido}
 
+    if re.search(r"https?://|www\.|\b[\w-]+\.(com|pt|net|org|xyz|io|me|ly|gg|app)\b", s) and \
+            re.search(r"\b(seguro|confiavel|phishing|burla|perigoso|abrir|clicar|verifica|analisa|legit)\b", s):
+        m = re.search(r"(https?://\S+|www\.\S+|[\w.-]+\.(?:com|pt|net|org|xyz|io|me|ly|gg|app)\S*)", t)
+        return "link", {"link": m[1] if m else ""}
+    if re.search(r"\b(rede|wi-?fi|wifi|router|internet)\b.*\b(segura|seguro|segurança|seguranca|protegida|protegido)\b|\b(verifica|analisa|testa)\b.*\b(rede|wifi|wi-fi|router)\b", s):
+        return "rede", {}
+    if re.search(r"\b(janela|janelas|porta|portas|esta tudo fechado|ficou alguma coisa aberta|deixei .* aberta|luzes .*(ligadas|desligadas|acesas|apagadas)|ha luzes ligadas|estado da casa)\b", s):
+        return "casa", {}
+    if re.search(r"\b(apagao|apagoes|faltou a luz|falta de luz|ha luz|corte de luz|sem luz|caiu a internet|ha internet)\b", s):
+        return "energia", {}
+    if re.search(r"\b(avisos?|alerta|alertas|desastres?|catastrofe|sismos?|terramotos?|tremor de terra|incendios?|fogos?|tsunami|tempestade|esta tudo bem la fora|protecao civil|ipma)\b", s):
+        return "desastres", {}
+    if re.search(r"\b(alguma coisa suspeita|algo suspeito|tudo seguro|esta tudo seguro|relatorio de seguranca|quem esta ligado|quem acedeu|seguranca da central|ha intrusos|alguem entrou)\b", s):
+        return "seguranca", {}
+    if re.search(r"\b(noticias|noticia|novidades|o que se passa no mundo|ultima hora|headlines)\b", s):
+        import noticias
+        return "noticias", {"categoria": noticias.categoria_da_frase(s)}
+    if re.search(r"\b(ciberataques|ciber ataques|ataques informaticos|vulnerabilidades|falhas de seguranca|ameacas|ransomware|hackers)\b", s):
+        return "ciber", {}
+
     # primeiro o que DESLIGA, para "desativa o modo jarvis" nao ser lido como "modo jarvis"
     if re.search(r"\b(para de ouvir|pára de ouvir|deixa de ouvir|nao oucas|modo silencio|silencio total|desliga a escuta|desliga o microfone|nao me oucas)\b", s):
         return "escuta", {"ligar": False}
@@ -620,6 +640,83 @@ def responder(texto, con, hoje=None, nome=""):
             return {"resposta": m, "falado": m}
         curto = {"Música em pausa.": "Pausa.", "Próxima.": "Bora, próxima."}.get(msg, msg)
         return {"resposta": msg, "falado": curto, "musica": True}
+
+    if intencao == "noticias":
+        import noticias
+        r = noticias.obter(d["categoria"], 5)
+        ns = r["noticias"]
+        if not ns:
+            return {"resposta": f"Não consegui ler as notícias de {r['nome']} (sem internet?).", "falado": "Não consegui ler as notícias agora."}
+        titulos = [n["titulo"] for n in ns[:3]]
+        fontes = ", ".join(dict.fromkeys(n["fonte"].replace(" (EN)", "") for n in ns[:3]))
+        falado = f"Notícias de {r['nome']}, do {fontes}. " + " ".join(f"{p}: {t}." for p, t in zip(["Primeiro", "Depois", "E ainda"], titulos))
+        res = {"resposta": f"Notícias de {r['nome']}:", "itens": [f"{n['titulo']} ({n['fonte']})" for n in ns], "falado": falado, "noticias": True}
+        if any("(EN)" in n["fonte"] for n in ns[:3]):  # em ingles: o servidor pede ao Claude para resumir em portugues
+            res["resumir"] = "Notícias de " + r["nome"] + ":\n" + "\n".join(f"{n['titulo']} (fonte: {n['fonte']})" for n in ns[:3])
+        return res
+
+    if intencao == "ciber":
+        import noticias
+        try:
+            v = noticias.vulnerabilidades(3)
+        except Exception:
+            return {"resposta": "Não consegui ler a lista de ataques da CISA (sem internet?).", "falado": "Não consegui ver os ciberataques agora."}
+        rec = v["recentes"]
+        falado = (f"Esta semana a agência de cibersegurança dos Estados Unidos confirmou {v['esta_semana']} novas falhas a serem usadas em ataques reais. " if v["esta_semana"]
+                  else "Esta semana não houve falhas novas na lista de ataques reais. ")
+        if rec:
+            falado += f"A mais recente é no {rec[0]['produto']}" + (", e está a ser usada por grupos de ransomware." if rec[0]["ransomware"] else ".")
+        return {"resposta": f"Falhas exploradas em ataques reais (CISA): {v['esta_semana']} esta semana, {v['total']} no total.",
+                "itens": [f"{x['data']} · {x['produto']} · {x['cve']}" + (" · ransomware" if x["ransomware"] else "") for x in rec], "falado": falado}
+
+    if intencao in ("rede", "casa", "energia", "desastres"):
+        import avisos, casa
+        cfg = {r["chave"]: r["valor"] for r in con.execute("SELECT * FROM config")}
+        if intencao == "rede":
+            r = casa.verificar_rede()
+            return {"resposta": f"Segurança da rede: {r['nota']}/100" if r["nota"] is not None else "Não consegui verificar a rede.", "itens": [f"{v['titulo']}: {v['texto']}" for v in r["verificacoes"]],
+                    "falado": casa.frase_rede(r)}
+        if intencao == "casa":
+            e = casa.estado_casa(con, cfg)
+            itens = [f"{x['nome']}: {x['estado']} ({x['quando'][11:16]})" for x in e["sensores"]] + \
+                    [f"{x['nome']}: {'ligada' if x['ligada'] else 'desligada' if x['ligada'] is False else 'sem resposta'}" for x in e["luzes"]]
+            return {"resposta": casa.frase_casa(e), "itens": itens, "falado": casa.frase_casa(e)}
+        if intencao == "energia":
+            en = avisos.estado_energia()
+            if en["a_carregar"] is None:
+                f = "Não consigo saber: falta a app Termux:API para ver se o tablet está a carregar."
+            elif en["sem_luz"]:
+                f = f"Parece que não há luz desde as {en['desde']}: o tablet está a funcionar a bateria."
+            else:
+                f = "Há luz: o tablet está a carregar normalmente." + (f" O último apagão foi das {en['historico'][-1]}." if en["historico"] else "")
+            if en["sem_internet"]:
+                f += f" A internet está em baixo desde as {en['sem_internet_desde']}."
+            return {"resposta": f, "falado": f, "itens": [f"Apagão: {h}" for h in en["historico"]]}
+        r = avisos.resumo(cfg)
+        itens = []
+        for a in r.get("ipma", {}).get("avisos", []): itens.append(f"IPMA · aviso {a['nivel']} · {a['tipo']}" + (f" até às {a['ate']}" if a["ate"] else ""))
+        for x in r.get("sismos", {}).get("perto", []): itens.append(f"USGS · sismo {x['mag']} a {x['km']} km · {x['onde']} · {x['hora']}")
+        for x in r.get("sismos", {}).get("grandes", []): itens.append(f"USGS · sismo forte {x['mag']} · {x['onde']}")
+        for x in r.get("fogos", {}).get("perto", []): itens.append(f"fogos.pt · incêndio a {x['km']} km · {x['onde']} · {x['estado']}")
+        f = avisos.frase(r)
+        return {"resposta": f, "itens": itens, "falado": f}
+
+    if intencao == "seguranca":
+        import seguranca
+        r = seguranca.resumo(con)
+        novos = [a for a in r["aparelhos"] if not a["confiavel"]]
+        if not novos:
+            return {"resposta": "Tudo calmo: só aparelhos de confiança acederam à central.", "falado": ya(["Tudo calmo.", "Está tudo seguro."]) + " Só aparelhos teus acederam à central."}
+        itens = [f"{a['tipo']} ({a['ip']}) · visto às {a['ultimo'][11:16]}" for a in novos]
+        return {"resposta": f"{len(novos)} aparelho(s) que ainda não marcaste como teus:", "itens": itens,
+                "falado": f"Atenção: há {len(novos)} aparelho{'s' if len(novos) > 1 else ''} que acedeu à central e que ainda não marcaste como teu. "
+                          f"O último foi um {novos[0]['tipo']}. Vê em Definições, Segurança."}
+
+    if intencao == "link":
+        import seguranca
+        a = seguranca.analisar_link(d["link"])
+        veredito = {"ok": "Parece normal", "cuidado": "Cuidado com este link", "perigo": "Este link parece perigoso"}[a["nivel"]]
+        return {"resposta": f"{veredito} ({a['dominio']}).", "itens": a["sinais"], "falado": f"{veredito}. " + a["sinais"][0]}
 
     if intencao == "escuta":
         return {"resposta": "Deixei de ouvir. Para voltar a ligar, toca no botão do ouvido em cima.",
