@@ -2047,12 +2047,17 @@ async function paineisIronMan() {
       const itens = rs.filter(Boolean).flatMap(r => r.noticias.map(n => `<b>${esc(r.nome.toUpperCase())}</b>${esc(n.titulo)} <span style="opacity:.5">· ${esc(n.fonte)}</span>`));
       $("#im-faixa").innerHTML = itens.join("") || "<b>NOTÍCIAS</b>sem ligação às fontes de notícias";
     });
-    api("/api/desastres").then(d => { paineisIronMan.desastres = d; }).catch(() => {});
+
     (livre() ? api("/api/seguranca") : Promise.reject()).then(x => { paineisIronMan.seg = x; }).catch(() => {});
+  }
+  // energia e avisos: de minuto a minuto (o servidor guarda as fontes externas em cache)
+  if (!paineisIronMan.dzT || Date.now() - paineisIronMan.dzT > 60000) {
+    paineisIronMan.dzT = Date.now();
+    api("/api/desastres").then(d => { paineisIronMan.desastres = d; }).catch(() => {});
   }
   const dz = paineisIronMan.desastres, sg = paineisIronMan.seg;
   if (dz || sg) $("#im-sistemas").innerHTML += `
-    <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar ? "ligada" : "—"}</span></div>
+    <div class="linha"><span>Corrente</span><span>${dz?.energia?.sem_luz ? '<span style="color:#ff6b6b">sem luz desde ' + dz.energia.desde + "</span>" : dz?.energia?.a_carregar === true ? "ligada" : dz?.energia?.a_carregar === false ? "a bateria" : dz ? '<span style="opacity:.6">sem dados</span>' : "—"}</span></div>
     <div class="linha"><span>Avisos IPMA</span><span>${dz?.ipma?.avisos?.length ? '<span style="color:#ffc35a">' + dz.ipma.avisos[0].nivel + "</span>" : dz?.ipma?.erro ? "sem dados" : "nenhum"}</span></div>
     <div class="linha"><span>Segurança</span><span>${sg?.desconhecidos ? '<span style="color:#ffc35a">' + sg.desconhecidos + " por confirmar</span>" : "ok"}
       <button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirSeguranca()">abrir ›</button></span></div>`;
