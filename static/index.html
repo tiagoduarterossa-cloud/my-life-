@@ -256,6 +256,27 @@
                    display: grid; place-content: center; flex: none; }
   .leitor button svg { width: 18px; height: 18px; fill: currentColor; }
 
+  /* ---------- ecra Jarvis (HUD) ---------- */
+  #hud { position: fixed; inset: 0; z-index: 48; display: none; color: #e8f6ff; overflow: hidden; cursor: pointer;
+         background: radial-gradient(70% 70% at 50% 45%, rgba(var(--n3, 0, 90, 140), .35), #01040a 75%), #01040a;
+         font-family: "Rajdhani", "Orbitron", -apple-system, "Inter", sans-serif; letter-spacing: .5px; }
+  #hud.ver { display: block; animation: entrar .35s ease; }
+  #hud canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hud video { position: absolute; left: 50%; top: 46%; width: min(46vmin, 380px); height: min(46vmin, 380px); transform: translate(-50%, -50%) scaleX(-1);
+               border-radius: 50%; object-fit: cover; display: none; box-shadow: 0 0 60px rgba(var(--n2, 0, 200, 255), .6); }
+  #hud.camara video { display: block; }
+  .hud-canto { position: absolute; font-size: 15px; text-transform: uppercase; opacity: .85; line-height: 1.5; }
+  .hud-canto b { display: block; font-size: 44px; font-weight: 300; letter-spacing: 2px; text-transform: none; opacity: 1; }
+  .hud-canto .rotulo { font-size: 11px; letter-spacing: 3px; color: rgb(var(--n2, 0, 200, 255)); }
+  #hud-hora { top: 28px; left: 32px; } #hud-tempo { bottom: 120px; left: 32px; }
+  #hud-agenda { top: 28px; right: 32px; text-align: right; max-width: 40vw; }
+  #hud-estado { position: absolute; left: 50%; top: calc(46% + min(25vmin, 210px)); transform: translateX(-50%); font-size: 13px; letter-spacing: 5px;
+                text-transform: uppercase; color: rgb(var(--n2, 0, 200, 255)); white-space: nowrap; }
+  #hud-texto { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: min(760px, calc(100% - 48px)); text-align: center; }
+  #hud-texto .tu { font-size: 14px; opacity: .6; margin-bottom: 6px; }
+  #hud-texto .ele { font-size: 21px; line-height: 1.35; }
+  @media (max-width: 600px) { .hud-canto b { font-size: 30px; } #hud-agenda { display: none; } #hud-tempo { bottom: 150px; } }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -632,6 +653,16 @@
   </form>
 </div>
 
+<div id="hud" aria-label="Jarvis">
+  <canvas id="hud-canvas"></canvas>
+  <video id="hud-video" playsinline muted></video>
+  <div class="hud-canto" id="hud-hora"></div>
+  <div class="hud-canto" id="hud-tempo"></div>
+  <div class="hud-canto" id="hud-agenda"></div>
+  <div id="hud-estado"></div>
+  <div id="hud-texto"><div class="tu" id="hud-tu"></div><div class="ele" id="hud-ele"></div></div>
+</div>
+
 <div id="bolha-voz" role="status" aria-live="polite"><div class="disseste" id="bolha-disseste"></div><div class="resp" id="bolha-resp"></div></div>
 
 <div id="escuta"><i></i><span id="escuta-txt"></span></div>
@@ -785,6 +816,12 @@
     <button type="button" class="chip" data-tomada="ligar">Ligar</button>
     <button type="button" class="chip" data-tomada="desligar">Desligar</button>
   </div>
+  <div class="disp-linha">
+    <input id="cfg-wled" placeholder="IP da fita LED com WLED (ex: 192.168.1.60)" maxlength="60">
+    <button type="button" class="chip" data-wled="roxo">Roxo</button>
+    <button type="button" class="chip" data-wled="branco">Branco</button>
+  </div>
+  <label class="interruptor" style="margin-top:8px !important"><input type="checkbox" id="cfg-hud"> Mostrar o ecrã Jarvis quando falo</label>
   <div class="vazio" style="font-size:13px">O IP vês na app da Shelly ou no router. Depois podes dizer "Rosserini, liga a luz" e pôr a tomada nas rotinas.</div>
   <label>Ecrã sempre ligado</label>
   <form id="f-horas">
@@ -1274,6 +1311,8 @@ async function perguntar(texto) {
     espera.remove(); msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
     if (r.comandos) executarComandos(r.comandos);
     if (r.musica) setTimeout(carregarSpotify, 800);
+    if (r.ver) { $("#assist").classList.remove("aberto"); verComCamara(r.ver); }
+    if (r.hud === true) { $("#assist").classList.remove("aberto"); abrirHUD("espera"); }
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
   } catch (err) { espera.remove(); msgAssist("ela", "Não consegui falar com o servidor: " + err.message); }
@@ -1447,6 +1486,13 @@ $("#cfg-estilo").onclick = async e => {
     falar(v === "mordomo" ? "Às suas ordens, senhor." : "Ya, voltei ao normal."); } catch (err) { aviso(err.message); }
 };
 
+$("#cfg-wled").onchange = async e => {
+  try { await api("/api/config", "POST", { wled_ip: e.target.value.trim() }); config.wled_ip = e.target.value.trim(); aviso("Fita LED guardada.", false); }
+  catch (err) { aviso(err.message); }
+};
+document.querySelectorAll("[data-wled]").forEach(b => b.onclick = () => api("/api/wled", "POST", { cor: b.dataset.wled }).then(() => aviso("Feito.", false)).catch(err => aviso(err.message)));
+$("#cfg-hud").onchange = e => { vozCfg.hud = e.target.checked; guardar("voz", vozCfg); };
+
 $("#cfg-tomada").onchange = async e => {
   try { await api("/api/config", "POST", { tomada_ip: e.target.value.trim() }); config.tomada_ip = e.target.value.trim(); aviso("Tomada guardada.", false); }
   catch (err) { aviso(err.message); }
@@ -1504,7 +1550,9 @@ $("#bolha-voz").onclick = () => $("#bolha-voz").classList.remove("ver");
 // pedido por voz: responde so com a voz e a bolha. O chat so abre se o pedido veio de dentro do chat.
 async function comandoVoz(texto, { noChat = false } = {}) {
   estadoEscuta("A pensar…", true);
+  const comHUD = !noChat && vozCfg.hud !== false;
   if (noChat) { abrirAssist(); msgAssist("eu", texto); sugestoesAssist([]); }
+  else if (comHUD) { abrirHUD("pensar"); hudTexto(texto, ""); }
   else bolha(texto, "A pensar…", null, 0);
   try {
     const r = await api("/api/assistente", "POST", { texto });
@@ -1514,12 +1562,17 @@ async function comandoVoz(texto, { noChat = false } = {}) {
       guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
       if ($("#assist-msgs").children.length) { msgAssist("eu", texto); msgAssist("ela", r.resposta, r.itens); }
       const n = (r.itens || []).length;
-      bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
+      if (comHUD) hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
+      else bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
     }
+    if (r.hud === false) { await falar(r.falado); fecharHUD(); return; }
+    if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
     if (r.musica) setTimeout(carregarSpotify, 800);
     if (r.comandos) { await executarComandos(r.comandos); return; }
+    if (comHUD) hudEstado("falar");
     await falar(r.falado || r.resposta);
+    if (comHUD) hudEstado("ouvir");
     // modo conversa: durante 8 s podes continuar a falar sem dizer o nome outra vez
     if (!noChat && aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); }
   } catch (err) {
@@ -1563,6 +1616,7 @@ function retomarEscuta() {
     if (achou.depois.length > 2) comandoVoz(achou.depois);
     else {
       aEsperarComando = Date.now() + 8000;
+      abrirHUD("ouvir"); hudTexto("", "");
       const op = config.estilo === "mordomo" ? ["Sim, senhor?", "Às suas ordens.", "Diga, senhor."] : ["Diz.", "Ya?", "Diz lá."];
       falar(op[Math.floor(Math.random() * op.length)]);
     }
@@ -1630,6 +1684,97 @@ if (podeOuvir) {
   };
 }
 
+// ---------- ECRA JARVIS (HUD) ----------
+const hud = { estado: "espera", ate: 0, nivel: 0, t0: performance.now() };
+const ESTADOS_HUD = { espera: "online", ouvir: "a ouvir", pensar: "a processar", falar: "", ver: "a analisar" };
+function abrirHUD(estado = "espera") {
+  if (vozCfg.hud === false) return;
+  $("#hud").classList.add("ver"); hudEstado(estado); hudCantos();
+  if (!hud.anim) hud.anim = requestAnimationFrame(desenharHUD);
+}
+function fecharHUD() { $("#hud").classList.remove("ver", "camara"); pararCamara(); hud.ate = 0; }
+function hudEstado(e) { hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? ""; hud.ate = Date.now() + 25000; }
+function hudTexto(tu, ele) { $("#hud-tu").textContent = tu ? `"${tu}"` : ""; $("#hud-ele").textContent = ele || ""; }
+function hudCantos() {
+  const d = new Date();
+  $("#hud-hora").innerHTML = `<span class="rotulo">sistema</span><b>${d.toTimeString().slice(0, 5)}</b>${d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}`;
+  $("#hud-tempo").innerHTML = meteoAgora ? `<span class="rotulo">${esc(config.cidade || "tempo")}</span><b>${meteoAgora.graus}°</b>${esc(meteoAgora.desc)}` : "";
+  const t = (dados.testes || []).find(aindaNaoFoi), agora = horaAgora();
+  const px = (dados.horario || []).filter(b => b.dia === diaSemana()).find(b => b.fim > agora);
+  $("#hud-agenda").innerHTML = `<span class="rotulo">agenda</span><br>` + (px ? `${px.inicio} ${esc(px.titulo)}<br>` : "Sem mais nada hoje<br>") +
+    (t ? `Teste de ${esc(t.disciplina)} ${textoDias(diasAte(t.data))}` : "");
+}
+function desenharHUD(agora) {
+  hud.anim = null;
+  if (!$("#hud").classList.contains("ver")) return;
+  const cv = $("#hud-canvas"), dpr = Math.min(devicePixelRatio || 1, 2);
+  const W = cv.clientWidth * dpr, H = cv.clientHeight * dpr;
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const g = cv.getContext("2d"), t = (agora - hud.t0) / 1000;
+  const cs = getComputedStyle(document.documentElement);
+  const c1 = (cs.getPropertyValue("--n2").trim() || "0, 200, 255"), c2 = (cs.getPropertyValue("--n1").trim() || "0, 120, 255");
+  // o "nivel" imita o volume: forte a falar, medio a ouvir, calmo a espera
+  const alvo = hud.estado === "falar" ? 0.55 + 0.45 * Math.abs(Math.sin(t * 9) * Math.sin(t * 3.7)) :
+               hud.estado === "ouvir" ? 0.35 + 0.15 * Math.sin(t * 6) : hud.estado === "pensar" || hud.estado === "ver" ? 0.3 : 0.12 + 0.05 * Math.sin(t * 1.5);
+  hud.nivel += (alvo - hud.nivel) * 0.15;
+  const cx = W / 2, cy = H * 0.46, R = Math.min(W, H) * 0.19;
+  g.clearRect(0, 0, W, H);
+  // brilho do nucleo
+  const nucleo = g.createRadialGradient(cx, cy, 0, cx, cy, R * (0.9 + hud.nivel * 0.6));
+  nucleo.addColorStop(0, `rgba(255,255,255,${0.75 + hud.nivel * 0.25})`); nucleo.addColorStop(0.18, `rgba(${c1},0.9)`);
+  nucleo.addColorStop(0.55, `rgba(${c2},0.25)`); nucleo.addColorStop(1, `rgba(${c2},0)`);
+  if (!$("#hud").classList.contains("camara")) { g.fillStyle = nucleo; g.beginPath(); g.arc(cx, cy, R * 1.6, 0, Math.PI * 2); g.fill(); }
+  // aneis a rodar
+  const veloc = hud.estado === "pensar" || hud.estado === "ver" ? 2.4 : 0.6;
+  [[1.05, 3, 0.9, [0.2, 1.4, 2.4, 3.6, 4.6]], [1.25, 1.5, -0.6, [0.6, 2.0, 3.0, 5.2]], [1.45, 6, 0.35, [1.0, 2.6, 4.2]], [1.7, 1, -0.25, null]]
+    .forEach(([r, larg, dir, arcos], i) => {
+      g.strokeStyle = `rgba(${i % 2 ? c2 : c1},${0.55 - i * 0.08 + hud.nivel * 0.3})`; g.lineWidth = larg * dpr;
+      const rot = t * veloc * dir;
+      if (!arcos) { g.setLineDash([2 * dpr, 9 * dpr]); g.beginPath(); g.arc(cx, cy, R * r, 0, Math.PI * 2); g.stroke(); g.setLineDash([]); return; }
+      arcos.forEach((a, k) => { g.beginPath(); g.arc(cx, cy, R * r * (1 + hud.nivel * 0.04), a + rot, a + rot + 0.55 + (k % 2) * 0.35); g.stroke(); });
+    });
+  // ondas quando fala
+  if (hud.estado === "falar" || hud.estado === "ouvir") {
+    g.strokeStyle = `rgba(${c1},0.8)`; g.lineWidth = 1.5 * dpr; g.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.04) {
+      const rr = R * (0.62 + hud.nivel * 0.18 * Math.sin(a * 8 + t * 10) * Math.sin(a * 3 - t * 4));
+      const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; a ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+  // particulas
+  for (let i = 0; i < 48; i++) {
+    const a = i * 2.4 + t * 0.15 * (i % 3 + 1), rr = R * (1.9 + 0.5 * Math.sin(i * 1.7 + t * 0.4));
+    g.fillStyle = `rgba(${c1},${0.25 + 0.25 * Math.sin(t * 2 + i)})`;
+    g.beginPath(); g.arc(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, (1 + (i % 3)) * dpr, 0, Math.PI * 2); g.fill();
+  }
+  if (hud.ate && Date.now() > hud.ate && hud.estado !== "falar") return fecharHUD(); // fecha sozinho sem conversa
+  hud.anim = requestAnimationFrame(desenharHUD);
+}
+$("#hud").onclick = fecharHUD;
+setInterval(() => { if ($("#hud").classList.contains("ver")) hudCantos(); }, 15000);
+
+// camara: "o que e isto?" -> foto -> Claude
+let fluxoCamara = null;
+function pararCamara() { fluxoCamara?.getTracks().forEach(t => t.stop()); fluxoCamara = null; $("#hud").classList.remove("camara"); }
+async function verComCamara(pergunta) {
+  abrirHUD("ver"); hudTexto(pergunta, "Mostra-me para a câmara…");
+  try {
+    fluxoCamara = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 } }, audio: false });
+  } catch (e) { hudTexto(pergunta, "Não tenho acesso à câmara."); return falar("Não tenho acesso à câmara. Dá autorização nas definições do Chrome."); }
+  const v = $("#hud-video"); v.srcObject = fluxoCamara; await v.play().catch(() => {});
+  $("#hud").classList.add("camara");
+  await esperar(2000);                       // tempo para pores o objeto em frente
+  const c = document.createElement("canvas"), esc2 = Math.min(1, 1024 / (v.videoWidth || 1024));
+  c.width = (v.videoWidth || 640) * esc2; c.height = (v.videoHeight || 480) * esc2;
+  c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+  pararCamara(); hudEstado("pensar"); hudTexto(pergunta, "A analisar…");
+  try {
+    const r = await api("/api/ia/ver", "POST", { pergunta, imagem: c.toDataURL("image/jpeg", 0.8) });
+    hudEstado("falar"); hudTexto(pergunta, r.resposta); await falar(r.falado || r.resposta); hudEstado("espera");
+  } catch (err) { hudTexto(pergunta, "Não consegui analisar."); }
+}
+
 // ---------- ROTINAS: as acoes que correm no ecra ----------
 let pausaEscutaAte = 0, forcarNoite = false, ultimoComando = null;
 async function executarComandos(cmds) {
@@ -1650,7 +1795,7 @@ async function executarComandos(cmds) {
         if (!forcarNoite) { acordadoAte = Date.now() + 15 * 60000; ultimoToque = Date.now(); }
         ecraLigado();
       } else if (c.acao === "cor") {
-        await api("/api/config", "POST", { tema: c.cor }); config.tema = c.cor; aplicarTema();
+        await api("/api/config", "POST", { tema: c.cor }); config.tema = c.cor; aplicarTema(); corNaFita();
       }
     } catch (e) { console.warn("acao falhou", c, e); }
   }
@@ -1988,6 +2133,12 @@ ligarForm("#f-teste", "/api/testes", f => { f.disciplina.value = ""; f.data.valu
 ligarForm("#f-roupa", "/api/roupa", f => { f.nome.value = ""; f.cor.value = ""; f.link.value = ""; f.imagem.value = ""; });
 ligarForm("#f-registo", "/api/registo", f => { f.minutos.value = ""; f.nota.value = ""; f.data.value = hojeISO(); });
 
+// a fita LED fica da cor do tema
+function corNaFita() {
+  if (!config.wled_ip || config.tema === "ceu") return;
+  const rgb = getComputedStyle(document.documentElement).getPropertyValue("--n2").split(",").map(x => +x);
+  if (rgb.length === 3 && !rgb.some(isNaN)) api("/api/wled", "POST", { rgb }).catch(() => {});
+}
 // tema
 function aplicarTema() {
   const t = config.tema || "roxo";
@@ -2003,7 +2154,7 @@ $("#repouso-min").onchange = async e => {
 };
 $("#temas").onclick = async e => {
   const t = e.target.dataset.tema; if (!t) return;
-  try { await api("/api/config", "POST", { tema: t }); config.tema = t; aplicarTema(); } catch (err) { aviso(err.message); }
+  try { await api("/api/config", "POST", { tema: t }); config.tema = t; aplicarTema(); corNaFita(); } catch (err) { aviso(err.message); }
 };
 
 // definicoes
@@ -2012,7 +2163,7 @@ $("#abrir-config").onclick = () => {
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
   $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
-  $("#cfg-tomada").value = config.tomada_ip || ""; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
+  $("#cfg-tomada").value = config.tomada_ip || ""; $("#cfg-wled").value = config.wled_ip || ""; $("#cfg-hud").checked = vozCfg.hud !== false; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
 };
 $("#f-cidade").onsubmit = async e => {

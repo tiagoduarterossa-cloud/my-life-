@@ -354,7 +354,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo"}
+                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -384,6 +384,8 @@ def gravar_config(d):
             raise Erro("modelo desconhecido")
         if k == "ia_limite" and not (v.isdigit() and 1 <= int(v) <= 1000):
             raise Erro("o limite tem de ser entre 1 e 1000 perguntas por dia")
+        if k == "wled_ip" and not re.fullmatch(r"[\w.\-]{1,60}(:\d{1,5})?", v):
+            raise Erro("IP da fita LED invalido (ex: 192.168.1.60)")
         if k == "tomada_ip" and not re.fullmatch(r"[\w.\-]{1,60}(:\d{1,5})?", v):
             raise Erro("IP da tomada invalido (ex: 192.168.1.50)")
         if k == "voz_motor" and v not in ("neural", "tablet"):
@@ -428,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
         pass  # silencio no terminal
 
     def enviar(self, codigo, corpo, tipo="application/json"):
-        if isinstance(corpo, dict) and corpo.get("falado") and self.path.startswith("/api/assistente"):
+        if isinstance(corpo, dict) and corpo.get("falado") and self.path.startswith(("/api/assistente", "/api/ia/ver")):
             corpo = dict(corpo, falado=assistente.estilizar(corpo["falado"], ler_config().get("estilo", "descontraido")))
         dados = corpo if isinstance(corpo, bytes) else json.dumps(corpo).encode()
         self.send_response(codigo)
@@ -634,6 +636,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self.enviar(200, {"ok": True, "msg": msg})
 
             # ----- inteligencia (Claude) -----
+            if caminho == "/api/ia/ver" and metodo == "POST":
+                # foto da camara (ate ~1,5 MB) + pergunta
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > 3_000_000:
+                    raise Erro("foto demasiado grande")
+                d = json.loads(self.rfile.read(n) or b"{}")
+                if not ia.disponivel():
+                    return self.enviar(200, {"resposta": "Para ver, preciso do Claude ligado (roda dentada > Inteligência).",
+                                             "falado": "Para ver, preciso do Claude ligado."})
+                import base64
+                try:
+                    jpeg = base64.b64decode(str(d.get("imagem", "")).split(",")[-1], validate=True)
+                except Exception:
+                    raise Erro("foto invalida")
+                r = ia.ver(str(d.get("pergunta") or "")[:300], jpeg, ler_config())
+                fala = r.get("resposta") or r.get("erro")
+                return self.enviar(200, {"resposta": fala, "falado": fala})
+            if caminho == "/api/wled" and metodo == "POST":
+                d = self.corpo_json()
+                cor = dispositivos.CORES.get(d.get("cor")) if d.get("cor") else (tuple(d["rgb"]) if d.get("rgb") else None)
+                ok, msg = dispositivos.wled(ler_config().get("wled_ip", ""), cor=cor, brilho=d.get("brilho"), ligar=d.get("ligar"))
+                return self.enviar(200 if ok else 502, {"ok": ok, "erro": None if ok else msg})
             if caminho == "/api/ia" and metodo == "GET":
                 return self.enviar(200, ia.estado(ler_config()))
             if caminho == "/api/ia/chave":

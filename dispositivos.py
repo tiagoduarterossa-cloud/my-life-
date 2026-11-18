@@ -36,3 +36,35 @@ def tomada(ip, estado):
         return True, "ok"
     except Exception as e:
         return False, f"Não consegui falar com a tomada em {ip} ({e.__class__.__name__}). Está ligada e no mesmo Wi-Fi?"
+
+
+# ---------- fita LED com WLED (cores, brilho, efeitos) ----------
+# WLED e um programa gratis para controladores de fitas LED. Fala-se com ele na rede de casa: POST http://IP/json/state
+
+CORES = {
+    "vermelho": (255, 0, 0), "vermelha": (255, 0, 0), "azul": (0, 60, 255), "verde": (0, 255, 60), "roxo": (150, 0, 255),
+    "roxa": (150, 0, 255), "rosa": (255, 0, 120), "laranja": (255, 90, 0), "amarelo": (255, 190, 0), "amarela": (255, 190, 0),
+    "branco": (255, 255, 255), "branca": (255, 255, 255), "ciano": (0, 220, 255), "dourado": (255, 150, 30), "quente": (255, 140, 60),
+}
+
+
+def wled(ip, cor=None, brilho=None, ligar=None):
+    """cor: (r, g, b); brilho: 0-100 %; ligar: True/False. Devolve (ok, mensagem)."""
+    if not ip:
+        return False, "Ainda não configuraste a fita LED (roda dentada > Dispositivos)."
+    ip = ip.strip().replace("http://", "").strip("/")
+    estado = {}
+    if ligar is not None:
+        estado["on"] = bool(ligar)
+    if cor is not None:
+        estado.update(on=True, seg=[{"col": [list(cor)]}])
+    if brilho is not None:
+        estado.update(on=True, bri=max(1, min(255, round(brilho * 2.55))))
+    try:
+        req = urllib.request.Request(f"http://{ip}/json/state", data=json.dumps(estado).encode(),
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=4) as r:
+            r.read()
+        return True, "ok"
+    except Exception as e:
+        return False, f"Não consegui falar com a fita LED em {ip} ({e.__class__.__name__}). Está ligada e no mesmo Wi-Fi?"

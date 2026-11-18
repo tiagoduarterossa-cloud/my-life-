@@ -196,3 +196,42 @@ def perguntar(texto, db, cfg):
     with _hist_lock:
         _hist.append((texto, resposta, time.time()))
     return {"resposta": resposta, "mudou": mudou["v"]}
+
+
+def ver(pergunta, jpeg, cfg):
+    """o Claude olha para uma foto da camara do tablet e responde. Devolve {resposta} ou {erro}."""
+    import base64
+    hoje = date.today()
+    if _uso["dia"] != hoje:
+        _uso.update(dia=hoje, n=0)
+    if _uso["n"] >= int(cfg.get("ia_limite", 100)):
+        return {"erro": "Hoje já chegaste ao limite de perguntas ao Claude."}
+    _uso["n"] += 1
+    import anthropic
+    modelo = cfg.get("ia_modelo", MODELO_PADRAO)
+    if modelo not in {m for m, _ in MODELOS}:
+        modelo = MODELO_PADRAO
+    estilo = ("Fala como um mordomo britânico elegante (Jarvis dos filmes), trata-o por \"senhor\"."
+              if cfg.get("estilo") == "mordomo" else "Estilo descontraído e jovem.")
+    sistema = ("Estás a ver uma foto tirada agora pela câmara do tablet do quarto de um rapaz de 13 anos, em Portugal. "
+               "Responde à pergunta dele sobre o que vês, em português de Portugal, em 1 a 3 frases curtas para serem lidas em voz alta. "
+               "Sem listas nem markdown. Se a foto estiver escura ou desfocada, diz isso. Não descrevas pessoas em pormenor; foca-te nos objetos. "
+               + estilo)
+    params = dict(model=modelo, max_tokens=4000, system=sistema, output_config={"effort": "low"}, messages=[{"role": "user", "content": [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(jpeg).decode()}},
+        {"type": "text", "text": pergunta or "O que é isto?"}]}])
+    if modelo != "claude-haiku-5-5":
+        params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+    try:
+        client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=40)
+        r = client.beta.messages.create(**params)
+    except anthropic.AuthenticationError:
+        return {"erro": "A chave do Claude não é válida."}
+    except anthropic.APIConnectionError:
+        return {"erro": "Sem ligação à internet para falar com o Claude."}
+    except anthropic.APIStatusError:
+        return {"erro": "O Claude está com problemas. Tenta daqui a pouco."}
+    if r.stop_reason == "refusal":
+        return {"erro": "Com isso não te posso ajudar."}
+    txt = " ".join(b.text for b in r.content if b.type == "text").strip()
+    return {"resposta": txt} if txt else {"erro": "Não consegui perceber a imagem."}

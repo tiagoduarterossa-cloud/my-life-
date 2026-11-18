@@ -210,6 +210,21 @@ def entender(texto, hoje=None):
         pedido = temas.get(pedido, pedido)
         return "musica", {"o": "tocar", "pedido": pedido}
 
+    if re.search(r"\b(fecha-te|fecha te|podes fechar|fecha o ecra|fecha o jarvis|close yourself|sai do ecra|fecha isso)\b", s):
+        return "hud", {"abrir": False}
+    if re.search(r"\b(modo jarvis|abre o jarvis|mostra o jarvis|acorda o jarvis|ecra jarvis|abre-te)\b", s):
+        return "hud", {"abrir": True}
+    if re.search(r"\b(o que e isto|o que e isso|o que estou a segurar|o que tenho na mao|olha para isto|olha isto|o que ves|ve isto|reconheces isto|em que estou a trabalhar|que objeto e este|o que e que eu tenho aqui)\b", s):
+        return "ver", {"pergunta": t}
+    import dispositivos
+    m = re.search(r"\b(?:luz|luzes|led|leds|fita|quarto)\b(?: (?:em|a|para|de|cor))?(?: cor)? (" + "|".join(dispositivos.CORES) + r")\b", s) or \
+        re.search(r"\b(?:poe|mete|muda)\b.*\b(" + "|".join(dispositivos.CORES) + r")\b.*\b(?:luz|luzes|led|fita)\b", s)
+    if m:
+        return "luz_cor", {"cor": m[1]}
+    m = re.search(r"\b(?:luz|luzes|led|fita|brilho)\b.*?\b(\d{1,3}) ?(?:%|por cento)", s)
+    if m:
+        return "luz_brilho", {"valor": int(m[1])}
+
     m = re.search(r"\b(liga|acende|ligar|acender|desliga|apaga|desligar|apagar)\b.*\b(luz|luzes|led|leds|fita|tomada|candeeiro)\b", s)
     if m:
         return "tomada", {"estado": "ligar" if m[1] in ("liga", "acende", "ligar", "acender") else "desligar"}
@@ -600,8 +615,36 @@ def responder(texto, con, hoje=None, nome=""):
         curto = {"Música em pausa.": "Pausa.", "Próxima.": "Bora, próxima."}.get(msg, msg)
         return {"resposta": msg, "falado": curto, "musica": True}
 
+    if intencao == "hud":
+        if d["abrir"]:
+            return {"resposta": "Ao teu dispor.", "falado": ya(["Ao teu dispor.", "Estou aqui."]), "hud": True}
+        return {"resposta": "Até já.", "falado": ya(["Até já.", "Fui."]), "hud": False}
+
+    if intencao == "ver":
+        # a central nao tem olhos: o ecra tira a foto e pergunta ao Claude
+        return {"resposta": "Deixa-me ver…", "falado": "", "ver": d["pergunta"]}
+
+    if intencao in ("luz_cor", "luz_brilho"):
+        import dispositivos
+        ip = con.execute("SELECT valor FROM config WHERE chave = 'wled_ip'").fetchone()
+        if intencao == "luz_cor":
+            ok, msg = dispositivos.wled(ip[0] if ip else "", cor=dispositivos.CORES[d["cor"]])
+            fala = ya(["Feito.", "Siga."]) + f" Luz {d['cor']}."
+        else:
+            ok, msg = dispositivos.wled(ip[0] if ip else "", brilho=d["valor"])
+            fala = f"Luz a {d['valor']} por cento."
+        if not ok:
+            return {"resposta": msg, "falado": "Não consegui falar com a fita LED. " + ("Ainda não a configuraste." if not ip else "Vê se está ligada.")}
+        return {"resposta": fala, "falado": fala}
+
     if intencao == "tomada":
         import dispositivos
+        wl = con.execute("SELECT valor FROM config WHERE chave = 'wled_ip'").fetchone()
+        if wl:  # com a fita WLED, "liga a luz" vai para ela
+            ok, msg = dispositivos.wled(wl[0], ligar=d["estado"] == "ligar")
+            if ok:
+                return {"resposta": "Luz " + ("ligada." if d["estado"] == "ligar" else "desligada."),
+                        "falado": ya(["Feito.", "Siga."]) if d["estado"] == "ligar" else "Apagada."}
         ip = con.execute("SELECT valor FROM config WHERE chave = 'tomada_ip'").fetchone()
         ok, msg = dispositivos.tomada(ip[0] if ip else "", d["estado"])
         if not ok:
@@ -658,7 +701,8 @@ MORDOMO = [  # (o que diria, como diz um mordomo)
     ("Ei, ", "Senhor, "), ("De nada!", "Sempre às ordens, senhor."), ("Sempre que precisares.", "Sempre às ordens, senhor."),
     ("Dorme bem.", "Durma bem, senhor."), ("Boa viagem!", "Faça boa viagem, senhor."), ("despacha isso", "convém tratar disso"),
     ("Bora, hora de acordar.", "Lamento incomodar, senhor, mas são horas de acordar."), ("Está na hora de ir para a cama.", "Senhor, são horas de recolher."),
-    ("Apagada.", "Luz apagada, senhor."), ("Bora, próxima.", "A seguinte, senhor."), ("Pausa.", "Em pausa, senhor."),
+    ("Apagada.", "Luz apagada, senhor."), ("Ao teu dispor.", "Ao seu dispor, senhor."), ("Estou aqui.", "Às suas ordens, senhor."),
+    ("Até já.", "Com licença, senhor."), ("Fui.", "Com licença, senhor."), ("Bora, próxima.", "A seguinte, senhor."), ("Pausa.", "Em pausa, senhor."),
 ]
 
 

@@ -86,6 +86,12 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 - **Modo conversa**: depois de ele responder, fica 8 segundos à escuta. Podes continuar a falar sem repetir o nome. Diz "esquece" para fechar.
 - "Porque é que me acordaste?" explica que alarme foi e o que tens nesse dia. "Obrigado" também tem resposta.
 
+## Ecrã Jarvis, câmara e luzes
+
+- Quando falas com ele, abre o **ecrã Jarvis**: uma esfera animada que muda quando ouve, pensa e fala, com as horas, o tempo e a agenda. "Modo Jarvis" abre-o; "fecha-te" fecha-o; também fecha sozinho. Desliga-se em roda dentada > Dispositivos.
+- **"O que é isto?"**, "em que estou a trabalhar?", "olha para isto": liga a câmara da frente, tira uma foto e o Claude diz o que vê (precisa do Claude ligado).
+- **Fita LED com WLED**: escreve o IP em Dispositivos. "Luz vermelha", "põe a luz azul", "luz a 30%", "liga a luz". A fita acompanha a cor do tema da central.
+
 ## Voz neural (o Rosserini a soar a pessoa)
 
 Por defeito o Rosserini usa as vozes do Microsoft Edge (Duarte ou Raquel, de Portugal), que soam muito mais naturais do que a voz do tablet. No Termux:
