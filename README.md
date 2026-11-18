@@ -92,6 +92,10 @@ O router pode dar um IP diferente ao tablet de vez em quando. Para isso não aco
 - **"O que é isto?"**, "em que estou a trabalhar?", "olha para isto": liga a câmara da frente, tira uma foto e o Claude diz o que vê (precisa do Claude ligado).
 - **Fita LED com WLED**: escreve o IP em Dispositivos. "Luz vermelha", "põe a luz azul", "luz a 30%", "liga a luz". A fita acompanha a cor do tema da central.
 
+## Modo Iron Man
+
+Diz **"Iron Man"** (não precisas de dizer o nome do assistente antes). Arranca o ecrã completo: sequência de arranque com som, painéis de meteorologia com a previsão por hora, sistemas (energia, servidor, rede, voz, cérebro), agenda, missões (testes, tarefas, alarme), áudio (Spotify) e um registo com tudo o que acontece. Ao centro, a esfera com radar, grelha hexagonal e anéis graduados, sempre no azul do reator. A fita LED fica azul e volta à cor do tema quando dizes "fecha-te". No telemóvel aparecem só a esfera e o topo.
+
 ## Voz neural (o Rosserini a soar a pessoa)
 
 Por defeito o Rosserini usa as vozes do Microsoft Edge (Duarte ou Raquel, de Portugal), que soam muito mais naturais do que a voz do tablet. No Termux:

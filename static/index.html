@@ -277,6 +277,40 @@
   #hud-texto .ele { font-size: 21px; line-height: 1.35; }
   @media (max-width: 600px) { .hud-canto b { font-size: 30px; } #hud-agenda { display: none; } #hud-tempo { bottom: 150px; } }
 
+  /* ---------- modo Iron Man ---------- */
+  #hud.ironman { background: radial-gradient(60% 60% at 50% 48%, rgba(0, 90, 150, .35), #00060d 70%), #00060d; }
+  #hud.ironman .hud-canto { display: none; }
+  #hud.ironman { --n1: 0, 120, 255; --n2: 0, 205, 255; --n3: 0, 90, 150; }   /* azul do reator, seja qual for o tema */
+  @media (min-width: 901px) { #hud.ironman #hud-texto { width: calc(100% - 680px); } }
+  .im { display: none; }
+  #hud.ironman .im { display: block; }
+  .im-topo { position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex !important; align-items: center; justify-content: space-between;
+             padding: 0 24px; border-bottom: 1px solid rgba(0, 200, 255, .25); font-size: 13px; letter-spacing: 3px; text-transform: uppercase;
+             background: linear-gradient(180deg, rgba(0, 120, 200, .18), transparent); color: #9fe6ff; }
+  .im-topo b { color: #fff; font-weight: 600; letter-spacing: 6px; }
+  .im-topo .ouro { color: #ffc35a; }
+  .im-painel { position: absolute; width: 285px; padding: 12px 14px 12px; color: #c9f1ff; font-size: 13px; line-height: 1.45;
+               background: linear-gradient(135deg, rgba(0, 140, 220, .13), rgba(0, 40, 80, .25)); border: 1px solid rgba(0, 200, 255, .3);
+               clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+               opacity: 0; animation: im-entrar .5s ease forwards; }
+  .im-painel::before { content: ""; position: absolute; top: 0; left: 14px; width: 60px; height: 2px; background: #ffc35a; }
+  .im-painel h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: 4px; color: #4fd2ff; font-weight: 600; text-transform: uppercase; }
+  .im-painel .grande { font-size: 40px; font-weight: 200; color: #fff; line-height: 1; letter-spacing: -1px; }
+  .im-painel .linha { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px dashed rgba(0, 200, 255, .12); }
+  .im-painel .linha span:last-child { color: #fff; text-align: right; }
+  .im-barra { height: 4px; background: rgba(0, 200, 255, .15); margin: 3px 0 6px; } .im-barra i { display: block; height: 100%; background: #4fd2ff; box-shadow: 0 0 8px #4fd2ff; }
+  .im-horas { display: flex; gap: 4px; align-items: flex-end; height: 54px; margin-top: 8px; }
+  .im-horas div { flex: 1; text-align: center; font-size: 10px; color: #8fdcff; }
+  .im-horas i { display: block; background: linear-gradient(0deg, rgba(0, 200, 255, .2), rgba(0, 200, 255, .8)); margin-bottom: 2px; }
+  #im-term { font: 11px/1.5 ui-monospace, Menlo, monospace; color: #6fe0ff; max-height: 150px; overflow: hidden; }
+  #im-term div::before { content: "> "; color: #ffc35a; }
+  #im-boot { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); text-align: center; font-size: 13px; letter-spacing: 6px;
+             color: #9fe6ff; text-transform: uppercase; display: none; }
+  #hud.a-arrancar #im-boot { display: block; }
+  #im-boot .im-barra { width: 260px; margin: 12px auto 0; }
+  @keyframes im-entrar { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 900px) { .im-painel { display: none !important; } }
+
   /* quarto 3D */
   main section#quarto.ativo { display: block; }
   .quarto-barra { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 12px; }
@@ -659,6 +693,14 @@
   <div class="hud-canto" id="hud-hora"></div>
   <div class="hud-canto" id="hud-tempo"></div>
   <div class="hud-canto" id="hud-agenda"></div>
+  <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span></div>
+  <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
+  <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
+  <div class="im im-painel" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
+  <div class="im im-painel" id="im-agenda" style="top:72px;right:24px;animation-delay:.2s"></div>
+  <div class="im im-painel" id="im-missoes" style="top:300px;right:24px;animation-delay:.35s"></div>
+  <div class="im im-painel" id="im-musica" style="bottom:24px;right:24px;animation-delay:.5s"></div>
+  <div id="im-boot">a inicializar sistemas<div class="im-barra"><i id="im-boot-barra" style="width:0"></i></div></div>
   <div id="hud-estado"></div>
   <div id="hud-texto"><div class="tu" id="hud-tu"></div><div class="ele" id="hud-ele"></div></div>
 </div>
@@ -1008,6 +1050,7 @@ async function carregarMeteo() {
     const m = await (await fetch(url)).json();
     const c = m.current, [ic, desc] = meteoDe(c.weather_code, c.is_day);
     meteoAgora = { graus: Math.round(c.temperature_2m), ic, desc };
+    meteoDados = m;
     const idx = m.hourly.time.findIndex(t => t >= c.time.slice(0, 13));
     const prox = m.hourly.time.slice(idx + 1, idx + 13).map((t, i) => {
       const k = idx + 1 + i;
@@ -1313,6 +1356,7 @@ async function perguntar(texto) {
     if (r.musica) setTimeout(carregarSpotify, 800);
     if (r.ver) { $("#assist").classList.remove("aberto"); verComCamara(r.ver); }
     if (r.hud === true) { $("#assist").classList.remove("aberto"); abrirHUD("espera"); }
+    if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
     guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
     if (r.mudou) atualizar();
   } catch (err) { espera.remove(); msgAssist("ela", "Não consegui falar com o servidor: " + err.message); }
@@ -1463,6 +1507,7 @@ setInterval(() => { if (document.visibilityState === "visible" && spotifyInfo?.l
 // ----- inteligencia (Claude) -----
 async function mostrarIA() {
   let e; try { e = await api("/api/ia"); } catch (err) { return; }
+  config.ia_ok = e.sdk && e.chave;
   $("#ia-estado").textContent = !e.sdk ? "Falta instalar no Termux: ./instalar_claude.sh"
     : !e.chave ? "Ainda sem chave. Cola aqui a chave da API do teu pai."
     : `Ligado. Perguntas hoje: ${e.usadas_hoje} de ${e.limite}.`;
@@ -1565,7 +1610,9 @@ async function comandoVoz(texto, { noChat = false } = {}) {
       if (comHUD) hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
       else bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
     }
-    if (r.hud === false) { await falar(r.falado); fecharHUD(); return; }
+    if (r.hud === false) { hudLog("a encerrar"); await falar(r.falado); fecharHUD(); return; }
+    if (r.hud === "ironman") { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); hudEstado("falar"); hudTexto("", r.resposta);
+      await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
     if (r.musica) setTimeout(carregarSpotify, 800);
@@ -1608,6 +1655,7 @@ function retomarEscuta() {
       if (/^(nada|esquece|deixa estar|nao|não|nevermind)\.?$/i.test(frase.trim())) { estadoEscuta(""); setTimeout(retomarEscuta, 300); return; }
       const semNome = acharPalavra(frase); comandoVoz(semNome ? semNome.depois || frase : frase); return;
     }
+    if (/\b(iron ?man|airon ?man|ironmen|homem de ferro)\b/.test(semAcentos(frase))) { pararEscuta(); comandoVoz("iron man"); return; }
     const res = ev.results[ev.results.length - 1];
     let achou = null;
     for (let k = 0; k < res.length && !achou; k++) achou = acharPalavra(res[k].transcript);
@@ -1685,6 +1733,64 @@ if (podeOuvir) {
 }
 
 // ---------- ECRA JARVIS (HUD) ----------
+let meteoDados = null;
+const imLog = [];
+function hudLog(t) { imLog.push(`${horaAgora()} ${t}`); imLog.splice(0, imLog.length - 9); if ($("#hud").classList.contains("ironman")) $("#im-term").innerHTML = imLog.map(l => `<div>${esc(l)}</div>`).join(""); }
+let latencia = null;
+async function medirServidor() { const t = performance.now(); try { await fetch("/api/areas"); latencia = Math.round(performance.now() - t); } catch (e) { latencia = null; } }
+async function paineisIronMan() {
+  const d = new Date();
+  $("#im-relogio").textContent = `${d.toTimeString().slice(0, 8)} · ${d.toLocaleDateString("pt-PT")}`;
+  // meteorologia
+  let met = `<h4>meteorologia · ${esc(config.cidade || "sem cidade")}</h4>`;
+  if (meteoAgora && meteoDados) {
+    const h = meteoDados.hourly, i0 = Math.max(0, h.time.findIndex(t => t >= meteoDados.current.time.slice(0, 13)));
+    const prox = h.time.slice(i0 + 1, i0 + 9).map((t, k) => ({ h: t.slice(11, 13), v: h.temperature_2m[i0 + 1 + k] }));
+    const mn = Math.min(...prox.map(x => x.v)), mx = Math.max(...prox.map(x => x.v));
+    met += `<div class="grande">${meteoAgora.graus}°</div>${esc(meteoAgora.desc)} · máx ${Math.round(meteoDados.daily.temperature_2m_max[0])}° · chuva ${meteoDados.daily.precipitation_probability_max[0] ?? 0}%
+      <div class="im-horas">${prox.map(x => `<div><i style="height:${12 + 34 * (x.v - mn) / Math.max(1, mx - mn)}px"></i>${x.h}h</div>`).join("")}</div>`;
+  } else met += "Sem dados de tempo.";
+  $("#im-meteo").innerHTML = met;
+  // sistemas
+  let bat = null; try { bat = await navigator.getBattery?.(); } catch (e) {}
+  const nivel = bat ? Math.round(bat.level * 100) : null;
+  $("#im-sistemas").innerHTML = `<h4>sistemas</h4>
+    <div class="linha"><span>Energia</span><span>${nivel !== null ? nivel + "%" + (bat.charging ? " ⚡" : "") : "—"}</span></div>${nivel !== null ? `<div class="im-barra"><i style="width:${nivel}%"></i></div>` : ""}
+    <div class="linha"><span>Servidor</span><span>${latencia !== null ? latencia + " ms" : "—"}</span></div>
+    <div class="linha"><span>Rede</span><span>${navigator.onLine ? "online" : "offline"}</span></div>
+    <div class="linha"><span>Voz</span><span>${vozCfg.motor === "neural" ? "neural" : "tablet"}${aEscutar ? " · à escuta" : ""}</span></div>
+    <div class="linha"><span>Cérebro</span><span>${config.ia_ok ? "Claude" : "regras"}</span></div>`;
+  // agenda
+  const agora = horaAgora(), aulas = (dados.horario || []).filter(b => b.dia === diaSemana() && b.fim > agora).slice(0, 4);
+  const ev = (dados.eventos || []).filter(e => e.data === hojeISO());
+  $("#im-agenda").innerHTML = `<h4>agenda · hoje</h4>` + ([...aulas.map(b => `<div class="linha"><span>${b.inicio}</span><span>${esc(b.titulo)}</span></div>`),
+    ...ev.map(e => `<div class="linha"><span>${e.hora || "—"}</span><span>${esc(e.titulo)}</span></div>`)].join("") || "Nada mais para hoje.");
+  // missoes: testes e tarefas
+  const ts = (dados.testes || []).filter(aindaNaoFoi).slice(0, 3), tf = (dados.tarefas || []).filter(t => !t.feita);
+  const p = alarmesDados?.proximo;
+  $("#im-missoes").innerHTML = `<h4>missões</h4>` + ts.map(t => `<div class="linha"><span>Teste ${esc(t.disciplina)}</span><span>${textoDias(diasAte(t.data))}</span></div>`).join("") +
+    `<div class="linha"><span>Tarefas pendentes</span><span>${tf.length}</span></div>` + (p ? `<div class="linha"><span>Alarme</span><span>${p.hora}</span></div>` : "");
+  // musica
+  const a = spotifyInfo?.agora;
+  $("#im-musica").innerHTML = `<h4>áudio</h4>` + (a && a.musica ? `<div style="color:#fff">${esc(a.musica)}</div>${esc(a.artista)} · ${a.tocar ? "a tocar" : "em pausa"}` : "Sem música.");
+}
+function arranqueIronMan() {
+  const h = $("#hud"); h.classList.add("ironman", "a-arrancar"); hudLog("protocolo iron man iniciado");
+  // som de arranque: um varrimento a subir e tres bips
+  try {
+    const ctx = new AudioContext(), o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sawtooth";
+    o.frequency.setValueAtTime(90, ctx.currentTime); o.frequency.exponentialRampToValueAtTime(900, ctx.currentTime + 1.2);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.08, ctx.currentTime + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.3);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 1.3);
+    [1.4, 1.55, 1.7].forEach(t => { const b = ctx.createOscillator(), bg = ctx.createGain(); b.frequency.value = 1320; bg.gain.setValueAtTime(0.06, ctx.currentTime + t);
+      bg.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.08); b.connect(bg); bg.connect(ctx.destination); b.start(ctx.currentTime + t); b.stop(ctx.currentTime + t + 0.1); });
+  } catch (e) {}
+  let pct = 0; const barra = $("#im-boot-barra");
+  const passo = setInterval(() => { pct += 7; barra.style.width = Math.min(100, pct) + "%"; if (pct >= 100) { clearInterval(passo); h.classList.remove("a-arrancar"); } }, 110);
+  medirServidor().then(paineisIronMan); paineisIronMan();
+  if (config.wled_ip) api("/api/wled", "POST", { rgb: [0, 170, 255] }).catch(() => {});   // luz azul de reator
+}
+setInterval(() => { if ($("#hud").classList.contains("ironman")) { medirServidor(); paineisIronMan(); } }, 5000);
 const hud = { estado: "espera", ate: 0, nivel: 0, t0: performance.now() };
 const ESTADOS_HUD = { espera: "online", ouvir: "a ouvir", pensar: "a processar", falar: "", ver: "a analisar" };
 function abrirHUD(estado = "espera") {
@@ -1692,9 +1798,20 @@ function abrirHUD(estado = "espera") {
   $("#hud").classList.add("ver"); hudEstado(estado); hudCantos();
   if (!hud.anim) hud.anim = requestAnimationFrame(desenharHUD);
 }
-function fecharHUD() { $("#hud").classList.remove("ver", "camara"); pararCamara(); hud.ate = 0; }
-function hudEstado(e) { hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? ""; hud.ate = Date.now() + 25000; }
-function hudTexto(tu, ele) { $("#hud-tu").textContent = tu ? `"${tu}"` : ""; $("#hud-ele").textContent = ele || ""; }
+function fecharHUD() {
+  const eraIron = $("#hud").classList.contains("ironman");
+  $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar"); pararCamara(); hud.ate = 0;
+  if (eraIron) corNaFita();   // a fita volta a cor do tema
+}
+function hudEstado(e) {
+  hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? "";
+  hud.ate = Date.now() + ($("#hud").classList.contains("ironman") ? 120000 : 25000);   // o Iron Man fica mais tempo
+  if (e === "ouvir") hudLog("a ouvir"); if (e === "pensar") hudLog("a processar pedido"); if (e === "ver") hudLog("câmara ativa: a analisar");
+}
+function hudTexto(tu, ele) {
+  $("#hud-tu").textContent = tu ? `"${tu}"` : ""; $("#hud-ele").textContent = ele || "";
+  if (tu && !ele) hudLog(`pedido: ${tu}`); if (ele && ele !== "…") hudLog(`resposta: ${ele.slice(0, 60)}`);
+}
 function hudCantos() {
   const d = new Date();
   $("#hud-hora").innerHTML = `<span class="rotulo">sistema</span><b>${d.toTimeString().slice(0, 5)}</b>${d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}`;
@@ -1711,7 +1828,7 @@ function desenharHUD(agora) {
   const W = cv.clientWidth * dpr, H = cv.clientHeight * dpr;
   if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
   const g = cv.getContext("2d"), t = (agora - hud.t0) / 1000;
-  const cs = getComputedStyle(document.documentElement);
+  const cs = getComputedStyle($("#hud"));
   const c1 = (cs.getPropertyValue("--n2").trim() || "0, 200, 255"), c2 = (cs.getPropertyValue("--n1").trim() || "0, 120, 255");
   // o "nivel" imita o volume: forte a falar, medio a ouvir, calmo a espera
   const alvo = hud.estado === "falar" ? 0.55 + 0.45 * Math.abs(Math.sin(t * 9) * Math.sin(t * 3.7)) :
@@ -1741,6 +1858,32 @@ function desenharHUD(agora) {
       const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr; a ? g.lineTo(x, y) : g.moveTo(x, y);
     }
     g.stroke();
+  }
+  if ($("#hud").classList.contains("ironman")) {
+    // grelha hexagonal ao fundo
+    if (!hud.hex || hud.hex.width !== W || hud.hex.height !== H) {
+      hud.hex = document.createElement("canvas"); hud.hex.width = W; hud.hex.height = H;
+      const hg = hud.hex.getContext("2d"), s6 = 26 * dpr; hg.strokeStyle = "rgba(0,170,255,0.07)"; hg.lineWidth = 1;
+      for (let y = 0, row = 0; y < H + s6; y += s6 * 0.866, row++) for (let x = (row % 2) * s6 * 0.75; x < W + s6; x += s6 * 1.5) {
+        hg.beginPath(); for (let k = 0; k < 6; k++) { const an = Math.PI / 3 * k; hg.lineTo(x + Math.cos(an) * s6 / 2, y + Math.sin(an) * s6 / 2); } hg.closePath(); hg.stroke(); }
+    }
+    g.drawImage(hud.hex, 0, 0);
+    // radar a varrer
+    const ang = t * 1.2, raio = R * 2.25;
+    const grad = g.createConicGradient ? g.createConicGradient(ang, cx, cy) : null;
+    if (grad) { grad.addColorStop(0, "rgba(0,200,255,0.22)"); grad.addColorStop(0.12, "rgba(0,200,255,0)"); grad.addColorStop(1, "rgba(0,200,255,0)");
+      g.fillStyle = grad; g.beginPath(); g.arc(cx, cy, raio, 0, Math.PI * 2); g.fill(); }
+    // anel graduado com numeros
+    g.strokeStyle = "rgba(0,200,255,0.45)"; g.fillStyle = "rgba(160,230,255,0.7)"; g.font = `${10 * dpr}px monospace`; g.textAlign = "center";
+    for (let k = 0; k < 72; k++) {
+      const an = k * Math.PI / 36 - t * 0.05, r1 = raio, r2 = raio + (k % 6 ? 6 : 14) * dpr;
+      g.lineWidth = (k % 6 ? 1 : 2) * dpr; g.beginPath(); g.moveTo(cx + Math.cos(an) * r1, cy + Math.sin(an) * r1); g.lineTo(cx + Math.cos(an) * r2, cy + Math.sin(an) * r2); g.stroke();
+      if (k % 18 === 0) g.fillText(String(k * 5).padStart(3, "0"), cx + Math.cos(an) * (r2 + 14 * dpr), cy + Math.sin(an) * (r2 + 14 * dpr) + 4 * dpr);
+    }
+    // arco dourado e linha de varrimento
+    g.strokeStyle = "rgba(255,195,90,0.75)"; g.lineWidth = 3 * dpr; g.beginPath(); g.arc(cx, cy, R * 1.88, -t * 0.4, -t * 0.4 + 0.9); g.stroke();
+    g.beginPath(); g.arc(cx, cy, R * 1.88, Math.PI - t * 0.4, Math.PI - t * 0.4 + 0.5); g.stroke();
+    const sy = (t * 90 * dpr) % H; g.fillStyle = "rgba(0,200,255,0.05)"; g.fillRect(0, sy, W, 2 * dpr);
   }
   // particulas
   for (let i = 0; i < 48; i++) {
@@ -2206,6 +2349,7 @@ tick(); setInterval(tick, 1000);
 (async () => {
   try { config = await api("/api/config"); } catch (e) {}
   aplicarTema();
+  mostrarIA();
   if (vozCfg.ouvir) iniciarEscuta(false);
   setTimeout(aquecerVoz, 3000);
   carregarMeteo(); setInterval(carregarMeteo, 15 * 60000);

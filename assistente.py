@@ -212,6 +212,8 @@ def entender(texto, hoje=None):
 
     if re.search(r"\b(fecha-te|fecha te|podes fechar|fecha o ecra|fecha o jarvis|close yourself|sai do ecra|fecha isso)\b", s):
         return "hud", {"abrir": False}
+    if re.search(r"\b(iron ?man|ironmen|airon ?man|modo homem de ferro|homem de ferro|protocolo stark|modo stark)\b", s):
+        return "hud", {"abrir": True, "modo": "ironman"}
     if re.search(r"\b(modo jarvis|abre o jarvis|mostra o jarvis|acorda o jarvis|ecra jarvis|abre-te)\b", s):
         return "hud", {"abrir": True}
     if re.search(r"\b(o que e isto|o que e isso|o que estou a segurar|o que tenho na mao|olha para isto|olha isto|o que ves|ve isto|reconheces isto|em que estou a trabalhar|que objeto e este|o que e que eu tenho aqui)\b", s):
@@ -616,6 +618,10 @@ def responder(texto, con, hoje=None, nome=""):
         return {"resposta": msg, "falado": curto, "musica": True}
 
     if intencao == "hud":
+        if d.get("modo") == "ironman":
+            return {"resposta": "Protocolo Iron Man.", "hud": "ironman",
+                    "falado": ya(["Bem-vindo de volta, senhor. Todos os sistemas estão operacionais.",
+                                  "Sistemas online, senhor. Ao seu dispor.", "Protocolo Iron Man ativado. Bem-vindo de volta, senhor."])}
         if d["abrir"]:
             return {"resposta": "Ao teu dispor.", "falado": ya(["Ao teu dispor.", "Estou aqui."]), "hud": True}
         return {"resposta": "Até já.", "falado": ya(["Até já.", "Fui."]), "hud": False}
