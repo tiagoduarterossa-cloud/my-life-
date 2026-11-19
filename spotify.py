@@ -117,6 +117,10 @@ def _api(metodo, caminho, corpo=None, query=None):
             raise ErroSpotify("não há nenhum Spotify aberto. Abre o Spotify no tablet ou no telemóvel e tenta outra vez")
         if e.code == 403 and ("PREMIUM" in txt.upper() or "premium" in txt):
             raise ErroSpotify("para controlar a música o Spotify exige conta Premium")
+        if e.code == 403 and ("not registered" in txt.lower() or "user may not be registered" in txt.lower()):
+            raise ErroSpotify("esta conta não está autorizada na app do Spotify: no developer.spotify.com, a tua app > User Management, junta o email da conta (máximo 5 pessoas)")
+        if e.code == 403:
+            raise ErroSpotify("o Spotify recusou o pedido. Desde 2026, a app só funciona se a conta que a criou tiver Premium ativo")
         if e.code == 401:
             raise ErroSpotify("a ligação ao Spotify expirou: liga-o outra vez nas definições")
         if e.code == 429:

@@ -938,7 +938,9 @@
     <div class="vazio" id="loja-estado" style="font-size:14px"></div>
     <div id="loja-form" class="voz-cfg">
       <input id="loja-dominio" placeholder="a-tua-loja.myshopify.com" autocomplete="off">
-      <input id="loja-token" type="password" placeholder="Chave da app (shpat_...)" autocomplete="off">
+      <input id="loja-cid" placeholder="Client ID (Dev Dashboard > a tua app > Settings)" autocomplete="off">
+      <input id="loja-secret" type="password" placeholder="Client secret" autocomplete="off">
+      <input id="loja-token" type="password" placeholder="Ou, se tens uma app antiga de antes de 2026: chave shpat_..." autocomplete="off">
       <div class="deslizar"><span>Taxa %</span><input id="loja-taxa" type="number" step="0.1" value="2.9" style="padding:8px"><span>Taxa fixa €</span><input id="loja-fixa" type="number" step="0.01" value="0.30" style="padding:8px"></div>
       <button type="button" class="principal" id="loja-ligar">Ligar a loja</button>
     </div>
@@ -3030,8 +3032,8 @@ async function abrirLoja() { $("#d-loja").showModal(); $("#f-despesa").data.valu
 $("#loja-periodo").onclick = e => { const p = e.target.dataset.p; if (!p) return; lojaPeriodo = p;
   document.querySelectorAll("#loja-periodo button").forEach(b => b.classList.toggle("ativo", b === e.target)); carregarLoja(); };
 $("#loja-ligar").onclick = async () => {
-  try { const r = await api("/api/loja/ligar", "POST", { dominio: $("#loja-dominio").value, token: $("#loja-token").value, taxa_pct: $("#loja-taxa").value, taxa_fixa: $("#loja-fixa").value });
-    $("#loja-token").value = ""; aviso(`Loja "${r.nome}" ligada!`, false); estadoLoja(); } catch (err) { aviso(err.message); }
+  try { const r = await api("/api/loja/ligar", "POST", { dominio: $("#loja-dominio").value, token: $("#loja-token").value, client_id: $("#loja-cid").value, client_secret: $("#loja-secret").value, taxa_pct: $("#loja-taxa").value, taxa_fixa: $("#loja-fixa").value });
+    $("#loja-token").value = $("#loja-secret").value = ""; aviso(`Loja "${r.nome}" ligada!`, false); await estadoLoja(); if (lojaOk) carregarLoja(); } catch (err) { aviso(err.message); }
 };
 $("#loja-desligar").onclick = async () => { if (!confirm("Desligar a loja da central?")) return; await api("/api/loja", "DELETE"); estadoLoja(); };
 $("#f-despesa").onsubmit = async e => {

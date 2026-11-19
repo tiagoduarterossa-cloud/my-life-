@@ -21,7 +21,8 @@ Funciona e está testado:
 - **PIN**: hash PBKDF2 em pin.json e sessões em cookie HttpOnly. No tablet, o ecrã normal fica livre e o Iron Man pede o PIN. Noutros aparelhos pede-se sempre. Há bloqueio contra quem tenta adivinhar e chaves para a Siri e os sensores.
 - **Modo apagão**: liga-se sozinho quando o tablet deixa de carregar. Corta o que gasta bateria e mostra bateria, rádio (radio-browser.info), notícias e conselhos com fonte. Sai pelo botão no topo ou no fundo.
 - **O que está a funcionar**: Wi-Fi, router, internet, DNS e 14 serviços testados a partir de casa.
-- **Loja Shopify**: lucro real e despesas por voz. Falta ligar a loja no tablet.
+- **Loja Shopify**: lucro real e despesas por voz. Desde 1/1/2026 a Shopify não deixa criar apps personalizadas no admin; a central liga-se a uma app do **Dev Dashboard** com Client ID + Client secret e pede sozinha a chave de 24 h ("client credentials grant", `POST /admin/oauth/access_token`), renovando-a 2 min antes e logo que a Shopify responda 401. A app tem de ser da mesma organização da loja (senão `shop_not_permitted`). As chaves `shpat_` antigas continuam a funcionar. Admin API `2026-10` (atualizar a versão uma vez por ano em `loja.py`). Falta ligar a loja no tablet.
+- **Spotify**: desde fevereiro de 2026 as apps em modo de desenvolvimento só funcionam com Premium ativo na conta que criou a app, e no máximo 5 pessoas autorizadas (User Management). O código já cumpre as regras novas (pesquisa com 5 resultados, abaixo do máximo de 10; endereço de retorno `127.0.0.1`) e dá mensagens claras para os erros 403. Não foi possível ler a documentação do Spotify nem da Shopify a partir deste ambiente (rede fechada): o que se sabe veio de pesquisas, e a prova é no tablet.
 - **Modo viagem** (Iron Man, com PIN): marcar uma viagem (destino, datas, moeda, link para um guia) no botão "+ viagem" do painel Missões ou por voz ("Jarvis, nova viagem para Madrid de 3 a 7 de março"). Faz a mala com a roupa do separador Roupa conforme o clima, com caixas para marcar, as peças que estão para lavar e coisas postas à mão. Mostra o tempo (previsão do Open-Meteo só quando cobre a viagem toda; antes disso, o que fez nas mesmas datas do ano passado, dito como tal), a hora local e o câmbio do BCE (frankfurter.app). Entre a partida e a volta os alarmes de todos os dias e as rotinas com hora ficam em pausa (no dia da partida e no da volta tocam normalmente); os alarmes especiais com data tocam sempre. Voz: "modo viagem", "quantos dias faltam para a viagem?", "o que falta na mala?". Os dados da viagem ficam só no vida.db, nunca no código.
 - **Modos do Jarvis** (`modos.py`, ecrã `#modo`, botões em "Modos" no ecrã inicial):
   - Estudo: a rotina "Modo estudo" (ou o botão) abre um ecrã com o cronómetro, o teste dessa disciplina, música de estudo e perguntas. Os avisos ficam guardados até saíres. No fim regista no diário; há "mais 25 min" e pausa de 5 min.
@@ -43,8 +44,8 @@ Só o Claude custa dinheiro (API da Anthropic, saldo pré-pago numa conta de adu
 
 Falta configurar no tablet (não é código):
 - Na consola da Anthropic: pôr um limite de gastos mensal (ex.: 10 $). Nas definições do Claude: baixar o limite diário para 30.
-- Ligar o Spotify (definições).
-- Ligar a loja (Iron Man > Loja).
+- Ligar o Spotify (definições): a conta que cria a app no developer.spotify.com tem de ter Premium.
+- Ligar a loja (Iron Man > Loja) com uma app do Dev Dashboard (passos no README, secção "A loja").
 - Pedir a chave do fogos.pt e guardá-la em `fogos_token.txt`.
 - Dar à Termux:API as autorizações de localização, notificações e "Alterar definições do sistema" (para o brilho).
 - Correr `termux-setup-storage` uma vez, para as cópias irem também para o armazenamento do tablet.
@@ -71,6 +72,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Shopify com app do Dev Dashboard (Client ID e secret) e versão da API 2026-10; Spotify com mensagens claras para as regras de 2026; README atualizado com os passos novos.
 - Segunda revisão a tudo o que mudou nesta sessão: "ia" (do verbo ir) já não é lido como IA ("gastei 5 euros quando ia ao cinema" regista a despesa); os dias da partida e da volta deixaram de estar em pausa; "viagem de estudo" e "mochila" já não vão para o modo viagem (nem pedem PIN); "desliga a luz e liga o modo estudo" liga o modo; os modos pedidos pela Siri vão para o tablet; "de 30 a 2 de março" dá 28 de fevereiro a 2 de março; a mudança para o Haiku só mexe em quem tinha o Opus; erros de chave no gerador de perguntas com mensagem certa; pedidos sem ligação não contam nos custos; "Outras perguntas" lembra-se da matéria.
 - Revisão: o limite diário do Claude deixou de voltar a zero quando a central reinicia, e o limite de pesquisas na web passou a valer para a pergunta inteira (antes valia por cada pedido à API, e uma pergunta podia fazer várias).
 - Claude: o Haiku 5.5 passou a ser o modelo padrão (os tablets que tinham outro escolhido mudam uma vez, pela chave `ia_haiku_feito`). Interruptor da pesquisa na web nas definições do Claude (`ia_pesquisa`: 0 desligada, 1 por defeito, 3); desligada, o Claude diz que não sabe coisas de hoje.

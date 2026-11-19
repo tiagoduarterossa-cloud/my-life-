@@ -825,7 +825,8 @@ class Handler(BaseHTTPRequestHandler):
             if caminho == "/api/loja/ligar" and metodo == "POST":
                 d = self.corpo_json()
                 try:
-                    loja.guardar(str(d.get("dominio", "")), str(d.get("token", "")), float(d.get("taxa_pct") or 2.9), float(d.get("taxa_fixa") or 0.30))
+                    loja.guardar(str(d.get("dominio", "")), str(d.get("token", "")), float(d.get("taxa_pct") or 2.9), float(d.get("taxa_fixa") or 0.30),
+                                 str(d.get("client_id", "")), str(d.get("client_secret", "")))
                     nome = loja._gql("{ shop { name } }")["shop"]["name"]
                 except loja.ErroLoja as e:
                     loja.apagar(); raise Erro(str(e))

@@ -2,7 +2,12 @@
 A loja Shopify na central: vendas, encomendas por enviar e LUCRO REAL (vendas - reembolsos - custo dos
 produtos - taxas - anuncios e outras despesas).
 
-- Usa a Admin API (GraphQL) com uma chave SO DE LEITURA (read_orders, read_products, read_inventory).
+- Usa a Admin API (GraphQL) com permissoes SO DE LEITURA (read_orders, read_products, read_inventory).
+- Duas formas de ligar:
+  * app do Dev Dashboard (a unica possivel desde 1/1/2026): Client ID + Client secret. A central pede sozinha
+    uma chave com o "client credentials grant" (POST /admin/oauth/access_token), que dura 24 h, e pede outra antes de acabar.
+    So funciona se a app e a loja forem da mesma organizacao na Shopify.
+  * app personalizada antiga (criada antes de 2026 no admin da loja): a chave shpat_ continua a funcionar.
 - Nao pede nomes, emails nem moradas dos clientes: so numeros e produtos.
 - A chave fica em loja_token.json (fora do GitHub, so o Termux a le).
 - O custo de cada produto vem do campo "Custo por artigo" da Shopify. Se nao estiver preenchido, avisa.
@@ -15,12 +20,13 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
 TOKEN = Path(__file__).resolve().parent / "loja_token.json"
-VERSAO = os.environ.get("SHOPIFY_VERSAO", "2025-10")
+VERSAO = os.environ.get("SHOPIFY_VERSAO", "2026-10")   # a Shopify suporta cada versao cerca de 12 meses: atualizar 1 vez por ano
 BASE = os.environ.get("SHOPIFY_BASE")   # so para testes: substitui https://LOJA.myshopify.com
 
 TABELAS = """
@@ -42,14 +48,29 @@ def configurada():
     return TOKEN.exists()
 
 
-def guardar(dominio, token, taxa_pct=2.9, taxa_fixa=0.30):
+_chave = {"token": None, "expira": 0}   # a chave de 24 h do Dev Dashboard (so em memoria)
+_lock = threading.Lock()
+
+
+def guardar(dominio, token="", taxa_pct=2.9, taxa_fixa=0.30, client_id="", client_secret=""):
     dominio = dominio.strip().lower().replace("https://", "").replace("http://", "").strip("/")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*\.myshopify\.com", dominio):
         raise ErroLoja("o domínio tem de ser do tipo a-tua-loja.myshopify.com")
-    token = token.strip()
-    if not re.fullmatch(r"shpat_[A-Za-z0-9]{20,}", token):
-        raise ErroLoja("a chave da Shopify começa por shpat_")
-    TOKEN.write_text(json.dumps({"dominio": dominio, "token": token, "taxa_pct": float(taxa_pct), "taxa_fixa": float(taxa_fixa)}))
+    token, client_id, client_secret = token.strip(), client_id.strip(), client_secret.strip()
+    d = {"dominio": dominio, "taxa_pct": float(taxa_pct), "taxa_fixa": float(taxa_fixa)}
+    if client_id or client_secret:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", client_id):
+            raise ErroLoja("o Client ID não parece certo (copia-o do Dev Dashboard > a tua app > Settings)")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{16,200}", client_secret):
+            raise ErroLoja("o Client secret não parece certo (no mesmo sítio que o Client ID)")
+        d.update(client_id=client_id, client_secret=client_secret)
+    elif re.fullmatch(r"shpat_[A-Za-z0-9]{20,}", token):
+        d["token"] = token
+    else:
+        raise ErroLoja("mete o Client ID e o Client secret da app do Dev Dashboard (ou a chave antiga shpat_)")
+    with _lock:
+        _chave.update(token=None, expira=0)
+    TOKEN.write_text(json.dumps(d))
     try:
         os.chmod(TOKEN, 0o600)
     except OSError:
@@ -58,6 +79,36 @@ def guardar(dominio, token, taxa_pct=2.9, taxa_fixa=0.30):
 
 def apagar():
     TOKEN.unlink(missing_ok=True)
+    with _lock:
+        _chave.update(token=None, expira=0)
+
+
+def _chave_acesso(c, nova=False):
+    """a chave que vai no cabecalho X-Shopify-Access-Token"""
+    if c.get("token"):                       # app antiga: chave fixa
+        return c["token"]
+    with _lock:
+        if not nova and _chave["token"] and time.time() < _chave["expira"]:
+            return _chave["token"]
+        url = f"{BASE or 'https://' + c['dominio']}/admin/oauth/access_token"
+        corpo = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": c["client_id"], "client_secret": c["client_secret"]}).encode()
+        req = urllib.request.Request(url, data=corpo, headers={"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as r:
+                d = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            txt = e.read().decode("utf-8", "ignore")
+            if "shop_not_permitted" in txt:
+                raise ErroLoja("a Shopify não deixa esta app ligar-se a esta loja: a app tem de ser criada na mesma organização da loja (Dev Dashboard)")
+            if e.code in (400, 401, 403):
+                raise ErroLoja("a Shopify recusou o Client ID e o Client secret (estão certos? a app está instalada na loja?)")
+            raise ErroLoja(f"a Shopify deu erro {e.code} ao pedir a chave")
+        except urllib.error.URLError:
+            raise ErroLoja("sem ligação à Shopify")
+        if not d.get("access_token"):
+            raise ErroLoja("a Shopify não deu a chave")
+        _chave.update(token=d["access_token"], expira=time.time() + int(d.get("expires_in", 86399)) - 120)   # pede outra 2 min antes
+        return _chave["token"]
 
 
 def _cfg():
@@ -66,15 +117,18 @@ def _cfg():
     return json.loads(TOKEN.read_text())
 
 
-def _gql(query, variaveis=None):
+def _gql(query, variaveis=None, outra_vez=True):
     c = _cfg()
     url = f"{BASE or 'https://' + c['dominio']}/admin/api/{VERSAO}/graphql.json"
     req = urllib.request.Request(url, data=json.dumps({"query": query, "variables": variaveis or {}}).encode(),
-                                 headers={"Content-Type": "application/json", "X-Shopify-Access-Token": c["token"]})
+                                 headers={"Content-Type": "application/json", "X-Shopify-Access-Token": _chave_acesso(c)})
     try:
         with urllib.request.urlopen(req, timeout=15) as r:
             d = json.loads(r.read())
     except urllib.error.HTTPError as e:
+        if e.code == 401 and outra_vez and not c.get("token"):   # a chave de 24 h acabou antes do previsto: pede outra
+            _chave_acesso(c, nova=True)
+            return _gql(query, variaveis, outra_vez=False)
         if e.code in (401, 403):
             raise ErroLoja("a Shopify recusou a chave (está certa? tem as permissões read_orders e read_products?)")
         raise ErroLoja(f"a Shopify deu erro {e.code}")

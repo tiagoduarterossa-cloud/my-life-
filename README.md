@@ -158,13 +158,16 @@ As coisas privadas (família, mapa, loja, segurança e rede) só aparecem no mod
 
 **Lucro real** = vendas - reembolsos - custo dos produtos - taxas - anúncios e outras despesas. O custo vem do campo **"Custo por artigo"** de cada produto na Shopify: preenche-o, senão o lucro aparece maior do que é.
 
-Para ligar (com os teus pais, que supervisionam a conta):
-1. Na Shopify: **Definições > Apps e canais de vendas > Desenvolver apps** (pode ser preciso "Permitir o desenvolvimento de apps personalizadas") > **Criar uma app** (nome: `Central do quarto`)
-2. **Configurar os âmbitos da Admin API**: marca só `read_orders`, `read_products` e `read_inventory`. Mais nada.
-3. **Instalar a app** e revelar o **token de acesso da Admin API** (começa por `shpat_`; só aparece uma vez)
-4. Na central, modo Iron Man > painel **Loja** > ligar a loja: o domínio (`a-tua-loja.myshopify.com`), o token e as taxas do teu método de pagamento > **Ligar a loja**
+Para ligar (com os teus pais, que supervisionam a conta). Desde 1 de janeiro de 2026 a Shopify já não deixa criar apps personalizadas no admin da loja; agora faz-se no **Dev Dashboard**:
+1. Em **dev.shopify.com/dashboard**, entra com a mesma conta da loja (a app e a loja têm de ser da mesma organização) > **Create app** > nome `Central do quarto`
+2. Na versão da app, em **Access scopes** (Admin API), marca só `read_orders`, `read_products` e `read_inventory`. Mais nada. Faz **Release** dessa versão.
+3. **Install app** na tua loja (aceita as permissões)
+4. Em **Settings** da app, copia o **Client ID** e o **Client secret**
+5. Na central, modo Iron Man > painel **Loja** > ligar a loja: o domínio (`a-tua-loja.myshopify.com`), o Client ID, o Client secret e as taxas do teu método de pagamento > **Ligar a loja**
 
-O token fica em `loja_token.json` (fora do GitHub) e só consegue **ler**. A central não pede dados dos clientes.
+A central pede sozinha à Shopify uma chave que dura 24 horas e pede outra antes de acabar. Se já tinhas uma app antiga, de antes de 2026, com uma chave `shpat_`, essa continua a funcionar: cola-a no último campo em vez do Client ID e do secret.
+
+O Client ID, o secret (ou a chave antiga) ficam em `loja_token.json` (fora do GitHub, só o Termux o lê) e só conseguem **ler**. A central não pede dados dos clientes.
 
 ## Notícias, avisos e segurança (só fontes reais)
 
@@ -198,13 +201,14 @@ Depois reinicia o servidor e escolhe a voz na roda dentada > Assistente. Precisa
 
 "Põe música de estudo", "toca Travis Scott", "mete a playlist treino", "pausa", "próxima", "volume 30", "que música é esta?". No Início aparece um mini leitor, e nas rotinas há a ação **Música (Spotify)** (ex.: o Modo estudo põe lofi, a Hora de dormir pausa).
 
-Precisa de **Spotify Premium** (é o Spotify que exige isso para controlar a música) e do Spotify aberto num aparelho (o tablet ou o telemóvel). O som sai por onde esse aparelho estiver ligado, por exemplo uma coluna Bluetooth.
+Precisa de **Spotify Premium** e do Spotify aberto num aparelho (o tablet ou o telemóvel). Desde fevereiro de 2026, as apps em modo de desenvolvimento só funcionam se **a conta que criou a app** tiver Premium ativo (se o Premium acabar, a app para), e cada app pode ter **no máximo 5 pessoas** autorizadas. O som sai por onde esse aparelho estiver ligado, por exemplo uma coluna Bluetooth.
 
 Para ligar (uma vez):
 1. Em **developer.spotify.com/dashboard**, entra com a conta Spotify e carrega em **Create app**
 2. Nome: `Central do quarto`. Em **Redirect URIs** escreve exatamente `http://127.0.0.1:8080/api/spotify/callback` e carrega em Add. Em APIs, escolhe **Web API**. Aceita os termos e guarda.
 3. Copia o **Client ID** (32 letras e números)
 4. **No próprio tablet**, com a central aberta em `http://127.0.0.1:8080`: roda dentada > **Spotify** > cola o Client ID > Guardar > **Ligar ao Spotify** > entra e aceita
+5. Se a conta que vai ouvir música não for a mesma que criou a app: na app, **User Management** > junta o nome e o email dessa conta.
 
 A ligação fica em `spotify_token.json` (fora do GitHub). Não é preciso nenhum segredo: usa o método PKCE.
 
