@@ -1250,7 +1250,7 @@ async function abrirViagem() {
     t.tmax != null ? `🌡️ ${t.tipo === "previsao" ? "Previsão" : "O ano passado nestas datas"}: ${t.tmin}° a ${t.tmax}°, ${esc(t.chuva_txt)} <span class="info">· ${esc(t.fonte)}</span>` : "🌡️ Tempo: sem dados",
     v.hora_local ? `🕐 Hora lá agora: ${v.hora_local}` : "",
     c ? (c.taxa ? `💶 1 € = ${c.taxa} ${esc(c.moeda)} <span class="info">· ${esc(c.fonte)}, ${esc(c.data)}</span>` : `💶 Câmbio ${esc(c.moeda)}: sem dados`) : "",
-    `<label class="vg-item" style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" id="vg-casa" ${v.pausar_casa ? "checked" : ""}> Casa em pausa durante a viagem (alarmes de todos os dias e rotinas)</label>`,
+    `<label class="vg-item" style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" id="vg-casa" ${v.pausar_casa ? "checked" : ""}> Casa em pausa durante a viagem (alarmes de todos os dias e rotinas; no dia da partida e no da volta tocam)</label>`,
     v.link ? `<a href="${esc(v.link)}" target="_blank" rel="noopener">Abrir o guia da viagem ›</a>` : "",
     v.para_lavar.length ? `<span style="color:#e0a000">🧺 Para lavar antes de ir: ${v.para_lavar.map(esc).join(", ")}</span>` : ""];
   $("#vg-info").innerHTML = linhas.filter(Boolean).map(x => `<div class="linha-sv">${x}</div>`).join("");
@@ -1372,9 +1372,10 @@ async function modoRevisao(c) {
     return;
   }
   if (r.erro) { mc().innerHTML = `<div class="m-titulo">revisão</div><div class="m-sub">${esc(r.erro)}</div><div class="m-botoes"><button class="forte" onclick="sairModo()">Sair</button></div>`; return; }
-  correrQuiz(r.perguntas, `revisão · ${disc}`, c.voltar ? () => { modoAtual = "estudo"; $("#modo").className = "ver estudo"; ecraEstudo(); } : null);
+  correrQuiz(r.perguntas, `revisão · ${disc}`, c.voltar ? () => { modoAtual = "estudo"; $("#modo").className = "ver estudo"; ecraEstudo(); } : null,
+             () => modoRevisao({ disciplina: disc, materia: c.materia, voltar: c.voltar }));
 }
-function correrQuiz(perguntas, titulo, depois) {
+function correrQuiz(perguntas, titulo, depois, repetir) {
   quiz = { ps: perguntas, i: 0, certas: 0, falhadas: [] };
   const mostrar = () => {
     if (quiz.i >= quiz.ps.length) {
@@ -1383,7 +1384,7 @@ function correrQuiz(perguntas, titulo, depois) {
         ${quiz.falhadas.length ? `<div class="m-nota" style="text-align:left">Para rever:<br>${quiz.falhadas.map(q => "• " + esc(q.pergunta) + " → " + esc(q.opcoes[q.certa])).join("<br>")}</div>` : ""}
         <div class="m-botoes"><button id="m-outra">Outras perguntas</button>${depois ? `<button class="forte" id="m-depois">Voltar ao estudo</button>` : `<button class="forte" onclick="sairModo()">Sair</button>`}</div>`;
       falar(`${quiz.certas} em ${n}. ${f}`);
-      $("#m-outra").onclick = () => titulo.startsWith("jogo") ? jogoAmigos() : modoRevisao({ disciplina: titulo.split(" · ")[1], voltar: !!depois });
+      $("#m-outra").onclick = repetir;
       if (depois) $("#m-depois").onclick = depois;
       return;
     }
@@ -1426,7 +1427,7 @@ async function jogoAmigos() {
   mc().innerHTML = `<div class="m-titulo">jogo de perguntas</div><div class="m-sub">A preparar as perguntas…</div>`;
   let r; try { r = await api("/api/revisao", "POST", { tipo: "jogo" }); } catch (e) { r = { erro: e.message }; }
   if (r.erro) { mc().innerHTML = `<div class="m-titulo">jogo</div><div class="m-sub">${esc(r.erro)}</div><div class="m-botoes"><button class="forte" id="m-volta">Voltar</button></div>`; $("#m-volta").onclick = () => modoAmigos(); return; }
-  correrQuiz(r.perguntas, "jogo · cultura geral", () => modoAmigos());
+  correrQuiz(r.perguntas, "jogo · cultura geral", () => modoAmigos(), jogoAmigos);
 }
 
 // ----- treino (intervalos falados) -----

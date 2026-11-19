@@ -87,7 +87,11 @@ def achar_datas(t, hoje):
         try:
             b = date(hoje.year, MESES.index(m[3]) + 1, int(m[2]))
             if b < hoje: b = b.replace(year=b.year + 1)
-            a = b.replace(day=int(m[1])) if int(m[1]) <= int(m[2]) else (b.replace(day=1) - timedelta(days=1)).replace(day=int(m[1]))
+            if int(m[1]) <= int(m[2]):
+                a = b.replace(day=int(m[1]))
+            else:   # o mes anterior: se esse dia nao existir (30 de fevereiro), fica o ultimo dia desse mes
+                ult = b.replace(day=1) - timedelta(days=1)
+                a = ult.replace(day=min(int(m[1]), ult.day))
             achados += [(m.start(), a), (m.start() + 1, b)]
         except ValueError:
             pass
@@ -241,7 +245,8 @@ def entender(texto, hoje=None):
             not re.search(r"^(marca|tenho de|toma nota)", s):
         return "familia_estado", {}
 
-    if re.search(r"\b(claude|ia|api|inteligencia artificial)\b", s) and re.search(r"\b(custo|custos|custa|custou|gastei|gasto|gastos|gastou|quanto|fatura|dinheiro)\b", s):
+    if re.search(r"\b(claude|(?:a|da|na|com a) ia|api do claude|inteligencia artificial)\b", s) and \
+            re.search(r"\b(custo|custos|custa|custou|gastei|gasto|gastos|gastou|fatura|dinheiro)\b", s) and not re.search(r"\bgastei \d", s):
         return "custo_ia", {}
 
     m = re.search(r"\bgastei (\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
@@ -257,7 +262,7 @@ def entender(texto, hoje=None):
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
     # modos do Jarvis: amigos, treino, revisao (o modo estudo e a rotina "Modo estudo")
-    sair_modo = re.search(r"(?:\b(?:sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\b.*|^para (?:o )?)\bmodo (de )?(estudo|amigos|treino|revisao)\b", s)
+    sair_modo = re.search(r"\b(?:sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\s+(?:d?o\s+)?modo (de )?(estudo|amigos|treino|revisao)\b", s)
     if sair_modo:
         return "modo_sair", {"tipo": sair_modo[2]}
     if re.search(r"\b(os amigos (ja )?(foram|sairam)|ja foram embora)\b", s):
@@ -286,9 +291,10 @@ def entender(texto, hoje=None):
     if re.search(r"\b(nova viagem|marca (?:uma |a )?viagem|cria (?:uma )?viagem|regista (?:uma )?viagem)\b", s):
         ini, fim = achar_intervalo(t, hoje)
         return "viagem_criar", {"destino": achar_destino(t), "inicio": ini, "fim": fim, "datas": len(achar_datas(t, hoje)) >= 2}
-    if re.search(r"\bmodo (de )?viagem\b", s) or \
-            (re.search(r"\bviagem\b", s) and re.search(r"\b(falta|faltam|quando|como esta|como vai|estado|quanto tempo)\b", s)) or \
-            re.search(r"\b(o que falta|que falta|ja fiz|como esta|como vai|falta por)\b.*\bmala\b|\bmala\b.*\b(esta feita|falta)\b", s):
+    escola = re.search(r"\b(viagem|visita) (de estudo|da escola|da turma|de finalistas)\b|\bescola\b|\bmochila\b", s)
+    if re.search(r"\bmodo (de )?viagem\b", s) or (not escola and (
+            (re.search(r"\b(a|minha|da|para a) viagem\b", s) and re.search(r"\b(falta|faltam|quando|como esta|como vai|estado|quanto tempo)\b", s)) or
+            re.search(r"\b(o que falta|que falta|ja fiz|como esta|como vai|falta por)\b.*\bmala\b|\bmala\b.*\b(esta feita|falta)\b", s))):
         return "viagem", {}
 
     # o que esta a funcionar (wi-fi, internet, whatsapp...)
@@ -357,7 +363,8 @@ def entender(texto, hoje=None):
         nome = "Viagem" if re.search(r"\b(viagem|voo|aviao|aeroporto|comboio)\b", s) else ("Escola" if dias == "01234" else None)
         return "alarme", {"hora": achar_hora(t), "dias": dias, "data": None if dias else (datas[0] if datas else None), "nome": nome}
 
-    if re.search(r"\b(mala|malas|bagagem|o que (?:e que )?levo|o que devo levar|vou viajar|viagem)\b|^vou (?:a|ao|a|para|pra) ", s):
+    if (re.search(r"\b(mala|malas|bagagem|o que (?:e que )?levo|o que devo levar|vou viajar|viagem)\b|^vou (?:a|ao|a|para|pra) ", s)
+            and not re.search(r"\b(viagem|visita) (de estudo|da escola|da turma|de finalistas)\b", s)):
         ini, fim = achar_intervalo(t, hoje)
         return "mala", {"destino": achar_destino(t), "inicio": ini, "fim": fim}
 
@@ -798,7 +805,7 @@ def _responder(texto, con, hoje=None, nome=""):
             return {"resposta": f, "falado": f}
         r = viagem.resumo(con)
         f = f"Viagem marcada: {r['destino']}, de {viagem._dm(r['inicio'])} a {viagem._dm(r['fim'])}. Fiz-te a mala com a tua roupa. " + \
-            "Enquanto estiveres fora, os alarmes de todos os dias e as rotinas ficam em pausa."
+            "Entre a partida e a volta, os alarmes de todos os dias e as rotinas ficam em pausa; nos dias da partida e da volta tocam normalmente."
         return {"resposta": f, "falado": f, "viagem": True, "mudou": True}
 
     if intencao == "viagem":

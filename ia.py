@@ -322,7 +322,8 @@ def perguntar(texto, db, cfg, privado_ok=True):
                     params["tool_choice"] = {"type": "none"}
                     runner.set_messages_params(lambda p: {**p, "tool_choice": {"type": "none"}})
         finally:
-            registar(voltas)          # paga-se mesmo quando corre mal a meio
+            if voltas:
+                registar(voltas)      # paga-se mesmo quando corre mal a meio; sem respostas, nada chegou a Anthropic
         if not voltas:
             return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
         final = voltas[-1]
@@ -428,17 +429,26 @@ def gerar_perguntas(cfg, tipo, disciplina="", materia_txt="", n=6):
     try:
         r = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=60).beta.messages.create(**params)
         registar([r])
+    except anthropic.AuthenticationError:
+        return {"erro": "A chave do Claude não é válida. Vê-a nas definições."}
+    except anthropic.PermissionDeniedError:
+        return {"erro": "A chave não tem permissão para usar este modelo."}
     except anthropic.APIConnectionError:
         return {"erro": "Sem ligação à internet para falar com o Claude."}
     except anthropic.APIStatusError:
         return {"erro": "O Claude está com problemas. Tenta daqui a pouco."}
+    except Exception as e:
+        print("perguntas do claude:", e)
+        return {"erro": "Não consegui fazer as perguntas. Tenta outra vez."}
     if r.stop_reason in ("refusal", "max_tokens"):
         return {"erro": "Não consegui fazer as perguntas. Tenta outra matéria."}
     try:
         d = json.loads(next(b.text for b in r.content if b.type == "text"))
     except (StopIteration, ValueError):
         return {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
-    ok = [q for q in d.get("perguntas", []) if isinstance(q.get("opcoes"), list) and len(q["opcoes"]) == 4
+    if not isinstance(d, dict) or not isinstance(d.get("perguntas"), list):
+        return {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
+    ok = [q for q in d["perguntas"] if isinstance(q, dict) and isinstance(q.get("opcoes"), list) and len(q["opcoes"]) == 4
           and isinstance(q.get("certa"), int) and 0 <= q["certa"] <= 3 and q.get("pergunta")]
     return {"perguntas": ok[:n]} if ok else {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
 

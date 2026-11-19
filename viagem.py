@@ -1,6 +1,6 @@
 """
 Modo viagem: a mala feita com a roupa que tens na central, o tempo no destino, a hora e o cambio,
-e a casa em pausa (alarmes normais e rotinas) enquanto estas fora.
+e a casa em pausa (alarmes normais e rotinas) nos dias em que estas fora (sem contar o dia da partida e o da volta).
 
 Tudo o que e da viagem (destino, datas, notas, link) fica no vida.db, nunca no codigo:
 o repositorio e publico e as datas em que a casa fica vazia nao devem estar na internet.
@@ -94,10 +94,11 @@ def atual(con, hoje=None):
 
 
 def em_viagem(con, dia):
-    """True se nesse dia a casa esta em pausa (estas fora)"""
+    """True se nesse dia a casa esta em pausa (estas fora). Os dias da partida e da volta NAO contam:
+    nesses dias podes estar em casa de manha ou a noite, e perder o despertador da escola e pior do que ele tocar numa casa vazia."""
     iso = dia.isoformat()
     try:
-        return bool(con.execute("SELECT 1 FROM viagens WHERE pausar_casa = 1 AND inicio <= ? AND fim >= ?", (iso, iso)).fetchone())
+        return bool(con.execute("SELECT 1 FROM viagens WHERE pausar_casa = 1 AND inicio < ? AND fim > ?", (iso, iso)).fetchone())
     except Exception:          # a tabela ainda nao existe
         return False
 

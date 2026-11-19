@@ -139,7 +139,7 @@ def init_db():
         con.executescript(ia.TABELAS)
         rotinas.criar_padrao(con)
         if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
-            con.execute("DELETE FROM config WHERE chave = 'ia_modelo'")          # passa a usar o padrao (Haiku)
+            con.execute("DELETE FROM config WHERE chave = 'ia_modelo' AND valor = 'claude-opus-5-5'")   # o antigo padrao passa a Haiku
             con.execute("INSERT INTO config (chave, valor) VALUES ('ia_haiku_feito', '1')")
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -558,8 +558,14 @@ class Handler(BaseHTTPRequestHandler):
                 do_telemovel = corpo.get("origem") == "telemovel"   # Atalho da Siri no iPhone
                 direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
                 privado_ok = not pin.ativo() or bool(self.sessao)
+                def para_tablet(r):
+                    """vindo do iPhone: o telemovel so fala; o que mexe no ecra (modos...) vai para o tablet"""
+                    if do_telemovel and r.get("comandos"):
+                        rotinas._por_na_fila([c for c in r["comandos"] if c.get("acao") != "falar"])
+                        r = {k: v for k, v in r.items() if k != "comandos"}
+                    return r
                 if direto and ia.disponivel():
-                    return self.enviar(200, responder_ia(direto, privado_ok))
+                    return self.enviar(200, para_tablet(responder_ia(direto, privado_ok)))
                 em_amigos, rotina_pessoal = modos.amigos(), False
                 if em_amigos:
                     with db() as con:
@@ -581,14 +587,14 @@ class Handler(BaseHTTPRequestHandler):
                         return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
                     r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
-                    return self.enviar(200, responder_ia(frase, privado_ok))
+                    return self.enviar(200, para_tablet(responder_ia(frase, privado_ok)))
                 if r.get("resumir") and ia.disponivel():  # noticias em ingles: o Claude resume em portugues
                     resumo = ia.resumir(r["resumir"], ler_config())
                     if resumo:
                         r = dict(r, falado=resumo)
                 if do_telemovel and r.get("mudou"):
                     rotinas._por_na_fila([{"acao": "aviso", "texto": f"Do telemóvel: {r.get('resposta', '')}"}])
-                return self.enviar(200, dict(r, falado=r.get("falado") or r.get("resposta", "")))
+                return self.enviar(200, para_tablet(dict(r, falado=r.get("falado") or r.get("resposta", ""))))
             # ----- despertador -----
             if caminho == "/api/alarmes":
                 with db() as con:

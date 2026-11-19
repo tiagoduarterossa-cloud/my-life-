@@ -315,7 +315,7 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
 def por_voz(con, texto):
     """se a frase pedir uma rotina ('modo estudo', 'rotina hora de dormir'), devolve-a"""
     s = assistente.simples(texto)
-    if re.search(r"\b(sai|sair|acabou|acaba|termina|terminar|desliga|fecha)\b.*\bmodo\b|^para (o )?modo\b", s):
+    if re.search(r"\b(sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\s+(d?o\s+)?modo\b", s):
         return None                             # "sai do modo estudo" nao e para ligar a rotina
     for r in listar(con):
         if not r["ativa"]:
