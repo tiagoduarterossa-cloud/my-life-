@@ -24,7 +24,7 @@ import assistente
 CHAVE = Path(__file__).resolve().parent / "chave_claude.txt"
 
 MODELOS = [
-    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,05 cêntimos por pergunta) · recomendado"),
+    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,04 cêntimos por pergunta) · recomendado"),
     ("claude-sonnet-5-5", "Sonnet 5.5: equilibrado (~1 cêntimo por pergunta)"),
     ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~2 cêntimos por pergunta)"),
 ]
@@ -134,15 +134,37 @@ def frase_custos():
     return f + " São contas da central com os preços oficiais; a fatura exata está na consola da Anthropic."
 
 
-def _contar(cfg):
-    """conta um pedido no limite diario. Devolve False se o limite ja foi atingido."""
+def _usadas_hoje():
+    """quantos pedidos ao Claude ja houve hoje. Fica na base de dados (config 'ia_uso' = 'AAAA-MM-DD:n'),
+    para o limite nao voltar a zero quando a central reinicia (atualizar.sh, falta de luz...)."""
     hoje = date.today()
     if _uso["dia"] != hoje:
-        _uso.update(dia=hoje, n=0)
-    if _uso["n"] >= int(cfg.get("ia_limite", 100)):
-        return False
-    _uso["n"] += 1
-    return True
+        n = 0
+        if _db:
+            try:
+                with _db() as con:
+                    r = con.execute("SELECT valor FROM config WHERE chave = 'ia_uso'").fetchone()
+                if r and r[0].startswith(hoje.isoformat() + ":"):
+                    n = int(r[0].split(":")[1])
+            except Exception as e:
+                print("limite do claude:", e)
+        _uso.update(dia=hoje, n=n)
+    return _uso["n"]
+
+
+def _contar(cfg):
+    """conta um pedido no limite diario. Devolve False se o limite ja foi atingido."""
+    with _hist_lock:
+        if _usadas_hoje() >= int(cfg.get("ia_limite", 100)):
+            return False
+        _uso["n"] += 1
+        if _db:
+            try:
+                with _db() as con:
+                    con.execute("INSERT OR REPLACE INTO config (chave, valor) VALUES ('ia_uso', ?)", (f"{_uso['dia'].isoformat()}:{_uso['n']}",))
+            except Exception as e:
+                print("limite do claude:", e)
+        return True
 
 
 INTERNET_LIGADA = """Internet:
@@ -192,8 +214,7 @@ def apagar_chave():
 
 
 def estado(cfg):
-    hoje = date.today()
-    usadas = _uso["n"] if _uso["dia"] == hoje else 0
+    usadas = _usadas_hoje()
     return {"sdk": sdk_instalado(), "chave": chave_configurada(), "modelo": cfg.get("ia_modelo", MODELO_PADRAO),
             "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas, "custos": custos(),
             "pesquisa": cfg.get("ia_pesquisa", PESQUISA_PADRAO), "pesquisas": PESQUISA}
@@ -287,10 +308,19 @@ def perguntar(texto, db, cfg, privado_ok=True):
 
     try:
         client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=40)
-        voltas = []
+        voltas, feitas, orcamento = [], 0, int(pesq) if pesq in ("1", "3") else 0
+        runner = client.beta.messages.tool_runner(**params)
         try:
-            for m in client.beta.messages.tool_runner(**params):
+            for m in runner:
                 voltas.append(m)
+                st = getattr(getattr(m, "usage", None), "server_tool_use", None)
+                feitas += (getattr(st, "web_search_requests", 0) or 0) if st else 0
+                if orcamento and feitas >= orcamento and params.get("tool_choice") is None:
+                    # o max_uses so conta dentro de cada pedido; com varias voltas podia pesquisar mais.
+                    # Gasto o orcamento: as proximas voltas ja nao usam ferramentas e respondem com o que ha.
+                    # (mudar o tool_choice nao mexe nas ferramentas nem no historico)
+                    params["tool_choice"] = {"type": "none"}
+                    runner.set_messages_params(lambda p: {**p, "tool_choice": {"type": "none"}})
         finally:
             registar(voltas)          # paga-se mesmo quando corre mal a meio
         if not voltas:

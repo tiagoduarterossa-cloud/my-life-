@@ -34,9 +34,10 @@ Funciona e está testado:
 ## Custos
 
 Só o Claude custa dinheiro (API da Anthropic, saldo pré-pago numa conta de adulto, separada de qualquer subscrição do Claude). Tudo o resto é gratuito: Iron Man, mapa, modos, cronómetros, regras, IPMA, Open-Meteo, USGS, BCE, rádio, notícias, fogos.pt, voz. O Spotify só é controlado com conta Premium.
-- Haiku 5.5: ~0,04 cêntimos por pergunta; cada pesquisa na web +1 cêntimo (é o que mais pesa). Revisão e jogo: <0,1 cêntimos por ronda.
-- Um mês normal (20 perguntas/dia, pesquisa até 1): ~1,75 $. Com a pesquisa desligada: ~0,25 $.
-- Máximo com o limite de 100/dia e uma pesquisa em cada: ~31 $/mês (com limite de 30/dia: ~10 $).
+- Haiku 5.5: ~0,04 cêntimos por pergunta; cada pesquisa na web +1 cêntimo, mais os tokens dos resultados (é o que mais pesa). Revisão e jogo: <0,1 cêntimos por ronda no Haiku; no Opus ~2 a 3 cêntimos.
+- Um mês normal (20 perguntas/dia, pesquisa até 1): de ~1,75 $ (se pesquisar em 1 de cada 4 perguntas) a ~6 $ (se pesquisar em todas). Com a pesquisa desligada: ~0,25 $.
+- O limite de pesquisas vale para a pergunta inteira (todas as voltas do tool runner): gasto o orçamento, as voltas seguintes vão com `tool_choice: none`. O limite diário de perguntas fica guardado (config `ia_uso`) e não volta a zero quando a central reinicia.
+- Máximo com o limite de 100/dia e uma pesquisa em cada: ~31 $/mês (com limite de 30/dia: ~10 $). O limite de gastos na consola da Anthropic continua a ser a proteção final.
 - Quando as regras percebem a frase, não há custo. Paga-se só nas perguntas que as regras não percebem, nas frases começadas por "Claude, …", na revisão/jogo, nas fotos e nos resumos de notícias em inglês.
 - O contador real está nas definições do Claude (tabela `ia_custos`).
 
@@ -70,6 +71,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Revisão: o limite diário do Claude deixou de voltar a zero quando a central reinicia, e o limite de pesquisas na web passou a valer para a pergunta inteira (antes valia por cada pedido à API, e uma pergunta podia fazer várias).
 - Claude: o Haiku 5.5 passou a ser o modelo padrão (os tablets que tinham outro escolhido mudam uma vez, pela chave `ia_haiku_feito`). Interruptor da pesquisa na web nas definições do Claude (`ia_pesquisa`: 0 desligada, 1 por defeito, 3); desligada, o Claude diz que não sabe coisas de hoje.
 - Modos do Jarvis: estudo, revisão, amigos e treino.
 - Revisão dos modos: o modo amigos fica guardado na base de dados (sobrevive a reiniciar), cala rotinas, "bom dia", vendas e detalhes dos alertas da família; "muda para o modo X" já não desliga; frases como "vou treinar sexta" ou "tenho amigos cá sábado" já não ligam modos; sair a meio do estudo pede o registo; os avisos urgentes (família) aparecem mesmo no modo estudo; quando o Claude liga um modo, o ecrã muda.
