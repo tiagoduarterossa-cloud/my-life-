@@ -222,6 +222,9 @@ def perguntar(texto, db, cfg, privado_ok=True):
         Args:
             pedido: o pedido numa frase curta, parecida com os exemplos.
         """
+        import modos
+        if modos.bloqueado(pedido):
+            return modos.FRASE_AMIGOS + " Não respondas a isto nem digas nada sobre a vida dele."
         if not privado_ok and assistente.entender(pedido)[0] in assistente.PRIVADAS:
             return "Isso é privado (loja, família, segurança) e está trancado com PIN. Diz-lhe para meter o PIN no ecrã."
         if assistente.entender(pedido)[0] in assistente.PRIVADAS:
@@ -248,8 +251,9 @@ def perguntar(texto, db, cfg, privado_ok=True):
     with _hist_lock:  # ultimas 6 trocas dos ultimos 15 minutos, para perceber "e na quarta?"
         _hist[:] = [h for h in _hist if time.time() - h[2] < 15 * 60][-6:]
         mensagens = []
+        import modos
         for p, r, _, priv in _hist:
-            if priv and not privado_ok:
+            if (priv and not privado_ok) or modos.amigos():   # no modo amigos o Claude nao se lembra das conversas de antes
                 continue
             mensagens += [{"role": "user", "content": p}, {"role": "assistant", "content": r}]
     mensagens.append({"role": "user", "content": texto})
@@ -339,6 +343,59 @@ def ver(pergunta, jpeg, cfg):
         return {"erro": "Com isso não te posso ajudar."}
     txt = " ".join(b.text for b in r.content if b.type == "text").strip()
     return {"resposta": txt} if txt else {"erro": "Não consegui perceber a imagem."}
+
+
+ESQUEMA_PERGUNTAS = {
+    "type": "object",
+    "properties": {"perguntas": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"pergunta": {"type": "string"}, "opcoes": {"type": "array", "items": {"type": "string"}},
+                       "certa": {"type": "integer"}, "explicacao": {"type": "string"}},
+        "required": ["pergunta", "opcoes", "certa", "explicacao"], "additionalProperties": False}}},
+    "required": ["perguntas"], "additionalProperties": False,
+}
+
+
+def gerar_perguntas(cfg, tipo, disciplina="", materia_txt="", n=6):
+    """perguntas de escolha multipla. tipo 'revisao' (materia da escola) ou 'jogo' (cultura geral, modo amigos).
+    Devolve {perguntas: [{pergunta, opcoes[4], certa, explicacao}]} ou {erro}"""
+    if not disponivel():
+        return {"erro": "Para isto é preciso o Claude ligado (definições do Claude)."}
+    if not _contar(cfg):
+        return {"erro": "Hoje já chegaste ao limite de perguntas ao Claude."}
+    import anthropic
+    if tipo == "revisao":
+        pedido = (f"Faz {n} perguntas de revisão de {disciplina} para um aluno do 8.º ano em Portugal, sobre esta matéria:\n"
+                  f"{materia_txt}\n\nFoca-te no que ele escreveu como dúvida, se houver. Usa a terminologia das escolas portuguesas.")
+    else:
+        pedido = (f"Faz {n} perguntas de cultura geral divertidas para um grupo de amigos de 13 anos em Portugal "
+                  "(desporto, música, ciência, geografia, jogos, internet). Variadas e nem todas fáceis.")
+    sistema = ("Escreves perguntas de escolha múltipla em português de Portugal. Cada pergunta tem exatamente 4 opções curtas, "
+               "uma só certa ('certa' é o índice 0 a 3, varia a posição), e uma explicação de uma frase. "
+               "Pergunta só factos bem estabelecidos de que tens a certeza; nada que mude com o tempo (resultados, recordes recentes, "
+               "quem é o atual...). Se a matéria for vaga, fica pelo que é básico e certo.")
+    modelo = cfg.get("ia_modelo", MODELO_PADRAO)
+    modelo = modelo if modelo in {m for m, _ in MODELOS} else MODELO_PADRAO
+    params = dict(model=modelo, max_tokens=6000, system=sistema, output_config={"effort": "low", "format": {"type": "json_schema", "schema": ESQUEMA_PERGUNTAS}},
+                  messages=[{"role": "user", "content": pedido}])
+    if modelo != "claude-haiku-5-5":
+        params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+    try:
+        r = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=60).beta.messages.create(**params)
+        registar([r])
+    except anthropic.APIConnectionError:
+        return {"erro": "Sem ligação à internet para falar com o Claude."}
+    except anthropic.APIStatusError:
+        return {"erro": "O Claude está com problemas. Tenta daqui a pouco."}
+    if r.stop_reason in ("refusal", "max_tokens"):
+        return {"erro": "Não consegui fazer as perguntas. Tenta outra matéria."}
+    try:
+        d = json.loads(next(b.text for b in r.content if b.type == "text"))
+    except (StopIteration, ValueError):
+        return {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
+    ok = [q for q in d.get("perguntas", []) if isinstance(q.get("opcoes"), list) and len(q["opcoes"]) == 4
+          and isinstance(q.get("certa"), int) and 0 <= q["certa"] <= 3 and q.get("pergunta")]
+    return {"perguntas": ok[:n]} if ok else {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
 
 
 def resumir(texto, cfg):

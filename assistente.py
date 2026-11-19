@@ -256,6 +256,28 @@ def entender(texto, hoje=None):
             p = "mes"
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
+    # modos do Jarvis: amigos, treino, revisao (o modo estudo e a rotina "Modo estudo")
+    sair_modo = re.search(r"\b(sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha|para)\b.*\bmodo (de )?(estudo|amigos|treino|revisao)\b", s)
+    if sair_modo:
+        return "modo_sair", {"tipo": sair_modo[3]}
+    if re.search(r"\b(os amigos (ja )?(foram|sairam)|ja foram embora)\b", s):
+        return "modo_sair", {"tipo": "amigos"}
+    if re.search(r"\bmodo (de )?amigos\b|\b(tenho|estao|chegaram|vieram) (uns |os )?amigos\b", s):
+        return "modo_amigos", {}
+    if re.search(r"\bmodo (de )?treino\b|\b(bora|vamos|vou) treinar\b|\bcomeca o treino\b", s):
+        num = lambda rx: (lambda m: int(m[1]) if m else None)(re.search(rx, s))
+        rondas, trabalho = num(r"(\d+) (?:rondas|series|vezes)"), num(r"(\d+) segundos")
+        descanso = num(r"(\d+) (?:segundos )?de (?:descanso|pausa)")
+        minutos = num(r"(\d+) minutos")
+        if trabalho and descanso == trabalho and len(re.findall(r"\d+ segundos", s)) == 1:
+            trabalho = None                     # "15 segundos de descanso" sozinho nao e o tempo de trabalho
+        trabalho, descanso = min(max(trabalho or 40, 5), 600), min(max(descanso if descanso is not None else 20, 0), 600)
+        if not rondas and minutos:
+            rondas = max(1, round(minutos * 60 / (trabalho + descanso)))
+        return "modo_treino", {"rondas": min(max(rondas or 8, 1), 50), "trabalho": trabalho, "descanso": descanso}
+    if re.search(r"\bmodo (de )?revisao\b|\b(faz|fazes)(-me| me)? perguntas\b|\btesta-?me\b|\bquiz\b|\b(ajuda-?me a )?rever (a materia|para o teste)\b", s):
+        return "modo_revisao", {"texto": t}
+
     # copias de seguranca do vida.db (antes da "seguranca" da rede e da central)
     if re.search(r"\b(copias? de seguranca|backups?)\b", s):
         return "backup", {"fazer": bool(re.search(r"\b(faz|fazer|faca|cria|criar|guarda|agora)\b", s))}
@@ -785,6 +807,34 @@ def _responder(texto, con, hoje=None, nome=""):
         f = viagem.frase(r)
         return {"resposta": f, "falado": f, "viagem": bool(r),
                 "itens": [i["texto"] for i in (r or {}).get("itens", []) if not i["feito"]][:12]}
+
+    if intencao in ("modo_amigos", "modo_treino", "modo_revisao", "modo_sair"):
+        import modos
+        if intencao == "modo_amigos":
+            modos.por_amigos(True)
+            f = "Modo amigos ligado. Escondi as tuas coisas. Divirtam-se."
+            cmd = {"acao": "modo", "tipo": "amigos"}
+        elif intencao == "modo_treino":
+            f = f"Modo treino: {d['rondas']} rondas de {d['trabalho']} segundos, com {d['descanso']} de descanso. Prepara-te."
+            cmd = {"acao": "modo", "tipo": "treino", **d}
+        elif intencao == "modo_revisao":
+            disc = modos.achar_disciplina(con, d["texto"])
+            if not disc:   # uma disciplina que ainda nao esta na central: "testa-me a geografia"
+                m = re.search(r"\b(?:de|a|sobre)\s+([a-z][a-z ]{2,30})$", simples(d["texto"]).strip(" ?!."))
+                if m and m[1] not in ("mim", "materia", "teste", "revisao"):
+                    disc = m[1].strip().capitalize()
+            if not disc:
+                prox = con.execute("SELECT disciplina FROM testes WHERE data >= ? ORDER BY data LIMIT 1", (hoje.isoformat(),)).fetchone()
+                disc = prox[0] if prox else None
+            if not disc:
+                f = "De que disciplina? Diz por exemplo: faz-me perguntas de Ciências."
+                return {"resposta": f, "falado": f}
+            f = f"Bora rever {disc}. Vou preparar as perguntas."
+            cmd = {"acao": "modo", "tipo": "revisao", "disciplina": disc}
+        else:
+            f = "Modo desligado." if d["tipo"] != "amigos" else "Para sair do modo amigos, confirma no ecrã."
+            cmd = {"acao": "modo", "tipo": "sair", "de": d["tipo"]}
+        return {"resposta": f, "falado": f, "comandos": [cmd, {"acao": "falar", "texto": f}]}
 
     if intencao == "custo_ia":
         import ia

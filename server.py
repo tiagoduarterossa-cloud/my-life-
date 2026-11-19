@@ -25,6 +25,7 @@ import dispositivos
 import familia
 import ia
 import loja
+import modos
 import noticias
 import pin
 import radio
@@ -554,6 +555,11 @@ class Handler(BaseHTTPRequestHandler):
                 privado_ok = not pin.ativo() or bool(self.sessao)
                 if direto and ia.disponivel():
                     return self.enviar(200, responder_ia(direto, privado_ok))
+                if modos.amigos():
+                    with db() as con:
+                        rotina_pessoal = bool(rotinas.por_voz(con, frase))   # "modo estudo" diria a proxima disciplina
+                if modos.bloqueado(frase) or (modos.amigos() and rotina_pessoal):
+                    return self.enviar(200, {"resposta": modos.FRASE_AMIGOS, "falado": modos.FRASE_AMIGOS})
                 if not privado_ok and assistente.entender(frase)[0] in assistente.PRIVADAS:
                     return self.enviar(200, {"resposta": "🔒 Isso é privado: mete o PIN.", "falado": "Isso é privado. Mete o PIN no ecrã.",
                                              "bloqueado": True, "privado": True})
@@ -718,6 +724,30 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         con.execute("UPDATE viagem_itens SET feito = ? WHERE id = ?", (1 if self.corpo_json().get("feito") else 0, int(m[1])))
                 return self.enviar(200, {"ok": True})
+
+            # ----- modos do Jarvis -----
+            if caminho == "/api/modo":
+                if metodo == "GET":
+                    return self.enviar(200, {"amigos": modos.amigos()})
+                if metodo == "POST":
+                    ligar = bool(self.corpo_json().get("amigos"))
+                    if not ligar and modos.amigos() and pin.ativo() and not self.sessao:
+                        return self.enviar(401, {"erro": "mete o PIN para sair do modo amigos", "pin": True})
+                    modos.por_amigos(ligar)
+                    return self.enviar(200, {"amigos": ligar})
+            if caminho == "/api/revisao" and metodo == "POST":
+                d = self.corpo_json()
+                if d.get("tipo") == "jogo":
+                    return self.enviar(200, ia.gerar_perguntas(ler_config(), "jogo"))
+                if modos.amigos():
+                    raise Erro(modos.FRASE_AMIGOS)
+                disc = texto(d, "disciplina", maximo=60)
+                with db() as con:
+                    ctx, teste = modos.contexto(con, disc, texto(d, "materia", obrigatorio=False, maximo=300) or "")
+                if not ctx:
+                    return self.enviar(200, {"precisa_materia": True, "disciplina": disc})
+                r = ia.gerar_perguntas(ler_config(), "revisao", disc, ctx)
+                return self.enviar(200, dict(r, disciplina=disc, teste=teste and teste["data"]))
 
             # ----- copias de seguranca do vida.db -----
             if caminho == "/api/backups" and metodo == "GET":

@@ -15,6 +15,7 @@ Condicoes (se):     "", "teste_amanha", "dia_de_aulas", "fim_de_semana"
 """
 
 import json
+import re
 import threading
 import time
 from datetime import date, datetime, timedelta
@@ -45,6 +46,7 @@ ACOES = {
     "ecra":           {"onde": "ecra",     "descricao": "Põe o ecrã em modo noite ou normal"},
     "abrir":          {"onde": "ecra",     "descricao": "Abre um separador da central"},
     "cor":            {"onde": "ecra",     "descricao": "Muda a cor do ecrã principal"},
+    "modo":           {"onde": "ecra",     "descricao": "Abre um modo do Jarvis (estudo, revisão, amigos, treino)"},
     "tarefa":         {"onde": "servidor", "descricao": "Cria uma tarefa"},
     "som":            {"onde": "servidor", "descricao": "Toca o som do alarme uma vez"},
     "tomada":         {"onde": "servidor", "descricao": "Liga ou desliga a tomada inteligente (luz LED)"},
@@ -313,6 +315,8 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
 def por_voz(con, texto):
     """se a frase pedir uma rotina ('modo estudo', 'rotina hora de dormir'), devolve-a"""
     s = assistente.simples(texto)
+    if re.search(r"\b(sai|sair|acabou|acaba|termina|terminar|desliga|fecha|para)\b.*\bmodo\b", s):
+        return None                             # "sai do modo estudo" nao e para ligar a rotina
     for r in listar(con):
         if not r["ativa"]:
             continue

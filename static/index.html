@@ -343,6 +343,32 @@
   #apagao .hora { font-size: 44px; font-weight: 200; color: #fff; vertical-align: middle; }
   #apagao .topo button { vertical-align: middle; }
   #d-servicos .linha-sv { padding: 3px 0; }
+  /* modos do Jarvis: ecra inteiro por cima de tudo */
+  #modo { position: fixed; inset: 0; z-index: 55; display: none; flex-direction: column; align-items: center; justify-content: center;
+          gap: 18px; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); color: #fff; text-align: center; overflow-y: auto;
+          background: radial-gradient(70% 60% at 50% 40%, rgba(var(--m), .28), #05060a 75%), #05060a; --m: 10, 132, 255; }
+  #modo.ver { display: flex; }
+  #modo.estudo { --m: 10, 132, 255; } #modo.revisao { --m: 191, 90, 242; } #modo.amigos { --m: 255, 159, 10; } #modo.treino { --m: 48, 209, 88; }
+  #modo .m-titulo { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; opacity: .75; }
+  #modo .m-grande { font-size: clamp(72px, 20vw, 190px); font-weight: 200; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -2px; }
+  #modo .m-sub { font-size: 20px; opacity: .85; max-width: 680px; }
+  #modo .m-barra { width: min(560px, 90%); height: 6px; border-radius: 3px; background: rgba(255,255,255,.12); overflow: hidden; }
+  #modo .m-barra i { display: block; height: 100%; background: rgb(var(--m)); transition: width .5s linear; }
+  #modo .m-botoes { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  #modo button { padding: 12px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.08);
+                 color: #fff; font-size: 16px; font-family: inherit; cursor: pointer; }
+  #modo button.forte { background: rgb(var(--m)); border-color: transparent; }
+  #modo button.sel { background: rgba(var(--m), .3); border-color: rgb(var(--m)); }
+  #modo .m-sair { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 14px; }
+  #modo .m-opcoes { display: grid; gap: 10px; width: min(620px, 100%); }
+  #modo .m-opcoes button { text-align: left; font-size: 18px; padding: 14px 16px; }
+  #modo .m-opcoes button.certa { background: rgba(48, 209, 88, .35); border-color: #30d158; }
+  #modo .m-opcoes button.errada { background: rgba(255, 69, 58, .35); border-color: #ff453a; }
+  #modo .m-pergunta { font-size: 24px; font-weight: 600; max-width: 720px; }
+  #modo .m-nota { font-size: 13px; opacity: .6; max-width: 620px; }
+  #modo form { display: grid; gap: 10px; width: min(520px, 100%); grid-template-columns: 1fr; }
+  #modo input, #modo textarea, #modo select { background: rgba(255,255,255,.1); color: #fff; }
+  body.modo-amigos #hud-agenda, body.modo-amigos #i-tarefas, body.modo-amigos #i-teste { visibility: hidden; }
   #d-viagem .linha-sv { padding: 3px 0; }
   #d-viagem label.vg-item { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 400; color: var(--txt); }
   #d-pessoa .sec { margin-top: 14px; } #d-pessoa .sec h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); }
@@ -568,6 +594,9 @@
       </div>
       <div class="lado-cartoes">
         <div class="vidro" id="i-agora"></div>
+        <div class="vidro"><h2>Modos</h2><div class="m-atalhos" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button onclick="abrirModo({tipo:'estudo'})">📚 Estudo</button><button onclick="abrirModo({tipo:'revisao'})">🧠 Revisão</button>
+          <button onclick="abrirModo({tipo:'amigos'})">🎮 Amigos</button><button onclick="abrirModo({tipo:'treino'})">💪 Treino</button></div></div>
         <div class="vidro" id="i-musica" hidden><h2>A tocar</h2><div class="leitor" id="leitor"></div></div>
         <div class="vidro"><h2>Despertador</h2><div class="desp"><div id="i-alarme"></div><button id="abrir-alarmes">Alarmes</button></div></div>
         <div class="vidro" id="i-teste"></div>
@@ -924,6 +953,8 @@
   <div id="ps-corpo" class="vazio">A carregar…</div>
   <div class="botoes"><button type="button" class="secundario" id="ps-falei">Falei hoje</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
 </dialog>
+<div id="modo" role="dialog" aria-label="Modo do Jarvis"><button class="m-sair" id="m-sair">Sair</button><div id="m-corpo" style="display:contents"></div></div>
+
 <dialog id="d-viagem">
   <h3 id="vg-titulo">Modo viagem</h3>
   <div id="vg-info"></div>
@@ -1148,6 +1179,7 @@ function guardar(k, v) { try { v == null ? localStorage.removeItem(k) : localSto
 function ler(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 
 function aviso(msg, erro = true) {
+  if (!erro && modoAtual === "estudo" && !aviso.dentro) { avisosGuardados.push(msg); return; }   // nao interrompe o estudo
   const el = $("#aviso"); el.textContent = msg; el.className = erro ? "erro" : ""; el.style.display = "block";
   clearTimeout(aviso.t); aviso.t = setTimeout(() => el.style.display = "none", 3500);
 }
@@ -1243,6 +1275,221 @@ $("#f-viagem").onsubmit = async e => {
   e.preventDefault(); const f = e.target, d = Object.fromEntries(new FormData(f)); d.pausar_casa = f.pausar_casa.checked;
   try { await api("/api/viagens", "POST", d); f.reset(); abrirViagem(); } catch (err) { aviso(err.message); }
 };
+
+// ---------- modos do Jarvis: estudo, revisao, amigos, treino ----------
+let modoAtual = null, modoTimer = null, avisosGuardados = [], treino = null, quiz = null;
+const mc = () => $("#m-corpo");
+function abrirModo(c) {
+  if (modoAtual === "amigos" && c.tipo !== "amigos" && c.tipo !== "jogo") return aviso("Primeiro sai do modo amigos.");
+  clearInterval(modoTimer); modoTimer = null;
+  modoAtual = c.tipo === "jogo" ? "amigos" : c.tipo;
+  const m = $("#modo"); m.className = "ver " + (c.tipo === "jogo" ? "amigos" : c.tipo);
+  ({ estudo: modoEstudo, revisao: modoRevisao, amigos: modoAmigos, jogo: () => jogoAmigos(), treino: modoTreino })[c.tipo]?.(c);
+}
+async function sairModo(de) {
+  if (de && modoAtual && de !== modoAtual) return;   // "sai do modo treino" quando estas noutro modo: nao faz nada
+  if (modoAtual === "amigos") {
+    try { await api("/api/modo", "POST", { amigos: false }); } catch (e) { return aviso(e.message); }   // pede o PIN se houver
+    document.body.classList.remove("modo-amigos");
+  }
+  if (modoAtual === "treino" && treino) pararTreino(false);
+  if (modoAtual === "estudo" && crono) { if (!confirm("O cronómetro ainda está a contar. Sair e terminar agora?")) return; terminarCrono(false); }
+  clearInterval(modoTimer); modoTimer = null; modoAtual = null; $("#modo").className = "";
+  if (avisosGuardados.length) { const a = avisosGuardados.splice(0); aviso.dentro = true; aviso("Enquanto estavas no modo: " + a.join(" · "), false); aviso.dentro = false; }
+}
+$("#m-sair").onclick = () => sairModo();
+
+// ----- estudo -----
+function modoEstudo(c) {
+  if (crono) return ecraEstudo();
+  const disc = c.disciplina || (dados.testes || []).filter(aindaNaoFoi)[0]?.disciplina || "";
+  mc().innerHTML = `<div class="m-titulo">modo estudo</div>
+    <form id="m-f-estudo"><input name="disciplina" placeholder="Que disciplina?" required maxlength="60" list="disciplinas" value="${esc(disc)}">
+      <div class="m-botoes" id="m-min">${[15, 25, 45, 60].map(n => `<button type="button" data-min="${n}" class="${n === (c.minutos || 25) ? "sel" : ""}">${n} min</button>`).join("")}</div>
+      <button class="forte">Começar</button></form>
+    <div class="m-nota">Os avisos ficam guardados e só aparecem quando saíres. Diz "Jarvis, modo estudo" para ligar a rotina com a escuta em pausa.</div>`;
+  let min = c.minutos || 25;
+  $("#m-min").onclick = e => { if (!e.target.dataset.min) return; min = +e.target.dataset.min; $("#m-min").querySelectorAll("button").forEach(b => b.classList.toggle("sel", b === e.target)); };
+  $("#m-f-estudo").onsubmit = e => { e.preventDefault();
+    crono = { disc: e.target.disciplina.value.trim(), total: min * 60, fim: Date.now() + min * 60000 }; guardar("crono", crono); mostrarCrono(); ecraEstudo(); };
+}
+function ecraEstudo() {
+  const t = (dados.testes || []).filter(aindaNaoFoi).find(x => x.disciplina.toLowerCase() === crono.disc.toLowerCase());
+  mc().innerHTML = `<div class="m-titulo">a estudar</div><div class="m-sub"><b>${esc(crono.disc)}</b>${t ? ` · teste ${textoDias(diasAte(t.data))}${t.materia ? ": " + esc(t.materia) : ""}` : ""}</div>
+    <div class="m-grande" id="m-tempo">--:--</div><div class="m-barra"><i id="m-barra"></i></div>
+    <div class="m-botoes"><button id="m-pausa">Pausa</button><button id="m-musica">🎧 Música de estudo</button><button id="m-rever">🧠 Fazer perguntas</button><button class="forte" id="m-fim">Terminar</button></div>
+    <div class="m-nota" id="m-avisos"></div>`;
+  const tick = () => { if (!crono) return; const r = restante();
+    $("#m-tempo").textContent = `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`;
+    $("#m-barra").style.width = `${(1 - r / crono.total) * 100}%`; $("#m-pausa").textContent = crono.fim ? "Pausa" : "Continuar";
+    $("#m-avisos").textContent = avisosGuardados.length ? `${avisosGuardados.length} aviso(s) à espera` : ""; };
+  tick(); modoTimer = setInterval(tick, 500);
+  $("#m-pausa").onclick = () => { $("#crono-pausa").click(); tick(); };
+  $("#m-fim").onclick = () => terminarCrono(false);
+  $("#m-musica").onclick = () => api("/api/spotify/tocar", "POST", { pedido: "lofi study" }).catch(e => { aviso.dentro = true; aviso(e.message); aviso.dentro = false; });
+  $("#m-rever").onclick = () => { const d = crono.disc; if (!confirm("Pausar o estudo e fazer perguntas de " + d + "?")) return;
+    if (crono.fim) $("#crono-pausa").click(); clearInterval(modoTimer); modoAtual = "revisao"; $("#modo").className = "ver revisao"; modoRevisao({ disciplina: d, voltar: true }); };
+}
+function fimEstudo(disc, minutos, acabou) {
+  clearInterval(modoTimer);
+  mc().innerHTML = `<div class="m-titulo">${acabou ? "acabou o tempo" : "estudo terminado"}</div><div class="m-sub">${minutos} min de ${esc(disc)}. O que estudaste?</div>
+    <form id="m-f-diario"><textarea name="materia" rows="2" required maxlength="500" placeholder="Matéria, exercícios, páginas"></textarea>
+      <select name="correu"><option value="5">Correu muito bem</option><option value="4">Correu bem</option><option value="3" selected>Mais ou menos</option><option value="2">Correu mal</option><option value="1">Não percebi nada</option></select>
+      <textarea name="duvidas" rows="2" maxlength="500" placeholder="O que ficou por perceber? (opcional)"></textarea>
+      <button class="forte">Guardar no diário</button></form>
+    <div class="m-botoes"><button id="m-mais">Mais 25 min</button><button id="m-pausa5">Pausa de 5 min</button></div>`;
+  if (acabou) falar("Acabou o tempo. Boa! Diz-me o que estudaste.");
+  $("#m-f-diario").onsubmit = async e => { e.preventDefault();
+    try { await api("/api/diario", "POST", { disciplina: disc, minutos, data: hojeISO(), ...Object.fromEntries(new FormData(e.target)) });
+      atualizar?.(); mc().innerHTML = `<div class="m-titulo">guardado</div><div class="m-sub">Ficou no diário: ${minutos} min de ${esc(disc)}.</div><div class="m-botoes"><button id="m-mais2">Estudar mais</button><button class="forte" onclick="sairModo()">Sair</button></div>`;
+      $("#m-mais2").onclick = () => modoEstudo({ disciplina: disc });
+    } catch (err) { aviso.dentro = true; aviso(err.message); aviso.dentro = false; } };
+  $("#m-mais").onclick = () => { crono = { disc, total: 1500, fim: Date.now() + 1500000 }; guardar("crono", crono); mostrarCrono(); ecraEstudo(); };
+  $("#m-pausa5").onclick = () => { const fim = Date.now() + 300000; clearInterval(modoTimer);
+    mc().innerHTML = `<div class="m-titulo">pausa</div><div class="m-grande" id="m-tempo">05:00</div><div class="m-sub">Levanta-te, bebe água. Depois guarda o que estudaste.</div><div class="m-botoes"><button class="forte" id="m-volta">Voltar</button></div>`;
+    modoTimer = setInterval(() => { const r = Math.max(0, Math.round((fim - Date.now()) / 1000)); $("#m-tempo").textContent = `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`;
+      if (!r) { clearInterval(modoTimer); apito(); fimEstudo(disc, minutos, false); } }, 500);
+    $("#m-volta").onclick = () => fimEstudo(disc, minutos, false); };
+}
+
+// ----- revisao (perguntas do Claude) -----
+async function modoRevisao(c) {
+  const disc = c.disciplina || "";
+  if (!disc) {
+    const ts = (dados.testes || []).filter(aindaNaoFoi);
+    mc().innerHTML = `<div class="m-titulo">modo revisão</div><div class="m-sub">De que disciplina queres perguntas?</div>
+      <form id="m-f-rev"><input name="disciplina" required maxlength="60" list="disciplinas" value="${esc(ts[0]?.disciplina || "")}"><input name="materia" maxlength="300" placeholder="Matéria (opcional, se não estiver registada)"><button class="forte">Fazer perguntas</button></form>
+      <div class="m-nota">As perguntas são feitas pelo Claude a partir do teu teste e do diário de estudo. Gasta um pouco de saldo (cerca de 2 cêntimos).</div>`;
+    $("#m-f-rev").onsubmit = e => { e.preventDefault(); modoRevisao({ disciplina: e.target.disciplina.value.trim(), materia: e.target.materia.value.trim() }); };
+    return;
+  }
+  mc().innerHTML = `<div class="m-titulo">revisão · ${esc(disc)}</div><div class="m-sub">A preparar as perguntas…</div>`;
+  let r; try { r = await api("/api/revisao", "POST", { disciplina: disc, materia: c.materia || "" }); } catch (e) { r = { erro: e.message }; }
+  if (r.precisa_materia) {
+    mc().innerHTML = `<div class="m-titulo">revisão · ${esc(disc)}</div><div class="m-sub">Ainda não sei que matéria é. Escreve-a para eu fazer perguntas certas.</div>
+      <form id="m-f-mat"><input name="materia" required maxlength="300" placeholder="Ex.: equações do 1.º grau, sistema digestivo"><button class="forte">Fazer perguntas</button></form>`;
+    $("#m-f-mat").onsubmit = e => { e.preventDefault(); modoRevisao({ disciplina: disc, materia: e.target.materia.value.trim(), voltar: c.voltar }); };
+    return;
+  }
+  if (r.erro) { mc().innerHTML = `<div class="m-titulo">revisão</div><div class="m-sub">${esc(r.erro)}</div><div class="m-botoes"><button class="forte" onclick="sairModo()">Sair</button></div>`; return; }
+  correrQuiz(r.perguntas, `revisão · ${disc}`, c.voltar ? () => { modoAtual = "estudo"; $("#modo").className = "ver estudo"; ecraEstudo(); } : null);
+}
+function correrQuiz(perguntas, titulo, depois) {
+  quiz = { ps: perguntas, i: 0, certas: 0, falhadas: [] };
+  const mostrar = () => {
+    if (quiz.i >= quiz.ps.length) {
+      const n = quiz.ps.length, f = quiz.certas === n ? "Tudo certo!" : quiz.certas >= n * .7 ? "Muito bem." : quiz.certas >= n / 2 ? "Vais no caminho certo." : "Vale a pena rever esta matéria.";
+      mc().innerHTML = `<div class="m-titulo">${esc(titulo)}</div><div class="m-grande">${quiz.certas}/${n}</div><div class="m-sub">${f}</div>
+        ${quiz.falhadas.length ? `<div class="m-nota" style="text-align:left">Para rever:<br>${quiz.falhadas.map(q => "• " + esc(q.pergunta) + " → " + esc(q.opcoes[q.certa])).join("<br>")}</div>` : ""}
+        <div class="m-botoes"><button id="m-outra">Outras perguntas</button>${depois ? `<button class="forte" id="m-depois">Voltar ao estudo</button>` : `<button class="forte" onclick="sairModo()">Sair</button>`}</div>`;
+      falar(`${quiz.certas} em ${n}. ${f}`);
+      $("#m-outra").onclick = () => titulo.startsWith("jogo") ? jogoAmigos() : modoRevisao({ disciplina: titulo.split(" · ")[1], voltar: !!depois });
+      if (depois) $("#m-depois").onclick = depois;
+      return;
+    }
+    const q = quiz.ps[quiz.i];
+    mc().innerHTML = `<div class="m-titulo">${esc(titulo)} · ${quiz.i + 1} de ${quiz.ps.length}</div><div class="m-pergunta">${esc(q.pergunta)}</div>
+      <div class="m-opcoes">${q.opcoes.map((o, k) => `<button data-k="${k}"><b>${"ABCD"[k]}</b> · ${esc(o)}</button>`).join("")}</div><div class="m-sub" id="m-expl"></div>
+      <div class="m-nota">Perguntas feitas pelo Claude: podem ter erros. Se alguma te parecer errada, confirma no livro.</div>`;
+    falar(q.pergunta);
+    mc().querySelectorAll("[data-k]").forEach(b => b.onclick = () => {
+      if (quiz.respondida) return; quiz.respondida = true;
+      const k = +b.dataset.k, ok = k === q.certa;
+      b.classList.add(ok ? "certa" : "errada"); mc().querySelector(`[data-k="${q.certa}"]`).classList.add("certa");
+      if (ok) quiz.certas++; else quiz.falhadas.push(q);
+      $("#m-expl").innerHTML = `${ok ? "✅ Certo." : "❌ Era a " + "ABCD"[q.certa] + "."} ${esc(q.explicacao)}<div class="m-botoes" style="margin-top:12px"><button class="forte" id="m-seg">Seguinte</button></div>`;
+      $("#m-seg").onclick = () => { quiz.i++; quiz.respondida = false; mostrar(); };
+    });
+  };
+  mostrar();
+}
+
+// ----- amigos -----
+async function modoAmigos() {
+  try { await api("/api/modo", "POST", { amigos: true }); } catch (e) { return aviso(e.message); }
+  document.body.classList.add("modo-amigos"); fecharHUD?.();
+  const desenhar = () => {
+    const d = new Date(), a = spotifyInfo?.agora;
+    mc().innerHTML = `<div class="m-titulo">modo amigos</div><div class="m-grande">${d.toTimeString().slice(0, 5)}</div>
+      <div class="m-sub">${d.toLocaleDateString("pt-PT", { weekday: "long", day: "numeric", month: "long" })}${meteoAgora ? ` · ${meteoAgora.graus}° ${esc(meteoAgora.desc)}` : ""}</div>
+      <div class="m-sub">${a && a.musica ? `🎵 ${esc(a.musica)} · ${esc(a.artista)}` : "Sem música"}</div>
+      <div class="m-botoes"><button class="forte" id="m-jogo">🎮 Jogo de perguntas</button><button id="m-play">⏯ Música</button><button id="m-next">⏭</button></div>
+      <div class="m-nota">As tuas coisas estão escondidas e o Jarvis não fala delas.${pinEstado?.ativo ? " Para sair é preciso o PIN." : ""}</div>`;
+    $("#m-jogo").onclick = jogoAmigos;
+    $("#m-play").onclick = () => api(`/api/spotify/${a?.tocar ? "pausar" : "tocar"}`, "POST", {}).then(() => setTimeout(carregarSpotify, 700)).catch(e => aviso(e.message));
+    $("#m-next").onclick = () => api("/api/spotify/seguinte", "POST", {}).then(() => setTimeout(carregarSpotify, 700)).catch(e => aviso(e.message));
+  };
+  desenhar(); modoTimer = setInterval(desenhar, 15000);
+}
+async function jogoAmigos() {
+  clearInterval(modoTimer); modoTimer = null;
+  mc().innerHTML = `<div class="m-titulo">jogo de perguntas</div><div class="m-sub">A preparar as perguntas…</div>`;
+  let r; try { r = await api("/api/revisao", "POST", { tipo: "jogo" }); } catch (e) { r = { erro: e.message }; }
+  if (r.erro) { mc().innerHTML = `<div class="m-titulo">jogo</div><div class="m-sub">${esc(r.erro)}</div><div class="m-botoes"><button class="forte" id="m-volta">Voltar</button></div>`; $("#m-volta").onclick = () => modoAmigos(); return; }
+  correrQuiz(r.perguntas, "jogo · cultura geral", () => modoAmigos());
+}
+
+// ----- treino (intervalos falados) -----
+function modoTreino(c) {
+  if (treino) return desenharTreino();
+  const v = { rondas: c.rondas || 8, trabalho: c.trabalho || 40, descanso: c.descanso ?? 20 };
+  if (c.rondas) return comecarTreino(v);   // veio da voz com os numeros
+  mc().innerHTML = `<div class="m-titulo">modo treino</div>
+    <form id="m-f-treino" style="grid-template-columns:1fr 1fr 1fr"><label>Rondas<input name="rondas" type="number" min="1" max="50" value="${v.rondas}"></label>
+      <label>Trabalho (s)<input name="trabalho" type="number" min="5" max="600" value="${v.trabalho}"></label>
+      <label>Descanso (s)<input name="descanso" type="number" min="0" max="600" value="${v.descanso}"></label>
+      <button class="forte" style="grid-column:1/-1">Começar</button></form>
+    <div class="m-nota">Eu conto em voz alta. No fim fica registado na área Desporto.</div>`;
+  $("#m-f-treino").onsubmit = e => { e.preventDefault(); const f = e.target; comecarTreino({ rondas: +f.rondas.value, trabalho: +f.trabalho.value, descanso: +f.descanso.value }); };
+}
+function comecarTreino(v) {
+  treino = { ...v, fases: [{ tipo: "prepara", s: 5 }], inicio: Date.now(), feito: 0 };
+  for (let i = 1; i <= v.rondas; i++) { treino.fases.push({ tipo: "trabalho", s: v.trabalho, ronda: i }); if (i < v.rondas && v.descanso) treino.fases.push({ tipo: "descanso", s: v.descanso, ronda: i }); }
+  treino.k = 0; treino.fimFase = Date.now() + 5000; treino.ditos = {};
+  falar("Prepara-te. Começa em 5 segundos."); desenharTreino();
+}
+function desenharTreino() {
+  mc().innerHTML = `<div class="m-titulo" id="m-fase"></div><div class="m-grande" id="m-tempo"></div><div class="m-sub" id="m-ronda"></div><div class="m-barra"><i id="m-barra"></i></div>
+    <div class="m-botoes"><button id="m-tpausa">Pausa</button><button class="forte" id="m-tfim">Terminar</button></div>`;
+  $("#m-tpausa").onclick = () => { if (treino.pausa) { treino.fimFase = Date.now() + treino.pausa; treino.pausa = null; } else { treino.pausa = treino.fimFase - Date.now(); } };
+  $("#m-tfim").onclick = () => pararTreino(true);
+  clearInterval(modoTimer); modoTimer = setInterval(tickTreino, 200); tickTreino();
+}
+function tickTreino() {
+  if (!treino || treino.pausa) { if (treino) $("#m-tpausa").textContent = "Continuar"; return; }
+  $("#m-tpausa").textContent = "Pausa";
+  let f = treino.fases[treino.k], r = Math.ceil((treino.fimFase - Date.now()) / 1000);
+  if (r <= 0) {
+    if (f.tipo === "trabalho") treino.feito += f.s;
+    treino.k++; f = treino.fases[treino.k];
+    if (!f) return pararTreino(true, true);
+    treino.fimFase = Date.now() + f.s * 1000; r = f.s;
+    falar(f.tipo === "trabalho" ? (f.ronda === treino.rondas ? "Última ronda! Vai!" : `Ronda ${f.ronda}. Vai!`) : "Descanso.");
+  }
+  const chave = treino.k + ":" + r;
+  if (f.tipo === "trabalho" && r === 10 && f.s > 15 && !treino.ditos[chave]) { treino.ditos[chave] = 1; falar("Mais 10 segundos."); }
+  if (r <= 3 && r > 0 && !treino.ditos[chave]) { treino.ditos[chave] = 1; apitoCurto(); }
+  $("#m-fase").textContent = { prepara: "prepara-te", trabalho: "trabalho", descanso: "descanso" }[f.tipo];
+  $("#m-tempo").textContent = r; $("#m-ronda").textContent = f.ronda ? `Ronda ${f.ronda} de ${treino.rondas}` : `${treino.rondas} rondas de ${treino.trabalho} s`;
+  $("#m-barra").style.width = `${(1 - r / f.s) * 100}%`;
+  $("#modo").style.setProperty("--m", f.tipo === "descanso" ? "10, 132, 255" : f.tipo === "prepara" ? "255, 159, 10" : "48, 209, 88");
+}
+function apitoCurto() { try { const ctx = somCtx(), o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 660; o.connect(g); g.connect(ctx.destination);
+  g.gain.setValueAtTime(.2, ctx.currentTime); g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .15); o.start(); o.stop(ctx.currentTime + .15); } catch (e) {} }
+async function pararTreino(mostrar, completo) {
+  clearInterval(modoTimer); modoTimer = null;
+  const t = treino; treino = null; $("#modo").style.removeProperty("--m");
+  if (!t) return;
+  const min = Math.round((Date.now() - t.inicio) / 60000);
+  let msg = "Treino terminado.";
+  if (min >= 1) { try { await api("/api/registo", "POST", { area: "desporto", minutos: min, data: hojeISO(), nota: `Treino: ${t.rondas} × ${t.trabalho} s` }); msg += ` Registei ${min} minutos em Desporto.`; } catch (e) { msg += " Não consegui registar: " + e.message; } }
+  if (completo) falar("Treino feito! Boa.");
+  if (mostrar) { mc().innerHTML = `<div class="m-titulo">${completo ? "treino feito" : "treino terminado"}</div><div class="m-grande">${(Math.round(t.feito / 6) / 10).toLocaleString("pt-PT")}<span style="font-size:.3em"> min</span></div><div class="m-sub">${esc(msg)}</div>
+    <div class="m-botoes"><button id="m-outro">Outro treino</button><button class="forte" onclick="sairModo()">Sair</button></div>`;
+    $("#m-outro").onclick = () => modoTreino({}); }
+}
+// se a pagina recarregar a meio do modo amigos, volta a esconder tudo
+api("/api/modo").then(r => { if (r.amigos) abrirModo({ tipo: "amigos" }); }).catch(() => {});
 
 // ---------- modo apagao ----------
 // quando falta a luz o tablet passa a viver da bateria: corta tudo o que nao e importante
@@ -1593,8 +1840,10 @@ function terminarCrono(acabou) {
   const feitos = Math.max(1, Math.round((crono.total - restante()) / 60));
   const f = $("#f-diario");
   f.disciplina.value = crono.disc; f.minutos.value = feitos; f.data.value = hojeISO();
+  const disc = crono.disc;
   crono = null; guardar("crono", null); mostrarCrono();
   if (acabou) apito();
+  if (modoAtual === "estudo") return fimEstudo(disc, feitos, acabou);
   aviso(`${acabou ? "Acabou o tempo! " : ""}Escreve o que estudaste e guarda no diário.`, false);
   $("#cartao-diario").scrollIntoView({ behavior: "smooth", block: "center" });
   setTimeout(() => f.materia.focus(), 400);
@@ -2924,11 +3173,12 @@ async function executarComandos(cmds) {
       else if (c.acao === "caixa") { somCaixa(); if ($("#d-loja").open) carregarLoja(); paineisIronMan.lojaT = 0; }
       else if (c.acao === "aviso") aviso(c.texto, false);
       else if (c.acao === "apagao") c.ligado ? entrarApagao() : sairApagao();
+      else if (c.acao === "modo") c.tipo === "sair" ? sairModo(c.de) : abrirModo(c);
       else if (c.acao === "abrir") abrirSeparador(c.separador);
       else if (c.acao === "cronometro") {
         const min = +c.minutos || 25;
         crono = { disc: c.disciplina || "Estudo", total: min * 60, fim: Date.now() + min * 60000 };
-        guardar("crono", crono); mostrarCrono();
+        guardar("crono", crono); mostrarCrono(); abrirModo({ tipo: "estudo", jaComecou: true });
       } else if (c.acao === "nao_incomodar") {
         pausaEscutaAte = Date.now() + (+c.minutos || 30) * 60000; pararEscuta();
         setTimeout(retomarEscuta, pausaEscutaAte - Date.now() + 500);
