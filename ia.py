@@ -24,11 +24,15 @@ import assistente
 CHAVE = Path(__file__).resolve().parent / "chave_claude.txt"
 
 MODELOS = [
-    ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~2 cêntimos por pergunta, +1 por pesquisa na web)"),
-    ("claude-sonnet-5-5", "Sonnet 5.5: equilibrado (~1 cêntimo por pergunta, +1 por pesquisa na web)"),
-    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,05 cêntimos por pergunta, +1 por pesquisa na web)"),
+    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,05 cêntimos por pergunta) · recomendado"),
+    ("claude-sonnet-5-5", "Sonnet 5.5: equilibrado (~1 cêntimo por pergunta)"),
+    ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~2 cêntimos por pergunta)"),
 ]
-MODELO_PADRAO = "claude-opus-5-5"
+MODELO_PADRAO = "claude-haiku-5-5"
+# pesquisa na web: "0" desligada, "1" ou "3" pesquisas no maximo por pergunta (cada uma custa 1 centimo)
+PESQUISA = [("0", "Pesquisa na web desligada (0 €)"), ("1", "Pesquisa na web: até 1 por pergunta (+1 cêntimo)"),
+            ("3", "Pesquisa na web: até 3 por pergunta (até +3 cêntimos)")]
+PESQUISA_PADRAO = "1"
 
 SISTEMA = """És o {nome_assistente}, o assistente da central pessoal que um rapaz de 13 anos montou no tablet do quarto. Ele vive em Portugal e anda no 8.º ano.
 
@@ -46,10 +50,7 @@ A vida dele:
 - Para tudo o que é dele (horário, aulas, testes, tarefas, eventos, notas, alarmes, fazer a mala, ligar a luz), usa a ferramenta `central`. Não inventes horários nem datas.
 - Depois de usares a ferramenta, responde com base no que ela devolveu, no teu estilo.
 
-Internet:
-- Tens a ferramenta `web_search`. Usa-a para tudo o que muda com o tempo (notícias, resultados, preços, horários, lançamentos, quem é o atual...) e sempre que não tenhas a certeza de um facto. Não respondas a nada disso de memória.
-- Diz de onde vem, numa palavra natural ("segundo o Público", "no site da CP"). Se a pesquisa não encontrar, diz que não encontraste; não adivinhes.
-- Para o que é dele (horário, testes, alarmes...) usa a `central`, nunca a internet.
+{internet}
 
 Segurança:
 - Saúde, perigo, ou algo que o preocupe a sério: dá um conselho simples e diz-lhe para falar com os pais ou outro adulto de confiança.
@@ -144,6 +145,14 @@ def _contar(cfg):
     return True
 
 
+INTERNET_LIGADA = """Internet:
+- Tens a ferramenta `web_search`. Usa-a para tudo o que muda com o tempo (notícias, resultados, preços, horários, lançamentos, quem é o atual...) e sempre que não tenhas a certeza de um facto. Não respondas a nada disso de memória.
+- Diz de onde vem, numa palavra natural ("segundo o Público", "no site da CP"). Se a pesquisa não encontrar, diz que não encontraste; não adivinhes.
+- Para o que é dele (horário, testes, alarmes...) usa a `central`, nunca a internet."""
+INTERNET_DESLIGADA = """Internet:
+- A pesquisa na web está desligada nesta central. Para tudo o que muda com o tempo (notícias, resultados, preços, horários, quem é o atual...) diz que não sabes coisas de hoje porque a pesquisa está desligada nas definições. Não adivinhes.
+- Para o que é dele (horário, testes, alarmes...) usa a `central`."""
+
 _hist = []                 # ultimas trocas [(pergunta, resposta, quando)] para perguntas de seguimento
 _hist_lock = threading.Lock()
 _uso = {"dia": None, "n": 0}
@@ -186,7 +195,8 @@ def estado(cfg):
     hoje = date.today()
     usadas = _uso["n"] if _uso["dia"] == hoje else 0
     return {"sdk": sdk_instalado(), "chave": chave_configurada(), "modelo": cfg.get("ia_modelo", MODELO_PADRAO),
-            "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas, "custos": custos()}
+            "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas, "custos": custos(),
+            "pesquisa": cfg.get("ia_pesquisa", PESQUISA_PADRAO), "pesquisas": PESQUISA}
 
 
 def forcar(texto):
@@ -244,6 +254,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
         nome_assistente=cfg.get("palavra_ativacao") or "assistente",
         data=f"{dias[agora.weekday()]}, {agora.day}/{agora.month}/{agora.year}", hora=agora.strftime("%H:%M"),
         sobre_ele=f" Ele chama-se {nome}." if nome else "",
+        internet=INTERNET_LIGADA if cfg.get("ia_pesquisa", PESQUISA_PADRAO) in ("1", "3") else INTERNET_DESLIGADA,
         estilo=("- Fala como um mordomo britânico elegante, à maneira do Jarvis dos filmes do Homem de Ferro: educado, "
                 "seco e com humor subtil. Trata-o por \"senhor\". Português de Portugal na mesma."
                 if cfg.get("estilo") == "mordomo" else
@@ -263,9 +274,12 @@ def perguntar(texto, db, cfg, privado_ok=True):
     if modelo not in {m for m, _ in MODELOS}:
         modelo = MODELO_PADRAO
     # pesquisa na web (servidor da Anthropic): para o que e de hoje ou o que ele nao sabe ao certo. Max. 3 por pergunta.
-    web = {"type": "web_search_20250305" if modelo == "claude-haiku-5-5" else "web_search_20260209", "name": "web_search",
-           "max_uses": 3, "user_location": {"type": "approximate", "country": "PT", "timezone": "Europe/Lisbon"}}
-    params = dict(model=modelo, max_tokens=4000, system=sistema, tools=[central, web], messages=mensagens,
+    ferramentas = [central]
+    pesq = cfg.get("ia_pesquisa", PESQUISA_PADRAO)
+    if pesq in ("1", "3"):
+        ferramentas.append({"type": "web_search_20250305" if modelo == "claude-haiku-5-5" else "web_search_20260209", "name": "web_search",
+                            "max_uses": int(pesq), "user_location": {"type": "approximate", "country": "PT", "timezone": "Europe/Lisbon"}})
+    params = dict(model=modelo, max_tokens=4000, system=sistema, tools=ferramentas, messages=mensagens,
                   max_iterations=6, output_config={"effort": "low"})  # low: respostas curtas e rapidas para voz
     if modelo != "claude-haiku-5-5":
         # se o modelo recusar por seguranca, o servidor tenta outro modelo sozinho

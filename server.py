@@ -138,6 +138,9 @@ def init_db():
         con.executescript(viagem.TABELAS)
         con.executescript(ia.TABELAS)
         rotinas.criar_padrao(con)
+        if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
+            con.execute("DELETE FROM config WHERE chave = 'ia_modelo'")          # passa a usar o padrao (Haiku)
+            con.execute("INSERT INTO config (chave, valor) VALUES ('ia_haiku_feito', '1')")
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
             if c not in colunas:
@@ -375,7 +378,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
+                 "ia_modelo", "ia_limite", "ia_pesquisa", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -403,6 +406,8 @@ def gravar_config(d):
             raise Erro("o Client ID do Spotify tem 32 letras e numeros (0-9, a-f)")
         if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
             raise Erro("modelo desconhecido")
+        if k == "ia_pesquisa" and v not in {p for p, _ in ia.PESQUISA}:
+            raise Erro("opção de pesquisa desconhecida")
         if k == "ia_limite" and not (v.isdigit() and 1 <= int(v) <= 1000):
             raise Erro("o limite tem de ser entre 1 e 1000 perguntas por dia")
         if k == "wled_ip" and not re.fullmatch(r"[\w.\-]{1,60}(:\d{1,5})?", v):

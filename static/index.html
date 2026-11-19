@@ -1121,6 +1121,7 @@
       <button type="button" class="chip ativo" id="ia-guardar">Guardar</button>
     </div>
     <select id="ia-modelo"></select>
+    <select id="ia-pesquisa"></select>
     <div class="deslizar"><span>Máximo por dia</span><input type="number" id="ia-limite" min="1" max="1000" style="padding:8px"></div>
     <button type="button" class="secundario" id="ia-apagar" style="color:var(--perigo)">Apagar a chave deste tablet</button>
     <div class="vazio" style="font-size:13px">Só é usado quando o assistente não percebe a pergunta, ou quando começas por "Claude, …". A chave fica só neste tablet e não aparece em lado nenhum. Define um limite de gastos em console.anthropic.com.</div>
@@ -2237,6 +2238,7 @@ async function mostrarIA() {
           (ant ? `; mês passado: ${usd(ant.dolares)}` : "") + ". Contas da central; a fatura exata está na consola da Anthropic.";
       })();
   $("#ia-modelo").innerHTML = e.modelos.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
+  $("#ia-pesquisa").innerHTML = (e.pesquisas || []).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join(""); $("#ia-pesquisa").value = e.pesquisa;
   $("#ia-modelo").value = e.modelo; $("#ia-limite").value = e.limite; $("#ia-apagar").hidden = !e.chave;
 }
 $("#ia-guardar").onclick = async () => {
@@ -2244,6 +2246,7 @@ $("#ia-guardar").onclick = async () => {
   catch (err) { aviso(err.message); }
 };
 $("#ia-apagar").onclick = async () => { if (!confirm("Apagar a chave do Claude deste tablet?")) return; await api("/api/ia/chave", "DELETE"); mostrarIA(); };
+$("#ia-pesquisa").onchange = e => api("/api/config", "POST", { ia_pesquisa: e.target.value }).then(() => aviso(e.target.value === "0" ? "Pesquisa na web desligada." : "Pesquisa na web ligada.", false)).catch(err => aviso(err.message));
 $("#ia-modelo").onchange = e => api("/api/config", "POST", { ia_modelo: e.target.value }).then(() => aviso("Modelo mudado.", false)).catch(err => aviso(err.message));
 $("#ia-limite").onchange = e => api("/api/config", "POST", { ia_limite: e.target.value }).then(mostrarIA).catch(err => aviso(err.message));
 

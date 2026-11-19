@@ -59,6 +59,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Claude: o Haiku 5.5 passou a ser o modelo padrão (os tablets que tinham outro escolhido mudam uma vez, pela chave `ia_haiku_feito`). Interruptor da pesquisa na web nas definições do Claude (`ia_pesquisa`: 0 desligada, 1 por defeito, 3); desligada, o Claude diz que não sabe coisas de hoje.
 - Modos do Jarvis: estudo, revisão, amigos e treino.
 - Revisão dos modos: o modo amigos fica guardado na base de dados (sobrevive a reiniciar), cala rotinas, "bom dia", vendas e detalhes dos alertas da família; "muda para o modo X" já não desliga; frases como "vou treinar sexta" ou "tenho amigos cá sábado" já não ligam modos; sair a meio do estudo pede o registo; os avisos urgentes (família) aparecem mesmo no modo estudo; quando o Claude liga um modo, o ecrã muda.
 - Claude com pesquisa na web e contador de custos reais.
