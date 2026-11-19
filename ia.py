@@ -207,7 +207,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
     from anthropic import beta_tool
 
     nome = cfg.get("nome", "")
-    mudou = {"v": False, "privado": False}
+    mudou = {"v": False, "privado": False, "comandos": []}
 
     @beta_tool
     def central(pedido: str) -> str:
@@ -235,6 +235,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
             return "A central não percebeu esse pedido. Reformula de forma mais parecida com os exemplos."
         if r.get("mudou"):
             mudou["v"] = True
+        mudou["comandos"] += [c for c in r.get("comandos", []) if c.get("acao") != "falar"]
         return json.dumps({"resposta": r.get("resposta"), "itens": r.get("itens", [])}, ensure_ascii=False)
 
     agora = datetime.now()
@@ -306,7 +307,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
         return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
     with _hist_lock:
         _hist.append((texto, resposta, time.time(), mudou["privado"]))
-    return {"resposta": resposta, "mudou": mudou["v"]}
+    return {"resposta": resposta, "mudou": mudou["v"], "comandos": mudou["comandos"]}
 
 
 def ver(pergunta, jpeg, cfg):

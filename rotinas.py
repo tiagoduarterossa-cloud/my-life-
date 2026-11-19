@@ -315,7 +315,7 @@ def executar(con, rotina, nome="", tempo_hoje="", falar_servidor=None, para_ecra
 def por_voz(con, texto):
     """se a frase pedir uma rotina ('modo estudo', 'rotina hora de dormir'), devolve-a"""
     s = assistente.simples(texto)
-    if re.search(r"\b(sai|sair|acabou|acaba|termina|terminar|desliga|fecha|para)\b.*\bmodo\b", s):
+    if re.search(r"\b(sai|sair|acabou|acaba|termina|terminar|desliga|fecha)\b.*\bmodo\b|^para (o )?modo\b", s):
         return None                             # "sai do modo estudo" nao e para ligar a rotina
     for r in listar(con):
         if not r["ativa"]:
@@ -329,6 +329,9 @@ def por_voz(con, texto):
 
 def disparar(db, tipo, **extra):
     """chamado quando acontece um gatilho (ex.: 'alarme_parado')"""
+    import modos
+    if modos.amigos():          # com amigos no quarto, o "bom dia" nao le a tua agenda
+        return
     with db() as con:
         for r in listar(con):
             if r["ativa"] and r["quando"].get("tipo") == tipo and condicao_ok(con, r["se"]):
@@ -344,8 +347,8 @@ def vigiar(db, extra):
             try:
                 agora = datetime.now(); hm = agora.strftime("%H:%M"); hoje = agora.date()
                 with db() as con:
-                    import viagem
-                    if viagem.em_viagem(con, hoje):   # estas fora: as rotinas com hora ficam em pausa
+                    import viagem, modos
+                    if viagem.em_viagem(con, hoje) or modos.amigos():   # fora de casa, ou com amigos no quarto: nada de rotinas   # estas fora: as rotinas com hora ficam em pausa
                         time.sleep(10); continue
                     for r in listar(con):
                         q = r["quando"]

@@ -257,20 +257,20 @@ def entender(texto, hoje=None):
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
 
     # modos do Jarvis: amigos, treino, revisao (o modo estudo e a rotina "Modo estudo")
-    sair_modo = re.search(r"\b(sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha|para)\b.*\bmodo (de )?(estudo|amigos|treino|revisao)\b", s)
+    sair_modo = re.search(r"(?:\b(?:sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\b.*|^para (?:o )?)\bmodo (de )?(estudo|amigos|treino|revisao)\b", s)
     if sair_modo:
-        return "modo_sair", {"tipo": sair_modo[3]}
+        return "modo_sair", {"tipo": sair_modo[2]}
     if re.search(r"\b(os amigos (ja )?(foram|sairam)|ja foram embora)\b", s):
         return "modo_sair", {"tipo": "amigos"}
-    if re.search(r"\bmodo (de )?amigos\b|\b(tenho|estao|chegaram|vieram) (uns |os )?amigos\b", s):
+    if re.search(r"\bmodo (de )?amigos\b|^(?:chegaram|vieram|estao ca) (?:uns |os |os meus )?amigos$", s):
         return "modo_amigos", {}
-    if re.search(r"\bmodo (de )?treino\b|\b(bora|vamos|vou) treinar\b|\bcomeca o treino\b", s):
+    if (re.search(r"\bmodo (de )?treino\b|^(?:bora|vamos) treinar\b|^comeca o treino\b", s)
+            and not re.search(r"\b(marca|lembra|agenda|tenho de|tarefa|evento)\b", s)):
         num = lambda rx: (lambda m: int(m[1]) if m else None)(re.search(rx, s))
-        rondas, trabalho = num(r"(\d+) (?:rondas|series|vezes)"), num(r"(\d+) segundos")
+        rondas = num(r"(\d+) (?:rondas|series|vezes)")
+        trabalho = num(r"(\d+) segundos(?! de (?:descanso|pausa))")    # o primeiro tempo que nao e o descanso
         descanso = num(r"(\d+) (?:segundos )?de (?:descanso|pausa)")
         minutos = num(r"(\d+) minutos")
-        if trabalho and descanso == trabalho and len(re.findall(r"\d+ segundos", s)) == 1:
-            trabalho = None                     # "15 segundos de descanso" sozinho nao e o tempo de trabalho
         trabalho, descanso = min(max(trabalho or 40, 5), 600), min(max(descanso if descanso is not None else 20, 0), 600)
         if not rondas and minutos:
             rondas = max(1, round(minutos * 60 / (trabalho + descanso)))
@@ -820,8 +820,8 @@ def _responder(texto, con, hoje=None, nome=""):
         elif intencao == "modo_revisao":
             disc = modos.achar_disciplina(con, d["texto"])
             if not disc:   # uma disciplina que ainda nao esta na central: "testa-me a geografia"
-                m = re.search(r"\b(?:de|a|sobre)\s+([a-z][a-z ]{2,30})$", simples(d["texto"]).strip(" ?!."))
-                if m and m[1] not in ("mim", "materia", "teste", "revisao"):
+                m = re.search(r".*\b(?:de|a|sobre)\s+([a-z][a-z ]{2,30})$", simples(d["texto"]).strip(" ?!."))
+                if m and not re.search(r"\b(mim|materia|teste|testes|revisao|rever|perguntas|estudar)\b", m[1]):
                     disc = m[1].strip().capitalize()
             if not disc:
                 prox = con.execute("SELECT disciplina FROM testes WHERE data >= ? ORDER BY data LIMIT 1", (hoje.isoformat(),)).fetchone()

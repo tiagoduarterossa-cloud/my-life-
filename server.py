@@ -555,10 +555,11 @@ class Handler(BaseHTTPRequestHandler):
                 privado_ok = not pin.ativo() or bool(self.sessao)
                 if direto and ia.disponivel():
                     return self.enviar(200, responder_ia(direto, privado_ok))
-                if modos.amigos():
+                em_amigos, rotina_pessoal = modos.amigos(), False
+                if em_amigos:
                     with db() as con:
                         rotina_pessoal = bool(rotinas.por_voz(con, frase))   # "modo estudo" diria a proxima disciplina
-                if modos.bloqueado(frase) or (modos.amigos() and rotina_pessoal):
+                if em_amigos and (modos.bloqueado(frase) or rotina_pessoal):
                     return self.enviar(200, {"resposta": modos.FRASE_AMIGOS, "falado": modos.FRASE_AMIGOS})
                 if not privado_ok and assistente.entender(frase)[0] in assistente.PRIVADAS:
                     return self.enviar(200, {"resposta": "🔒 Isso é privado: mete o PIN.", "falado": "Isso é privado. Mete o PIN no ecrã.",
@@ -1149,11 +1150,24 @@ def extras_rotina(sem_falar=False):
             **({} if sem_falar else {"falar_servidor": falar_alarme})}
 
 
+def aviso_familia(texto, dizer):
+    """perigo perto da casa de um familiar: e urgente (aparece mesmo no modo estudo), mas com amigos no quarto nao diz quem nem onde"""
+    if modos.amigos():
+        texto = dizer = "Há um alerta da família. Abre o modo Iron Man para veres."
+    if rotinas.ecra_ativo():
+        rotinas._por_na_fila([{"acao": "aviso", "texto": texto, "urgente": True}, {"acao": "falar", "texto": dizer}])
+    else:
+        falar_alarme(dizer)
+
+
 def responder_ia(frase, privado_ok=True):
     r = ia.perguntar(frase, db, ler_config(), privado_ok=privado_ok)
     if "erro" in r:
         return {"resposta": r["erro"], "falado": r["erro"]}
-    return {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}
+    out = {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}
+    if r.get("comandos"):   # o Claude pediu a central uma coisa que mexe no ecra (ex.: modo amigos): o ecra faz, e depois fala
+        out["comandos"] = r["comandos"] + [{"acao": "falar", "texto": r["resposta"]}]
+    return out
 
 
 def modo_apagao(ligado):
@@ -1181,17 +1195,18 @@ def falar_alarme(texto):
 
 if __name__ == "__main__":
     init_db()
+    modos.ligar(db)    # le o modo amigos guardado
     ia._db = db        # para a central guardar quanto o Claude gasta por mes
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
     backups.vigiar(DB_PATH)   # uma copia verificada por dia em backups/ (e no armazenamento do tablet, se houver)
     # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
-    familia.vigiar(db, lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "falar", "texto": dizer}])
-                   if rotinas.ecra_ativo() else falar_alarme(dizer))
+    familia.vigiar(db, aviso_familia)
     # encomendas novas: aviso + som de caixa registadora no ecra; se o ecra estiver apagado, fala pelo tablet
-    loja.vigiar(lambda texto, dizer: rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "caixa"},
-                                                           {"acao": "falar", "texto": dizer}]) if rotinas.ecra_ativo() else falar_alarme(dizer))
+    loja.vigiar(lambda texto, dizer: None if modos.amigos() else   # com amigos no quarto, as vendas ficam caladas
+                rotinas._por_na_fila([{"acao": "aviso", "texto": texto}, {"acao": "caixa"}, {"acao": "falar", "texto": dizer}])
+                if rotinas.ecra_ativo() else falar_alarme(dizer))
     # apagoes e internet: fala pelo tablet (Termux:API) e deixa o aviso no ecra
     avisos.vigiar(db, lambda t: (rotinas._por_na_fila([{"acao": "aviso", "texto": t}]),
                                  None if rotinas.ecra_ativo() else falar_alarme(t)), ao_mudar=modo_apagao)

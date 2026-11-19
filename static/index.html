@@ -1179,7 +1179,6 @@ function guardar(k, v) { try { v == null ? localStorage.removeItem(k) : localSto
 function ler(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
 
 function aviso(msg, erro = true) {
-  if (!erro && modoAtual === "estudo" && !aviso.dentro) { avisosGuardados.push(msg); return; }   // nao interrompe o estudo
   const el = $("#aviso"); el.textContent = msg; el.className = erro ? "erro" : ""; el.style.display = "block";
   clearTimeout(aviso.t); aviso.t = setTimeout(() => el.style.display = "none", 3500);
 }
@@ -1288,14 +1287,14 @@ function abrirModo(c) {
 }
 async function sairModo(de) {
   if (de && modoAtual && de !== modoAtual) return;   // "sai do modo treino" quando estas noutro modo: nao faz nada
-  if (modoAtual === "amigos") {
+  if (modoAtual === "amigos" || de === "amigos") {
     try { await api("/api/modo", "POST", { amigos: false }); } catch (e) { return aviso(e.message); }   // pede o PIN se houver
     document.body.classList.remove("modo-amigos");
   }
   if (modoAtual === "treino" && treino) pararTreino(false);
-  if (modoAtual === "estudo" && crono) { if (!confirm("O cronómetro ainda está a contar. Sair e terminar agora?")) return; terminarCrono(false); }
+  if (modoAtual === "estudo" && crono) { if (!confirm("O cronómetro ainda está a contar. Terminar agora?")) return; return terminarCrono(false); }   // fica no ecra para registares o que estudaste
   clearInterval(modoTimer); modoTimer = null; modoAtual = null; $("#modo").className = "";
-  if (avisosGuardados.length) { const a = avisosGuardados.splice(0); aviso.dentro = true; aviso("Enquanto estavas no modo: " + a.join(" · "), false); aviso.dentro = false; }
+  if (avisosGuardados.length) aviso("Enquanto estavas no modo: " + avisosGuardados.splice(0).join(" · "), false);
 }
 $("#m-sair").onclick = () => sairModo();
 
@@ -1326,7 +1325,7 @@ function ecraEstudo() {
   tick(); modoTimer = setInterval(tick, 500);
   $("#m-pausa").onclick = () => { $("#crono-pausa").click(); tick(); };
   $("#m-fim").onclick = () => terminarCrono(false);
-  $("#m-musica").onclick = () => api("/api/spotify/tocar", "POST", { pedido: "lofi study" }).catch(e => { aviso.dentro = true; aviso(e.message); aviso.dentro = false; });
+  $("#m-musica").onclick = () => api("/api/spotify/tocar", "POST", { pedido: "lofi study" }).catch(e => aviso(e.message));
   $("#m-rever").onclick = () => { const d = crono.disc; if (!confirm("Pausar o estudo e fazer perguntas de " + d + "?")) return;
     if (crono.fim) $("#crono-pausa").click(); clearInterval(modoTimer); modoAtual = "revisao"; $("#modo").className = "ver revisao"; modoRevisao({ disciplina: d, voltar: true }); };
 }
@@ -1343,7 +1342,7 @@ function fimEstudo(disc, minutos, acabou) {
     try { await api("/api/diario", "POST", { disciplina: disc, minutos, data: hojeISO(), ...Object.fromEntries(new FormData(e.target)) });
       atualizar?.(); mc().innerHTML = `<div class="m-titulo">guardado</div><div class="m-sub">Ficou no diário: ${minutos} min de ${esc(disc)}.</div><div class="m-botoes"><button id="m-mais2">Estudar mais</button><button class="forte" onclick="sairModo()">Sair</button></div>`;
       $("#m-mais2").onclick = () => modoEstudo({ disciplina: disc });
-    } catch (err) { aviso.dentro = true; aviso(err.message); aviso.dentro = false; } };
+    } catch (err) { aviso(err.message); } };
   $("#m-mais").onclick = () => { crono = { disc, total: 1500, fim: Date.now() + 1500000 }; guardar("crono", crono); mostrarCrono(); ecraEstudo(); };
   $("#m-pausa5").onclick = () => { const fim = Date.now() + 300000; clearInterval(modoTimer);
     mc().innerHTML = `<div class="m-titulo">pausa</div><div class="m-grande" id="m-tempo">05:00</div><div class="m-sub">Levanta-te, bebe água. Depois guarda o que estudaste.</div><div class="m-botoes"><button class="forte" id="m-volta">Voltar</button></div>`;
@@ -3171,7 +3170,7 @@ async function executarComandos(cmds) {
     try {
       if (c.acao === "falar") await falar(c.texto);
       else if (c.acao === "caixa") { somCaixa(); if ($("#d-loja").open) carregarLoja(); paineisIronMan.lojaT = 0; }
-      else if (c.acao === "aviso") aviso(c.texto, false);
+      else if (c.acao === "aviso") { if (modoAtual === "estudo" && !c.urgente) avisosGuardados.push(c.texto); else aviso(c.texto, false); }   // o estudo nao e interrompido
       else if (c.acao === "apagao") c.ligado ? entrarApagao() : sairApagao();
       else if (c.acao === "modo") c.tipo === "sair" ? sairModo(c.de) : abrirModo(c);
       else if (c.acao === "abrir") abrirSeparador(c.separador);

@@ -60,6 +60,7 @@ Falta configurar no tablet (não é código):
 
 Última sessão:
 - Modos do Jarvis: estudo, revisão, amigos e treino.
+- Revisão dos modos: o modo amigos fica guardado na base de dados (sobrevive a reiniciar), cala rotinas, "bom dia", vendas e detalhes dos alertas da família; "muda para o modo X" já não desliga; frases como "vou treinar sexta" ou "tenho amigos cá sábado" já não ligam modos; sair a meio do estudo pede o registo; os avisos urgentes (família) aparecem mesmo no modo estudo; quando o Claude liga um modo, o ecrã muda.
 - Claude com pesquisa na web e contador de custos reais.
 - Modo viagem.
 - Corrigido "de 3 a 7 de março": dava 3 a 7 do mês seguinte, porque o mês só ficava no último dia.

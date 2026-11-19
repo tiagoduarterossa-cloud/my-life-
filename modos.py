@@ -17,6 +17,19 @@ import assistente
 
 _lock = threading.Lock()
 _estado = {"amigos": False}
+_db = None                 # o servidor liga aqui a base de dados (modos.ligar(db))
+
+
+def ligar(db):
+    """guarda a ligacao e volta a ler o modo amigos (se o servidor reiniciar a meio, continua ligado)"""
+    global _db
+    _db = db
+    try:
+        with db() as con:
+            r = con.execute("SELECT valor FROM config WHERE chave = 'modo_amigos'").fetchone()
+        _estado["amigos"] = bool(r and r[0] == "1")
+    except Exception as e:
+        print("modos:", e)
 
 # o que fica escondido no modo amigos (alem do que ja e privado com PIN)
 PESSOAIS = {"hoje", "dia", "testes", "novo_teste", "tarefa", "evento", "nota", "ver_notas", "alarme", "alarme_sem",
@@ -32,6 +45,12 @@ def amigos():
 def por_amigos(ligado):
     with _lock:
         _estado["amigos"] = bool(ligado)
+    if _db:
+        try:
+            with _db() as con:
+                con.execute("INSERT OR REPLACE INTO config (chave, valor) VALUES ('modo_amigos', ?)", ("1" if ligado else "0",))
+        except Exception as e:
+            print("modos:", e)
 
 
 def bloqueado(frase):
