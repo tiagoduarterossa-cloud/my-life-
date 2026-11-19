@@ -28,10 +28,20 @@ Funciona e está testado:
   - Revisão: "Jarvis, faz-me perguntas de Matemática". O Claude faz 6 perguntas de escolha múltipla (saída JSON estruturada) a partir do teste e do diário dos últimos 60 dias; se não houver matéria, pede-a. O ecrã avisa que as perguntas são de IA.
   - Amigos: "Jarvis, modo amigos". Esconde tarefas, testes e agenda; regras, rotinas e a ferramenta `central` do Claude não respondem a nada pessoal (`modos.PESSOAIS`) e o Claude esquece as conversas de antes. Tem relógio, música e jogo de cultura geral. Para sair, com PIN ativo, pede o PIN (`/api/modo`).
   - Treino: "Jarvis, modo treino de 10 rondas de 30 segundos com 15 de descanso". Conta em voz alta, apita nos últimos 3 s e regista em Desporto (só a partir de 1 minuto).
-- **Claude com internet e custos reais**: o Claude (plano B) tem a pesquisa na web da Anthropic (máx. 3 por pergunta, localizada em Portugal) e diz a fonte. A central soma o `usage` de cada resposta (todas as voltas, incluindo fotos e resumos de notícias) com os preços oficiais e guarda por mês na tabela `ia_custos`. Aparece nas definições do Claude e por voz ("quanto gastei no Claude este mês?"). Os resumos de notícias passaram a contar para o limite diário. Precisa de `anthropic>=1.1.0` (o `atualizar.sh` atualiza).
+- **Claude com internet e custos reais**: o Claude (plano B, Haiku 5.5 por defeito) tem a pesquisa na web da Anthropic (interruptor nas definições: desligada, até 1 por pergunta por defeito, ou até 3; localizada em Portugal) e diz a fonte. A central soma o `usage` de cada resposta (todas as voltas, incluindo fotos e resumos de notícias) com os preços oficiais e guarda por mês na tabela `ia_custos`. Aparece nas definições do Claude e por voz ("quanto gastei no Claude este mês?"). Os resumos de notícias passaram a contar para o limite diário. Precisa de `anthropic>=1.1.0` (o `atualizar.sh` atualiza).
 - **Cópias de segurança do vida.db**: uma por dia, verificada e comprimida, em `backups/` (14 dias e 6 meses). Com `termux-setup-storage` vai também para Armazenamento interno/Central/backups, que sobrevive a desinstalar o Termux. Aparece em "O que está a funcionar" e por voz ("Jarvis, faz uma cópia de segurança", "quando foi a última cópia de segurança?"). Restaurar: parar a central, `gunzip -c backups/vida-AAAA-MM-DD.db.gz > vida.db`, iniciar.
 
+## Custos
+
+Só o Claude custa dinheiro (API da Anthropic, saldo pré-pago numa conta de adulto, separada de qualquer subscrição do Claude). Tudo o resto é gratuito: Iron Man, mapa, modos, cronómetros, regras, IPMA, Open-Meteo, USGS, BCE, rádio, notícias, fogos.pt, voz. O Spotify só é controlado com conta Premium.
+- Haiku 5.5: ~0,04 cêntimos por pergunta; cada pesquisa na web +1 cêntimo (é o que mais pesa). Revisão e jogo: <0,1 cêntimos por ronda.
+- Um mês normal (20 perguntas/dia, pesquisa até 1): ~1,75 $. Com a pesquisa desligada: ~0,25 $.
+- Máximo com o limite de 100/dia e uma pesquisa em cada: ~31 $/mês (com limite de 30/dia: ~10 $).
+- Quando as regras percebem a frase, não há custo. Paga-se só nas perguntas que as regras não percebem, nas frases começadas por "Claude, …", na revisão/jogo, nas fotos e nos resumos de notícias em inglês.
+- O contador real está nas definições do Claude (tabela `ia_custos`).
+
 Falta configurar no tablet (não é código):
+- Na consola da Anthropic: pôr um limite de gastos mensal (ex.: 10 $). Nas definições do Claude: baixar o limite diário para 30.
 - Ligar o Spotify (definições).
 - Ligar a loja (Iron Man > Loja).
 - Pedir a chave do fogos.pt e guardá-la em `fogos_token.txt`.
@@ -47,6 +57,7 @@ Falta configurar no tablet (não é código):
 - `ia.py`: Claude como plano B quando as regras não percebem. Usa a ferramenta `central` e esconde as conversas privadas a quem não tem PIN.
 - `familia.py`: familiares, perigos perto da casa deles, mapa, ficha (`detalhe`) e a vigia de 15 em 15 minutos.
 - `avisos.py`: IPMA (distritos e ilhas, terra e mar), USGS, fogos.pt (chave), vento, energia e apagões (Termux:API).
+- `modos.py`: modos do Jarvis (estado do modo amigos guardado em config `modo_amigos`, o que fica escondido em `PESSOAIS`, contexto da revisão). As perguntas da revisão e do jogo são feitas em `ia.gerar_perguntas`.
 - `viagem.py`: modo viagem (viagens, mala, tempo, câmbio, casa em pausa). `alarmes.py` e `rotinas.py` perguntam-lhe se estás fora.
 - `backups.py`: cópias diárias do vida.db (API de backup do SQLite e integrity_check).
 - `pin.py`, `radio.py`, `servicos.py`, `loja.py`, `seguranca.py`, `casa.py`, `noticias.py`, `rotinas.py`, `alarmes.py`, `voz.py`, `spotify.py`, `dispositivos.py`.
@@ -85,12 +96,15 @@ Sessão anterior (resumo dos commits):
 - **Frequências FM e endereços de rádio escritos à mão**: não foram confirmados em fonte oficial. Por isso os endereços vêm do radio-browser.info em tempo real e as frequências não estão na central.
 - **Um "estado de Portugal" (o WhatsApp em baixo no país todo)**: não existe uma fonte pública fiável. A central só testa a partir de casa.
 - **Câmaras escondidas à porta dos avós a registar carros desconhecidos**: recusado (RGPD, via pública). A alternativa é uma campainha com câmara à vista, se os avós quiserem.
+- **OpenJarvis (Stanford, visto num TikTok)**: não serve para a central. Só tem instaladores para macOS, Linux, WSL e Windows, usa modelos locais pelo Ollama e instala com `curl | bash`. Ficou a ideia do resumo da manhã com Gmail e Calendar (ver "Próximo passo").
+- **Não pagar o Claude com um modelo local** (Ollama no tablet ou no PC, ou o plano gratuito do Gemini): posto de lado. No tablet só cabem modelos pequenos, que erram muito e falam mal português de Portugal; o Gemini gratuito pode usar as conversas para treino. Ficou o Haiku com o interruptor da pesquisa (~1 a 2 $ por mês).
 - **O ambiente de testes do Claude não tem internet aberta**: tudo foi testado com servidores falsos (IPMA, USGS, fogos, rádio, Open-Meteo, notícias, Claude, Spotify, Shopify, WLED, Shelly) e Playwright. A prova final é sempre no tablet.
 
 ## Próximo passo
 
-1. **Usar a central durante uma semana**: registar o estudo, marcar os testes por voz, usar a rotina de dormir. No fim, dizer o que se usou e o que nunca se abriu.
-2. No tablet: atualizar (`cd ~/central && ./atualizar.sh`), pôr o PIN, meter a família e testar o "escuta" e o modo apagão ("Jarvis, modo apagão" e o botão de sair).
-3. Se alguma parte disser "sem dados" durante mais de um dia, tirar uma foto ao ecrã e ao Termux.
-4. Ideias por fazer, por ordem de utilidade: relatório semanal do estudo, trabalhos novos do Teams (pelas notificações do Android), ações da bolsa, Tailscale, ligação entre o quarto 3D e a roupa.
-5. Pensar em tornar o repositório privado (o código não tem dados pessoais, mas mostra como a central funciona).
+1. No tablet: `cd ~/central && ./atualizar.sh` (atualiza também o SDK do Claude para >=1.1.0). Depois testar o que é novo: os 4 modos (botões "Modos" no ecrã inicial), "Jarvis, quanto gastei no Claude este mês?", uma pergunta de hoje com a pesquisa ligada, e o interruptor da pesquisa.
+2. Antes de 1 de dezembro: marcar a viagem no Iron Man ("+ viagem"), com o link do guia, e um alarme especial para o dia da partida (nesse dia os alarmes normais estão em pausa). Encher o separador Roupa a sério, senão a mala fica genérica.
+3. Daqui a duas semanas: dizer quais modos se usaram mesmo. O que não se usar, sai. Daqui a um mês: ver o contador de custos e decidir entre Haiku e Opus.
+4. Se alguma parte disser "sem dados" durante mais de um dia, tirar uma foto ao ecrã e ao Termux.
+5. Ideias por fazer, por ordem de utilidade: resumo da manhã com Gmail (IMAP com palavra-passe de aplicação) e Google Calendar (endereço iCal secreto), só leitura e no Iron Man (falta decidir que conta e se se quer); relatório semanal do estudo (agora há dados do modo estudo); trabalhos novos do Teams (pelas notificações do Android); Tailscale; ligação entre o quarto 3D e a roupa.
+6. Pensar em tornar o repositório privado (o código não tem dados pessoais, mas mostra como a central funciona).
