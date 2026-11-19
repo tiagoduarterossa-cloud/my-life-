@@ -135,6 +135,7 @@ def init_db():
         con.executescript(familia.TABELAS)
         con.executescript(pin.TABELAS)
         con.executescript(viagem.TABELAS)
+        con.executescript(ia.TABELAS)
         rotinas.criar_padrao(con)
         colunas = {r["name"] for r in con.execute("PRAGMA table_info(roupa)")}
         for c in ("link", "imagem"):
@@ -1150,6 +1151,7 @@ def falar_alarme(texto):
 
 if __name__ == "__main__":
     init_db()
+    ia._db = db        # para a central guardar quanto o Claude gasta por mes
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)

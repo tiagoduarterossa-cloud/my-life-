@@ -24,9 +24,9 @@ import assistente
 CHAVE = Path(__file__).resolve().parent / "chave_claude.txt"
 
 MODELOS = [
-    ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~1 a 3 cêntimos por pergunta)"),
-    ("claude-sonnet-5-5", "Sonnet 5.5: equilibrado (~0,5 a 1 cêntimo por pergunta)"),
-    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,05 cêntimos por pergunta)"),
+    ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~2 cêntimos por pergunta, +1 por pesquisa na web)"),
+    ("claude-sonnet-5-5", "Sonnet 5.5: equilibrado (~1 cêntimo por pergunta, +1 por pesquisa na web)"),
+    ("claude-haiku-5-5", "Haiku 5.5: o mais rápido e barato (~0,05 cêntimos por pergunta, +1 por pesquisa na web)"),
 ]
 MODELO_PADRAO = "claude-opus-5-5"
 
@@ -46,10 +46,103 @@ A vida dele:
 - Para tudo o que é dele (horário, aulas, testes, tarefas, eventos, notas, alarmes, fazer a mala, ligar a luz), usa a ferramenta `central`. Não inventes horários nem datas.
 - Depois de usares a ferramenta, responde com base no que ela devolveu, no teu estilo.
 
+Internet:
+- Tens a ferramenta `web_search`. Usa-a para tudo o que muda com o tempo (notícias, resultados, preços, horários, lançamentos, quem é o atual...) e sempre que não tenhas a certeza de um facto. Não respondas a nada disso de memória.
+- Diz de onde vem, numa palavra natural ("segundo o Público", "no site da CP"). Se a pesquisa não encontrar, diz que não encontraste; não adivinhes.
+- Para o que é dele (horário, testes, alarmes...) usa a `central`, nunca a internet.
+
 Segurança:
 - Saúde, perigo, ou algo que o preocupe a sério: dá um conselho simples e diz-lhe para falar com os pais ou outro adulto de confiança.
 
 Agora: {data}, {hora}.{sobre_ele}"""
+
+# precos oficiais da Anthropic em dolares por milhao de tokens: (entrada, saida, leitura de cache)
+# fonte: tabela de precos da Anthropic (platform.claude.com/docs/en/about-claude/pricing, versao de 2026-11-03).
+# A escrita de cache custa 1,25x a entrada. A central nao usa cache, por isso a coluna da cache quase nunca conta.
+# Os modelos que nao estao no menu podem aparecer quando o servidor passa a outro modelo depois de uma recusa.
+PRECOS = {
+    "claude-opus-5-5": (4.00, 20.00, 0.20), "claude-sonnet-5-5": (2.00, 10.00, 0.10), "claude-haiku-5-5": (0.10, 0.50, 0.01),
+    "claude-opus-5": (5.00, 25.00, 0.50), "claude-opus-4-8": (5.00, 25.00, 0.50), "claude-sonnet-5": (2.00, 10.00, 0.20),
+}
+PRECO_PESQUISA = 10.00 / 1000          # pesquisa na web: 10 $ por cada 1000
+TABELAS = """
+CREATE TABLE IF NOT EXISTS ia_custos (
+    mes TEXT PRIMARY KEY,              -- AAAA-MM
+    pedidos INTEGER NOT NULL DEFAULT 0,
+    pesquisas INTEGER NOT NULL DEFAULT 0,
+    entrada INTEGER NOT NULL DEFAULT 0,
+    saida INTEGER NOT NULL DEFAULT 0,
+    dolares REAL NOT NULL DEFAULT 0
+);
+"""
+_db = None                 # o servidor liga aqui a base de dados (ia._db = db)
+
+
+def _custo(mensagens):
+    """soma o que a Anthropic disse que gastou (usage) em todas as voltas de um pedido. Devolve (entrada, saida, pesquisas, dolares)."""
+    ent = sai = pesq = 0
+    usd = 0.0
+    for m in mensagens:
+        u = getattr(m, "usage", None)
+        if not u:
+            continue
+        p_in, p_out, p_cache = PRECOS.get(getattr(m, "model", ""), PRECOS["claude-opus-5"])   # desconhecido: o mais caro
+        i, o = u.input_tokens or 0, u.output_tokens or 0
+        cr, cw = getattr(u, "cache_read_input_tokens", 0) or 0, getattr(u, "cache_creation_input_tokens", 0) or 0
+        st = getattr(u, "server_tool_use", None)
+        n = (getattr(st, "web_search_requests", 0) or 0) if st else 0
+        ent += i + cr + cw; sai += o; pesq += n
+        usd += (i * p_in + cw * p_in * 1.25 + cr * p_cache + o * p_out) / 1e6 + n * PRECO_PESQUISA
+    return ent, sai, pesq, usd
+
+
+def registar(mensagens, pedidos=1):
+    if not _db:
+        return
+    ent, sai, pesq, usd = _custo(mensagens)
+    try:
+        with _db() as con:
+            con.executescript(TABELAS)
+            con.execute("""INSERT INTO ia_custos (mes, pedidos, pesquisas, entrada, saida, dolares) VALUES (?,?,?,?,?,?)
+                           ON CONFLICT(mes) DO UPDATE SET pedidos = pedidos + excluded.pedidos, pesquisas = pesquisas + excluded.pesquisas,
+                           entrada = entrada + excluded.entrada, saida = saida + excluded.saida, dolares = dolares + excluded.dolares""",
+                        (date.today().strftime("%Y-%m"), pedidos, pesq, ent, sai, usd))
+    except Exception as e:
+        print("custos do claude:", e)
+
+
+def custos(meses=6):
+    if not _db:
+        return []
+    with _db() as con:
+        con.executescript(TABELAS)
+        return [dict(r) for r in con.execute("SELECT * FROM ia_custos ORDER BY mes DESC LIMIT ?", (meses,))]
+
+
+def frase_custos():
+    cs = custos(2)
+    usd = lambda v: f"{v:.2f}".replace(".", ",") + " dólares"
+    if not cs or cs[0]["mes"] != date.today().strftime("%Y-%m"):
+        return "Este mês ainda não gastaste nada no Claude."
+    c = cs[0]
+    pl = lambda n, um, varios: f"{n} {um if n == 1 else varios}"
+    f = (f"Este mês o Claude custou {usd(c['dolares'])}, em {pl(c['pedidos'], 'pedido', 'pedidos')}"
+         + (f" e {pl(c['pesquisas'], 'pesquisa', 'pesquisas')} na web" if c["pesquisas"] else "") + ".")
+    if len(cs) > 1:
+        f += f" No mês passado foram {usd(cs[1]['dolares'])}."
+    return f + " São contas da central com os preços oficiais; a fatura exata está na consola da Anthropic."
+
+
+def _contar(cfg):
+    """conta um pedido no limite diario. Devolve False se o limite ja foi atingido."""
+    hoje = date.today()
+    if _uso["dia"] != hoje:
+        _uso.update(dia=hoje, n=0)
+    if _uso["n"] >= int(cfg.get("ia_limite", 100)):
+        return False
+    _uso["n"] += 1
+    return True
+
 
 _hist = []                 # ultimas trocas [(pergunta, resposta, quando)] para perguntas de seguimento
 _hist_lock = threading.Lock()
@@ -93,7 +186,7 @@ def estado(cfg):
     hoje = date.today()
     usadas = _uso["n"] if _uso["dia"] == hoje else 0
     return {"sdk": sdk_instalado(), "chave": chave_configurada(), "modelo": cfg.get("ia_modelo", MODELO_PADRAO),
-            "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas}
+            "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas, "custos": custos()}
 
 
 def forcar(texto):
@@ -107,13 +200,8 @@ def forcar(texto):
 
 def perguntar(texto, db, cfg, privado_ok=True):
     """devolve {resposta, mudou} ou {erro}"""
-    hoje = date.today()
-    if _uso["dia"] != hoje:
-        _uso.update(dia=hoje, n=0)
-    limite = int(cfg.get("ia_limite", 100))
-    if _uso["n"] >= limite:
-        return {"erro": f"Hoje já fizeste {limite} perguntas ao Claude, que é o limite diário. Amanhã há mais."}
-    _uso["n"] += 1
+    if not _contar(cfg):
+        return {"erro": f"Hoje já fizeste {cfg.get('ia_limite', 100)} perguntas ao Claude, que é o limite diário. Amanhã há mais."}
 
     import anthropic
     from anthropic import beta_tool
@@ -169,15 +257,26 @@ def perguntar(texto, db, cfg, privado_ok=True):
     modelo = cfg.get("ia_modelo", MODELO_PADRAO)
     if modelo not in {m for m, _ in MODELOS}:
         modelo = MODELO_PADRAO
-    params = dict(model=modelo, max_tokens=4000, system=sistema, tools=[central], messages=mensagens,
-                  max_iterations=5, output_config={"effort": "low"})  # low: respostas curtas e rapidas para voz
+    # pesquisa na web (servidor da Anthropic): para o que e de hoje ou o que ele nao sabe ao certo. Max. 3 por pergunta.
+    web = {"type": "web_search_20250305" if modelo == "claude-haiku-5-5" else "web_search_20260209", "name": "web_search",
+           "max_uses": 3, "user_location": {"type": "approximate", "country": "PT", "timezone": "Europe/Lisbon"}}
+    params = dict(model=modelo, max_tokens=4000, system=sistema, tools=[central, web], messages=mensagens,
+                  max_iterations=6, output_config={"effort": "low"})  # low: respostas curtas e rapidas para voz
     if modelo != "claude-haiku-5-5":
         # se o modelo recusar por seguranca, o servidor tenta outro modelo sozinho
         params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
 
     try:
         client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=40)
-        final = client.beta.messages.tool_runner(**params).until_done()
+        voltas = []
+        try:
+            for m in client.beta.messages.tool_runner(**params):
+                voltas.append(m)
+        finally:
+            registar(voltas)          # paga-se mesmo quando corre mal a meio
+        if not voltas:
+            return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
+        final = voltas[-1]
     except anthropic.AuthenticationError:
         return {"erro": "A chave do Claude não é válida. Vê-a nas definições."}
     except anthropic.PermissionDeniedError:
@@ -196,6 +295,8 @@ def perguntar(texto, db, cfg, privado_ok=True):
 
     if final.stop_reason == "refusal":
         return {"erro": "Com isso não te posso ajudar."}
+    if final.stop_reason == "pause_turn":
+        return {"erro": "A pesquisa demorou demasiado. Pergunta de forma mais curta."}
     resposta = " ".join(b.text for b in final.content if b.type == "text").strip()
     if not resposta:
         return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
@@ -207,12 +308,8 @@ def perguntar(texto, db, cfg, privado_ok=True):
 def ver(pergunta, jpeg, cfg):
     """o Claude olha para uma foto da camara do tablet e responde. Devolve {resposta} ou {erro}."""
     import base64
-    hoje = date.today()
-    if _uso["dia"] != hoje:
-        _uso.update(dia=hoje, n=0)
-    if _uso["n"] >= int(cfg.get("ia_limite", 100)):
+    if not _contar(cfg):
         return {"erro": "Hoje já chegaste ao limite de perguntas ao Claude."}
-    _uso["n"] += 1
     import anthropic
     modelo = cfg.get("ia_modelo", MODELO_PADRAO)
     if modelo not in {m for m, _ in MODELOS}:
@@ -231,6 +328,7 @@ def ver(pergunta, jpeg, cfg):
     try:
         client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=40)
         r = client.beta.messages.create(**params)
+        registar([r])
     except anthropic.AuthenticationError:
         return {"erro": "A chave do Claude não é válida."}
     except anthropic.APIConnectionError:
@@ -245,6 +343,8 @@ def ver(pergunta, jpeg, cfg):
 
 def resumir(texto, cfg):
     """resume/traduz um texto curto (ex.: titulos de noticias em ingles) para ser dito em voz alta. Devolve texto ou None."""
+    if not _contar(cfg):          # os resumos tambem contam para o limite diario
+        return None
     try:
         import anthropic
         estilo = "como um mordomo britânico elegante, tratando-o por senhor" if cfg.get("estilo") == "mordomo" else "num tom descontraído e jovem"
@@ -255,6 +355,7 @@ def resumir(texto, cfg):
         if params["model"] != "claude-haiku-5-5":
             params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
         r = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=30).beta.messages.create(**params)
+        registar([r])
         if r.stop_reason == "refusal":
             return None
         return " ".join(b.text for b in r.content if b.type == "text").strip() or None

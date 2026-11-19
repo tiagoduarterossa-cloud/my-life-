@@ -1981,7 +1981,13 @@ async function mostrarIA() {
   config.ia_ok = e.sdk && e.chave;
   $("#ia-estado").textContent = !e.sdk ? "Falta instalar no Termux: ./instalar_claude.sh"
     : !e.chave ? "Ainda sem chave. Cola aqui a chave da API do teu pai."
-    : `Ligado. Perguntas hoje: ${e.usadas_hoje} de ${e.limite}.`;
+    : `Ligado. Perguntas hoje: ${e.usadas_hoje} de ${e.limite}.` + (() => {
+        const usd = v => v.toFixed(2).replace(".", ",") + " $", m = (e.custos || [])[0], mes = hojeISO().slice(0, 7);
+        if (!m || m.mes !== mes) return " Custo este mês: 0,00 $.";
+        const ant = (e.custos || [])[1];
+        return ` Custo este mês: ${usd(m.dolares)} (${m.pedidos} pedidos${m.pesquisas ? `, ${m.pesquisas} pesquisas na web` : ""})` +
+          (ant ? `; mês passado: ${usd(ant.dolares)}` : "") + ". Contas da central; a fatura exata está na consola da Anthropic.";
+      })();
   $("#ia-modelo").innerHTML = e.modelos.map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
   $("#ia-modelo").value = e.modelo; $("#ia-limite").value = e.limite; $("#ia-apagar").hidden = !e.chave;
 }

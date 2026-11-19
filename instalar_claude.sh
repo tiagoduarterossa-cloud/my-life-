@@ -4,8 +4,8 @@
 cd "$(dirname "$0")"
 if python -c "import anthropic" 2>/dev/null; then echo "Já está instalada."; exit 0; fi
 echo "1/2 A tentar instalar diretamente..."
-if pip install anthropic; then echo "Instalada!"; exit 0; fi
+if pip install "anthropic>=1.1.0"; then echo "Instalada!"; exit 0; fi
 echo "2/2 Faltam ferramentas para compilar. A instalar o Rust (demora)..."
 pkg install -y rust binutils clang make
-if pip install anthropic; then echo "Instalada! Corre ./atualizar.sh para reiniciar a central."
+if pip install "anthropic>=1.1.0"; then echo "Instalada! Corre ./atualizar.sh para reiniciar a central."
 else echo "Não consegui. Manda um print do erro."; exit 1; fi

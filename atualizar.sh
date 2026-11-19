@@ -9,6 +9,8 @@ if ! git pull; then
 fi
 chmod +x iniciar.sh atualizar.sh instalar.sh instalar_claude.sh 2>/dev/null
 python -c "import edge_tts" 2>/dev/null || pip install --quiet edge-tts 2>/dev/null
+# a pesquisa na web do Claude precisa do SDK 1.1.0 ou mais recente (retoma sozinho as pesquisas longas)
+if python -c "import anthropic" 2>/dev/null; then pip install --quiet --upgrade "anthropic>=1.1.0" 2>/dev/null; fi
 pkill -f "python server.py" 2>/dev/null; sleep 1
 echo "A reiniciar a central..."
 exec ./iniciar.sh

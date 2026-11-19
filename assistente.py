@@ -241,6 +241,9 @@ def entender(texto, hoje=None):
             not re.search(r"^(marca|tenho de|toma nota)", s):
         return "familia_estado", {}
 
+    if re.search(r"\b(claude|ia|api|inteligencia artificial)\b", s) and re.search(r"\b(custo|custos|custa|custou|gastei|gasto|gastos|gastou|quanto|fatura|dinheiro)\b", s):
+        return "custo_ia", {}
+
     m = re.search(r"\bgastei (\d+(?:[.,]\d{1,2})?)\s*(?:euros?|€)?\s*(?:(?:em|no|na|nos|nas|com|de|para)\s+(.+))?", s)
     if m:
         desc = (m[2] or "").strip()
@@ -782,6 +785,11 @@ def _responder(texto, con, hoje=None, nome=""):
         f = viagem.frase(r)
         return {"resposta": f, "falado": f, "viagem": bool(r),
                 "itens": [i["texto"] for i in (r or {}).get("itens", []) if not i["feito"]][:12]}
+
+    if intencao == "custo_ia":
+        import ia
+        f = ia.frase_custos()
+        return {"resposta": f, "falado": f}
 
     if intencao == "backup":
         import backups
