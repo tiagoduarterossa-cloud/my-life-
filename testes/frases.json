@@ -1020,6 +1020,37 @@
    "campos": {
     "holograma": false
    }
+  },
+  {
+   "frase": "lembra-me de fazer backup do pc amanhã",
+   "intencao": "tarefa"
+  },
+  {
+   "frase": "marca evento quiz na escola sexta",
+   "intencao": "evento"
+  },
+  {
+   "frase": "não queria acordar cedo amanhã",
+   "intencao": "alarme_ver",
+   "nota": "nao e uma correcao da resposta anterior"
+  },
+  {
+   "frase": "não pedi nada disso",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "não eu queria era o que tenho amanhã",
+   "intencao": "correcao",
+   "campos": {
+    "texto": "o que tenho amanhã"
+   }
+  },
+  {
+   "frase": "não queria era que horas são",
+   "intencao": "correcao",
+   "campos": {
+    "texto": "que horas são"
+   }
   }
  ]
 }

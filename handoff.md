@@ -84,6 +84,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Terceira revisão a tudo desde o início da sessão: "lembra-me de fazer backup do PC" volta a ser tarefa; "marca evento quiz" volta a ser evento; "não queria…" já não é correção (só "não, eu queria…", "não queria era…", "não eu disse…"); no modo amigos o bom dia só diz as horas e as conversas com o Claude não ficam no histórico; preços do Claude por prefixo do modelo (ids com data); respostas do Claude com dados privados ficam marcadas como privadas no registo; o Spotify mostra o motivo real dos 403; "quanto gastei" mostra o mês passado mesmo com este a zero; as cópias falhadas não deixam ficheiros temporários.
 - Ecrã inicial com o dia e a semana, Jarvis proativo, memória, aprendizagem com propostas e aprovação, modo holograma, tarefas dele na central. Revisão de código feita e corrigida (cortes de texto nas frases, memória só com PIN, "não te esqueças de" volta a ser tarefa, "esquece" só com deixa de memória, frases aprendidas com "Jarvis," no início).
 - Testes automáticos das frases (ligados ao atualizar.sh, com volta atrás se falharem) e registo dos pedidos com 👍/👎 e correções por voz.
 - Iron Man sempre ligado até mandares desligar (voz ou botão "desligar"). Atenção: com o Iron Man aberto o trinco da escuta fica sempre aberto.

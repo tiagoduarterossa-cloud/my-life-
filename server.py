@@ -613,7 +613,7 @@ class Handler(BaseHTTPRequestHandler):
                         try:
                             with db() as con:
                                 r = dict(r, registo=aprender.registar(con, frase, intencao, origem, r.get("resposta", ""),
-                                                                      privado=r.get("privado") or intencao in assistente.PRIVADAS))
+                                                                      privado=r.get("privado") or r.get("privado_registo") or intencao in assistente.PRIVADAS))
                         except Exception as e:
                             print("registo do jarvis:", e)
                     return self.enviar(200, r)
@@ -1239,6 +1239,8 @@ def bom_dia_falado():
     """o que o Rosserini diz enquanto o alarme toca. Se a rotina Bom dia estiver ligada, o resumo fica para
     quando parares o alarme; senao diz logo tudo."""
     agora = assistente.hora_falada(datetime.now().strftime("%H:%M"))
+    if modos.amigos():   # amigos a dormir ca: so as horas, nada da tua agenda
+        return assistente.estilizar(f"São {agora}. Bom dia.", ler_config().get("estilo", ""))
     with db() as con:
         if any(r["ativa"] and r["quando"].get("tipo") == "alarme_parado" for r in rotinas.listar(con)):
             return assistente.estilizar(f"São {agora}. Bora, hora de acordar.", ler_config().get("estilo", ""))
@@ -1281,7 +1283,8 @@ def responder_ia(frase, privado_ok=True):
     r = ia.perguntar(frase, db, ler_config(), privado_ok=privado_ok)
     if "erro" in r:
         return {"resposta": r["erro"], "falado": r["erro"]}
-    out = {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True}
+    out = {"resposta": r["resposta"], "falado": r["resposta"], "mudou": r.get("mudou", False), "ia": True,
+           "privado_registo": bool(r.get("privado"))}   # so para o registo; "privado" mudava a forma como o ecra mostra
     if r.get("comandos"):   # o Claude pediu a central uma coisa que mexe no ecra (ex.: modo amigos): o ecra faz, e depois fala
         out["comandos"] = r["comandos"] + [{"acao": "falar", "texto": r["resposta"]}]
     return out

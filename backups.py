@@ -88,6 +88,7 @@ def fazer(db_path):
             print("backups:", _ultimo_erro)
         finally:
             tmp.unlink(missing_ok=True)
+            (PASTA / f".tmp-{hoje}.db.gz").unlink(missing_ok=True)   # se falhou a meio (disco cheio...), nao fica lixo
     return estado()
 
 

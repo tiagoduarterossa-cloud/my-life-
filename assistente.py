@@ -209,7 +209,9 @@ def entender(texto, hoje=None):
         return "ajuda", {}
 
     # notas a resposta anterior (aprender.py): "nao era isso", "boa", "nao, eu queria era ..."
-    m = re.match(r"^nao,? (?:eu )?(?:queria|disse|pedi|perguntei)(?: era| foi)?:? (.{3,})$", s.strip(" .!?"))
+    m = (re.match(r"^nao, (?:eu )?(?:queria|disse|pedi|perguntei)(?: era| foi)?:? (.{3,})$", s.strip(" .!?"))
+         or re.match(r"^nao (?:eu )?(?:queria|pedi|perguntei) (?:era|foi):? (.{3,})$", s.strip(" .!?"))
+         or re.match(r"^nao eu disse:? (.{3,})$", s.strip(" .!?")))
     if m:
         return "correcao", {"texto": _fim(t, m[1])}
     if re.fullmatch(r"(nao,? )?(nao era isso|nao e isso|isso esta errado|esta errado|percebeste mal|nao foi isso( que eu pedi)?|resposta errada|enganaste-te)", s.strip(" .!?")):
@@ -314,11 +316,13 @@ def entender(texto, hoje=None):
         if not rondas and minutos:
             rondas = max(1, round(minutos * 60 / (trabalho + descanso)))
         return "modo_treino", {"rondas": min(max(rondas or 8, 1), 50), "trabalho": trabalho, "descanso": descanso}
-    if re.search(r"\bmodo (de )?revisao\b|\b(faz|fazes)(-me| me)? perguntas\b|\btesta-?me\b|\bquiz\b|\b(ajuda-?me a )?rever (a materia|para o teste)\b", s):
+    if re.search(r"\bmodo (de )?revisao\b|\b(faz|fazes)(-me| me)? perguntas\b|\btesta-?me\b|\bquiz\b|\b(ajuda-?me a )?rever (a materia|para o teste)\b", s) \
+            and not re.search(r"\b(marca|lembra|agenda|tenho de|tarefa|evento)\b", s):
         return "modo_revisao", {"texto": t}
 
     # copias de seguranca do vida.db (antes da "seguranca" da rede e da central)
-    if re.search(r"\b(copias? de seguranca|backups?)\b", s):
+    if re.search(r"\b(copias? de seguranca|backups?)\b", s) and \
+            not re.search(r"\b(lembra|lembra-me|tarefa|marca|agenda|tenho de|preciso de)\b|\b(backup|copia de seguranca) (do|da|dos|das) (pc|computador|telemovel|iphone|portatil|fotos|disco)\b", s):
         return "backup", {"fazer": bool(re.search(r"\b(faz|fazer|faca|cria|criar|guarda|agora)\b", s))}
 
     # modo viagem (antes da "mala" rapida, que continua a existir para escapadinhas)

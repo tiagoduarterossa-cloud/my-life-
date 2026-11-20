@@ -87,7 +87,11 @@ def _custo(mensagens):
         u = getattr(m, "usage", None)
         if not u:
             continue
-        p_in, p_out, p_cache = PRECOS.get(getattr(m, "model", ""), PRECOS["claude-opus-5"])   # desconhecido: o mais caro
+        nome = getattr(m, "model", "") or ""
+        chave = nome if nome in PRECOS else next((k for k in sorted(PRECOS, key=len, reverse=True) if nome.startswith(k)), None)
+        if not chave:
+            print("custos do claude: modelo sem preco conhecido:", nome)
+        p_in, p_out, p_cache = PRECOS[chave or "claude-opus-5"]   # desconhecido: conta pelo mais caro, para nunca dizer menos
         i, o = u.input_tokens or 0, u.output_tokens or 0
         cr, cw = getattr(u, "cache_read_input_tokens", 0) or 0, getattr(u, "cache_creation_input_tokens", 0) or 0
         st = getattr(u, "server_tool_use", None)
@@ -123,8 +127,10 @@ def custos(meses=6):
 def frase_custos():
     cs = custos(2)
     usd = lambda v: f"{v:.2f}".replace(".", ",") + " dólares"
-    if not cs or cs[0]["mes"] != date.today().strftime("%Y-%m"):
-        return "Este mês ainda não gastaste nada no Claude."
+    if not cs:
+        return "Ainda não gastaste nada no Claude."
+    if cs[0]["mes"] != date.today().strftime("%Y-%m"):
+        return f"Este mês ainda não gastaste nada no Claude. No mês passado foram {usd(cs[0]['dolares'])}."
     c = cs[0]
     pl = lambda n, um, varios: f"{n} {um if n == 1 else varios}"
     f = (f"Este mês o Claude custou {usd(c['dolares'])}, em {pl(c['pedidos'], 'pedido', 'pedidos')}"
@@ -364,8 +370,10 @@ def perguntar(texto, db, cfg, privado_ok=True):
     if not resposta:
         return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
     with _hist_lock:
-        _hist.append((texto, resposta, time.time(), mudou["privado"]))
-    return {"resposta": resposta, "mudou": mudou["v"], "comandos": mudou["comandos"]}
+        import modos
+        if not modos.amigos():   # o que os amigos perguntam nao fica para as tuas perguntas seguintes
+            _hist.append((texto, resposta, time.time(), mudou["privado"]))
+    return {"resposta": resposta, "mudou": mudou["v"], "comandos": mudou["comandos"], "privado": mudou["privado"]}
 
 
 def ver(pergunta, jpeg, cfg):
