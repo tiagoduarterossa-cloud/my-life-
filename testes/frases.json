@@ -1051,6 +1051,25 @@
    "campos": {
     "texto": "que horas são"
    }
+  },
+  {
+   "frase": "faz-me um plano de estudo para matemática",
+   "intencao": "plano_estudo"
+  },
+  {
+   "frase": "organiza-me o estudo",
+   "intencao": "plano_estudo"
+  },
+  {
+   "frase": "planeia o estudo de ciências",
+   "intencao": "plano_estudo"
+  },
+  {
+   "frase": "tenho teste de matemática na sexta, faz-me um plano de estudo",
+   "intencao": "novo_teste",
+   "campos": {
+    "data": "2026-11-20"
+   }
   }
  ]
 }

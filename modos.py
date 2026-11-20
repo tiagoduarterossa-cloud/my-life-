@@ -33,7 +33,7 @@ def ligar(db):
 
 # o que fica escondido no modo amigos (alem do que ja e privado com PIN)
 PESSOAIS = {"hoje", "dia", "testes", "novo_teste", "tarefa", "evento", "nota", "ver_notas", "alarme", "alarme_sem",
-            "alarme_ver", "acordaste", "mala", "custo_ia", "backup", "modo_revisao", "sugestoes", "aprender_ver", "memoria_add", "memoria_ver", "memoria_apagar"} | set(assistente.PRIVADAS)
+            "alarme_ver", "acordaste", "mala", "custo_ia", "backup", "modo_revisao", "sugestoes", "aprender_ver", "memoria_add", "memoria_ver", "memoria_apagar", "plano_estudo"} | set(assistente.PRIVADAS)
 FRASE_AMIGOS = "Estou em modo amigos: as tuas coisas ficam para depois."
 
 

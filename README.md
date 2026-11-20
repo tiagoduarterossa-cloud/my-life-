@@ -212,6 +212,14 @@ Para ligar (uma vez):
 
 A ligação fica em `spotify_token.json` (fora do GitHub). Não é preciso nenhum segredo: usa o método PKCE.
 
+## Relógio do Jarvis (para a placa ESP32)
+
+`GET /api/relogio` devolve um resumo curto em JSON (hora, próximo teste, o que falta hoje, tarefas, alarme, estudo da semana, uma sugestão). Com o PIN ligado, o relógio entra com uma chave de aparelho no cabeçalho `X-Chave` (cria-a em Iron Man > Segurança). No modo amigos só devolve a hora.
+
+## Trabalhos do Teams
+
+A central lê as notificações do Teams no tablet e põe os trabalhos novos na lista de tarefas, com o prazo se vier no texto. Para isso: Definições do Android > Acesso a notificações > Termux:API. Só lê as notificações do Teams.
+
 ## Inteligência: o Claude
 
 Quando o assistente não percebe uma pergunta ("porque é que o céu é azul?", "explica-me as equações", "e porquê?"), pergunta ao **Claude**. Também podes começar por "Claude, ..." para ir direto. O Claude pode usar a central (marcar, ver o dia, alarmes, mala, luz) e lembra-se da conversa dos últimos 15 minutos.

@@ -297,6 +297,9 @@ def entender(texto, hoje=None):
     if re.fullmatch(r"(o que (e que )?me sugeres( agora| hoje| fazer)?|tens (alguma )?sugest\w*( para mim| para hoje)?|o que (e que )?dev(ia|o) fazer( agora| hoje)?|estou em dia)", s.strip(" .!?")):
         return "sugestoes", {}
 
+    if re.search(r"\b(plano de estudo|planeia(-me)? o estudo|organiza(-me)? o estudo)\b", s) and not re.search(r"\b(tenho|marca|vou ter) (um |o )?teste\b", s):
+        return "plano_estudo", {"texto": t}
+
     # modos do Jarvis: amigos, treino, revisao (o modo estudo e a rotina "Modo estudo")
     sair_modo = re.search(r"\b(?:sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\s+(?:d?o\s+)?modo (de )?(estudo|amigos|treino|revisao)\b", s)
     if sair_modo:
@@ -908,6 +911,21 @@ def _responder(texto, con, hoje=None, nome=""):
         f = f"Esqueci: {apagadas[0]['texto']}." if apagadas else "Não encontrei isso na minha memória."
         return {"resposta": f, "falado": f, "mudou": bool(apagadas)}
 
+    if intencao == "plano_estudo":
+        import modos, plano
+        disc = modos.achar_disciplina(con, d["texto"])
+        q = "SELECT * FROM testes WHERE data > ?" + (" ORDER BY data" if not disc else "")
+        ts = [dict(x) for x in con.execute(q, (hoje.isoformat(),))]
+        if disc:
+            ts = [x for x in ts if simples(x["disciplina"]) == simples(disc)]
+        if not ts:
+            f = f"Não tens nenhum teste de {disc} marcado." if disc else "Não tens testes marcados. Diz primeiro: tenho teste de Matemática na sexta."
+            return {"resposta": f, "falado": f}
+        t = sorted(ts, key=lambda x: x["data"])[0]
+        marcadas = plano.gerar(con, t["id"], _agora_dt.combine(hoje, _agora_dt.now().time()))
+        f = plano.frase(marcadas, t["disciplina"])
+        return {"resposta": f, "falado": f, "mudou": bool(marcadas)}
+
     if intencao == "sugestoes":
         import proativo
         f = proativo.frase(proativo.sugestoes(con, hoje))
@@ -943,11 +961,12 @@ def _responder(texto, con, hoje=None, nome=""):
         disc = nomes.get(d["disciplina"], d["disciplina"].capitalize())
         if not d["data"]:
             return {"resposta": f"Para quando é o teste de {disc}?", "falado": f"Para quando é o teste de {disc}? Diz, por exemplo: tenho teste de {disc} na sexta."}
-        con.execute("INSERT INTO testes (disciplina, data) VALUES (?,?)", (disc[:60], d["data"].isoformat()))
-        faltam = (d["data"] - hoje).days
-        dica = " Começa a estudar hoje, nem que seja meia hora." if faltam <= 7 else ""
-        return {"resposta": f"Teste de {disc} marcado para {d['data'].strftime('%d/%m')}.", "mudou": True,
-                "falado": f"Marquei o teste de {disc} {dia_falado(d['data'], hoje)}." + dica}
+        tid = con.execute("INSERT INTO testes (disciplina, data) VALUES (?,?)", (disc[:60], d["data"].isoformat())).lastrowid
+        import plano
+        marcadas = plano.gerar(con, tid, _agora_dt.combine(hoje, _agora_dt.now().time()))
+        extra = f" Pus {len(marcadas)} sessões de estudo na agenda." if marcadas else ""
+        return {"resposta": f"Teste de {disc} marcado para {d['data'].strftime('%d/%m')}.{extra}", "mudou": True,
+                "falado": f"Marquei o teste de {disc} {dia_falado(d['data'], hoje)}." + extra}
 
     if intencao == "horas":
         agora = _agora_dt.now().strftime("%H:%M")

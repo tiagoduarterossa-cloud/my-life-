@@ -30,6 +30,7 @@ import memoria
 import modos
 import noticias
 import pin
+import plano
 import proativo
 import radio
 import servicos
@@ -37,6 +38,7 @@ import time
 import rotinas
 import seguranca
 import spotify
+import teams
 import viagem
 import voz
 from datetime import date, datetime, timedelta
@@ -142,6 +144,8 @@ def init_db():
         con.executescript(ia.TABELAS)
         con.executescript(aprender.TABELAS)
         con.executescript(memoria.TABELAS)
+        con.executescript(plano.TABELAS)
+        con.executescript(teams.TABELAS)
         rotinas.criar_padrao(con)
         tarefas_da_central(con)
         if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
@@ -240,6 +244,36 @@ def tarefas_da_central(con):
         return
     con.executemany("INSERT INTO tarefas (titulo, area, prioridade) VALUES (?, 'programar', ?)", TAREFAS_CENTRAL)
     con.execute("INSERT INTO config (chave, valor) VALUES ('tarefas_central_1', '1')")
+
+
+def resumo_relogio(agora=None):
+    """o que o relogio do Jarvis mostra: curto (cabe numa placa ESP32) e sem nada pessoal no modo amigos"""
+    agora = agora or datetime.now()
+    hoje, hm = agora.date(), agora.strftime("%H:%M")
+    dias = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"]
+    r = {"v": 1, "hora": hm, "data": f"{dias[hoje.weekday()]} {hoje.strftime('%d/%m')}", "amigos": modos.amigos()}
+    if r["amigos"]:
+        return r
+    with db() as con:
+        t = con.execute("SELECT disciplina, data, materia FROM testes WHERE data >= ? ORDER BY data LIMIT 1", (hoje.isoformat(),)).fetchone()
+        if t:
+            r["teste"] = {"disciplina": t["disciplina"][:24], "dias": (date.fromisoformat(t["data"]) - hoje).days, "materia": (t["materia"] or "")[:40]}
+        itens = [(b["inicio"], b["titulo"]) for b in con.execute("SELECT inicio, titulo FROM horario WHERE dia = ? AND fim > ?", (hoje.weekday(), hm))]
+        itens += [(e["hora"] or "", e["titulo"]) for e in con.execute("SELECT hora, titulo FROM eventos WHERE data = ? AND (hora IS NULL OR hora >= ?)", (hoje.isoformat(), hm))]
+        r["hoje"] = [{"hora": h, "titulo": ti[:32]} for h, ti in sorted(itens, key=lambda x: x[0] or "99")[:5]]
+        amanha = (hoje + timedelta(days=1)).isoformat()
+        pend = con.execute("SELECT titulo, prioridade, prazo FROM tarefas WHERE feita = 0").fetchall()
+        urg = [p["titulo"] for p in pend if p["prioridade"] == 1 or (p["prazo"] and p["prazo"] <= amanha)]
+        r["tarefas"] = {"total": len(pend), "urgentes": [u[:40] for u in urg[:3]]}
+        a = alarmes.proximo(con, agora)
+        if a:
+            r["alarme"] = {"hora": a["hora"], "dias": (date.fromisoformat(a["data"]) - hoje).days}
+        seg = (hoje - timedelta(days=hoje.weekday())).isoformat()
+        r["estudo_semana"] = con.execute("SELECT COALESCE(SUM(minutos), 0) FROM diario WHERE data >= ?", (seg,)).fetchone()[0]
+        sug = proativo.sugestoes(con, hoje)
+        if sug:
+            r["sugestao"] = sug[0][1][:120]
+    return r
 
 
 def criar_tarefa(d):
@@ -408,10 +442,11 @@ def criar_teste(d):
     if not dia:
         raise Erro("falta a data do teste")
     with db() as con:
-        con.execute(
+        tid = con.execute(
             "INSERT INTO testes (disciplina, data, materia) VALUES (?,?,?)",
             (texto(d, "disciplina", maximo=60), dia, texto(d, "materia", obrigatorio=False, maximo=300)),
-        )
+        ).lastrowid
+        plano.gerar(con, tid)   # sessoes de estudo na agenda nos dias antes do teste
 
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
@@ -478,6 +513,10 @@ def estado_roupa(rid, d):
 def apagar(tabela, rid):
     assert tabela in ("tarefas", "horario", "registo", "diario", "roupa", "testes", "notas", "eventos", "despesas", "familia")
     with db() as con:
+        if tabela == "testes":
+            plano.apagar(con, rid)   # o plano de estudo vai com o teste
+        if tabela == "eventos":
+            con.execute("DELETE FROM plano_estudo WHERE evento_id = ?", (rid,))
         if tabela == "diario":
             row = con.execute("SELECT registo_id FROM diario WHERE id = ?", (rid,)).fetchone()
             if row and row["registo_id"]:
@@ -494,7 +533,7 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
 _servicos_cache = None
 
 # o que e privado: so com PIN (tambem no proprio tablet)
-PRIVADOS = ("/api/memoria", "/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+PRIVADOS = ("/api/teams", "/api/memoria", "/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
 ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
 
@@ -680,6 +719,10 @@ class Handler(BaseHTTPRequestHandler):
                 with db() as con:
                     aprender.apagar_tudo(con)
                 return self.enviar(200, {"ok": True})
+            if caminho == "/api/relogio" and metodo == "GET":   # o relogio do Jarvis (entra com uma chave de aparelho: X-Chave)
+                return self.enviar(200, resumo_relogio())
+            if caminho == "/api/teams" and metodo == "GET":   # as ultimas notificacoes do Teams, para ver o formato real
+                return self.enviar(200, {"disponivel": teams.disponivel(), "ultimas": teams.ultimas()})
             if caminho == "/api/memoria" and metodo == "GET":
                 with db() as con:
                     return self.enviar(200, memoria.listar(con))
@@ -1323,6 +1366,8 @@ if __name__ == "__main__":
     rotinas.vigiar(db, extras_rotina)
     # o Jarvis fala primeiro (pouco e so com dados reais: testes perto, prazos, treino)
     proativo.vigiar(db, rotinas.ecra_ativo, rotinas._por_na_fila)
+    # trabalhos do Teams: pelas notificacoes do Android (Termux:API), viram tarefas sozinhos
+    teams.vigiar(db, lambda t: rotinas._por_na_fila([{"acao": "aviso", "texto": t}]) if rotinas.ecra_ativo() and not modos.amigos() else None)
     backups.vigiar(DB_PATH)   # uma copia verificada por dia em backups/ (e no armazenamento do tablet, se houver)
     # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
     familia.vigiar(db, aviso_familia)
