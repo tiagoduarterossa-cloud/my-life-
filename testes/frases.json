@@ -1,0 +1,888 @@
+{
+ "_sobre": "Frases que o Jarvis tem de perceber, com a intencao certa. A data de referencia e quinta-feira, 19/11/2026. Campos opcionais: 'campos' (valores que a resposta tem de ter) e 'nota' (porque esta aqui).",
+ "hoje": "2026-11-19",
+ "frases": [
+  {
+   "frase": "que horas são",
+   "intencao": "horas"
+  },
+  {
+   "frase": "Jarvis, que horas são?",
+   "intencao": "horas",
+   "nota": "o nome no inicio (chat, Siri) nao pode estragar a frase"
+  },
+  {
+   "frase": "ei Jarvis, o que tenho amanhã?",
+   "intencao": "dia",
+   "campos": {
+    "data": "2026-11-20"
+   }
+  },
+  {
+   "frase": "que dia é hoje",
+   "intencao": "data_hoje"
+  },
+  {
+   "frase": "o que tenho hoje",
+   "intencao": "dia",
+   "campos": {
+    "data": "2026-11-19"
+   }
+  },
+  {
+   "frase": "o que tenho amanhã",
+   "intencao": "dia",
+   "campos": {
+    "data": "2026-11-20"
+   }
+  },
+  {
+   "frase": "o que tenho na sexta",
+   "intencao": "dia"
+  },
+  {
+   "frase": "tenho teste de matemática na sexta",
+   "intencao": "novo_teste",
+   "campos": {
+    "data": "2026-11-20"
+   }
+  },
+  {
+   "frase": "tenho teste de ciências dia 2 de dezembro",
+   "intencao": "novo_teste",
+   "campos": {
+    "data": "2026-12-02"
+   }
+  },
+  {
+   "frase": "quando é o próximo teste",
+   "intencao": "testes"
+  },
+  {
+   "frase": "quantos testes tenho",
+   "intencao": "testes"
+  },
+  {
+   "frase": "marca dentista quarta às 15h",
+   "intencao": "evento",
+   "campos": {
+    "data": "2026-11-25",
+    "hora": "15:00"
+   }
+  },
+  {
+   "frase": "marca dentista dia 20 de dezembro às 15h",
+   "intencao": "evento",
+   "campos": {
+    "data": "2026-12-20",
+    "hora": "15:00"
+   }
+  },
+  {
+   "frase": "marca que vou treinar sexta às 18h",
+   "intencao": "evento",
+   "nota": "nao pode comecar um treino"
+  },
+  {
+   "frase": "tenho de entregar o trabalho de CN até sexta",
+   "intencao": "tarefa"
+  },
+  {
+   "frase": "toma nota: levar a calculadora",
+   "intencao": "nota"
+  },
+  {
+   "frase": "mostra as notas",
+   "intencao": "ver_notas"
+  },
+  {
+   "frase": "acorda-me às 7 e meia",
+   "intencao": "alarme"
+  },
+  {
+   "frase": "acorda-me sexta às 5 e meia",
+   "intencao": "alarme"
+  },
+  {
+   "frase": "a que horas é o meu alarme",
+   "intencao": "alarme_ver"
+  },
+  {
+   "frase": "amanhã não me acordes",
+   "intencao": "alarme_sem"
+  },
+  {
+   "frase": "porque é que me acordaste",
+   "intencao": "acordaste"
+  },
+  {
+   "frase": "pausa a música",
+   "intencao": "musica",
+   "campos": {
+    "o": "pausar"
+   }
+  },
+  {
+   "frase": "próxima música",
+   "intencao": "musica",
+   "campos": {
+    "o": "seguinte"
+   }
+  },
+  {
+   "frase": "volume 30",
+   "intencao": "musica",
+   "campos": {
+    "o": "volume",
+    "valor": 30
+   }
+  },
+  {
+   "frase": "mais alto",
+   "intencao": "musica",
+   "campos": {
+    "o": "volume_mais"
+   }
+  },
+  {
+   "frase": "que música é esta",
+   "intencao": "musica",
+   "campos": {
+    "o": "agora"
+   }
+  },
+  {
+   "frase": "põe música de estudo",
+   "intencao": "musica",
+   "campos": {
+    "o": "tocar"
+   }
+  },
+  {
+   "frase": "toca Travis Scott",
+   "intencao": "musica",
+   "campos": {
+    "o": "tocar"
+   }
+  },
+  {
+   "frase": "liga a luz",
+   "intencao": "tomada"
+  },
+  {
+   "frase": "desliga a luz",
+   "intencao": "tomada"
+  },
+  {
+   "frase": "brilho a 50",
+   "intencao": "luz_brilho"
+  },
+  {
+   "frase": "mala para Madrid de sexta a domingo",
+   "intencao": "mala",
+   "campos": {
+    "destino": "Madrid",
+    "inicio": "2026-11-20",
+    "fim": "2026-11-22"
+   }
+  },
+  {
+   "frase": "o que levo para o Porto amanhã",
+   "intencao": "mala",
+   "campos": {
+    "destino": "Porto"
+   }
+  },
+  {
+   "frase": "vou viajar para Londres",
+   "intencao": "mala"
+  },
+  {
+   "frase": "nova viagem para Phuket de 1 a 9 de dezembro",
+   "intencao": "viagem_criar",
+   "campos": {
+    "destino": "Phuket",
+    "inicio": "2026-12-01",
+    "fim": "2026-12-09"
+   }
+  },
+  {
+   "frase": "nova viagem para Madrid de 3 a 7 de março",
+   "intencao": "viagem_criar",
+   "campos": {
+    "inicio": "2027-03-03",
+    "fim": "2027-03-07"
+   },
+   "nota": "o mes vale para os dois dias"
+  },
+  {
+   "frase": "nova viagem para Madrid de 30 a 2 de março",
+   "intencao": "viagem_criar",
+   "campos": {
+    "inicio": "2027-02-28",
+    "fim": "2027-03-02"
+   }
+  },
+  {
+   "frase": "modo viagem",
+   "intencao": "viagem"
+  },
+  {
+   "frase": "quantos dias faltam para a viagem?",
+   "intencao": "viagem"
+  },
+  {
+   "frase": "o que falta na mala?",
+   "intencao": "viagem"
+  },
+  {
+   "frase": "quando é a viagem de estudo?",
+   "intencao": "ajuda",
+   "nota": "e da escola: nao e o modo viagem nem pede PIN"
+  },
+  {
+   "frase": "o que falta na mochila?",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "como está a loja hoje",
+   "intencao": "loja"
+  },
+  {
+   "frase": "quanto vendi esta semana",
+   "intencao": "loja"
+  },
+  {
+   "frase": "há encomendas por enviar?",
+   "intencao": "loja"
+  },
+  {
+   "frase": "gastei 15 euros em anúncios do TikTok",
+   "intencao": "despesa",
+   "campos": {
+    "valor": 15.0,
+    "da_loja": true
+   }
+  },
+  {
+   "frase": "gastei 5 euros quando ia ao cinema",
+   "intencao": "despesa",
+   "nota": "'ia' do verbo ir nao e a IA"
+  },
+  {
+   "frase": "gastei 12 euros no jantar",
+   "intencao": "despesa"
+  },
+  {
+   "frase": "quanto gastei no claude este mês?",
+   "intencao": "custo_ia"
+  },
+  {
+   "frase": "quanto custa a ia?",
+   "intencao": "custo_ia"
+  },
+  {
+   "frase": "quanto tempo ia demorar",
+   "intencao": "ajuda",
+   "nota": "'ia' do verbo ir"
+  },
+  {
+   "frase": "está tudo a funcionar?",
+   "intencao": "servicos"
+  },
+  {
+   "frase": "o WhatsApp está em baixo?",
+   "intencao": "servicos"
+  },
+  {
+   "frase": "há internet?",
+   "intencao": "servicos"
+  },
+  {
+   "frase": "a rede é segura?",
+   "intencao": "rede"
+  },
+  {
+   "frase": "está tudo seguro?",
+   "intencao": "seguranca"
+  },
+  {
+   "frase": "há alguma coisa suspeita?",
+   "intencao": "seguranca"
+  },
+  {
+   "frase": "ficou alguma janela aberta?",
+   "intencao": "casa"
+  },
+  {
+   "frase": "modo apagão",
+   "intencao": "apagao",
+   "campos": {
+    "ligado": true
+   }
+  },
+  {
+   "frase": "sai do modo apagão",
+   "intencao": "apagao",
+   "campos": {
+    "ligado": false
+   }
+  },
+  {
+   "frase": "faltou a luz?",
+   "intencao": "energia"
+  },
+  {
+   "frase": "há incêndios perto?",
+   "intencao": "desastres"
+  },
+  {
+   "frase": "houve algum sismo?",
+   "intencao": "desastres"
+  },
+  {
+   "frase": "notícias",
+   "intencao": "noticias"
+  },
+  {
+   "frase": "notícias de cibersegurança",
+   "intencao": "noticias"
+  },
+  {
+   "frase": "jarvis modo iron man",
+   "intencao": "hud",
+   "campos": {
+    "abrir": true,
+    "modo": "ironman"
+   }
+  },
+  {
+   "frase": "sai do modo iron man",
+   "intencao": "hud",
+   "campos": {
+    "abrir": false
+   }
+  },
+  {
+   "frase": "mostra o mapa",
+   "intencao": "mapa"
+  },
+  {
+   "frase": "faz uma cópia de segurança",
+   "intencao": "backup",
+   "campos": {
+    "fazer": true
+   }
+  },
+  {
+   "frase": "quando foi a última cópia de segurança?",
+   "intencao": "backup",
+   "campos": {
+    "fazer": false
+   }
+  },
+  {
+   "frase": "Jarvis, modo amigos",
+   "intencao": "modo_amigos"
+  },
+  {
+   "frase": "chegaram os amigos",
+   "intencao": "modo_amigos"
+  },
+  {
+   "frase": "passa para o modo amigos",
+   "intencao": "modo_amigos",
+   "nota": "'para' nao e 'parar'"
+  },
+  {
+   "frase": "tenho uns amigos cá sábado, lembra-me de comprar pizza",
+   "intencao": "ajuda",
+   "nota": "nao liga o modo amigos"
+  },
+  {
+   "frase": "sai do modo amigos",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "amigos"
+   }
+  },
+  {
+   "frase": "os amigos já foram",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "amigos"
+   }
+  },
+  {
+   "frase": "desliga o modo amigos",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "amigos"
+   }
+  },
+  {
+   "frase": "sai do modo estudo",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "estudo"
+   }
+  },
+  {
+   "frase": "Jarvis, muda para o modo estudo",
+   "intencao": "ajuda",
+   "nota": "e a rotina 'Modo estudo' que trata disto, nao pode ser modo_sair"
+  },
+  {
+   "frase": "modo treino",
+   "intencao": "modo_treino",
+   "campos": {
+    "rondas": 8,
+    "trabalho": 40,
+    "descanso": 20
+   }
+  },
+  {
+   "frase": "bora treinar",
+   "intencao": "modo_treino"
+  },
+  {
+   "frase": "modo treino de 10 rondas de 30 segundos com 15 de descanso",
+   "intencao": "modo_treino",
+   "campos": {
+    "rondas": 10,
+    "trabalho": 30,
+    "descanso": 15
+   }
+  },
+  {
+   "frase": "modo treino com 15 segundos de descanso e 45 segundos de trabalho",
+   "intencao": "modo_treino",
+   "campos": {
+    "trabalho": 45,
+    "descanso": 15
+   }
+  },
+  {
+   "frase": "bora treinar 10 minutos",
+   "intencao": "modo_treino",
+   "campos": {
+    "rondas": 10
+   }
+  },
+  {
+   "frase": "faz-me perguntas de matemática",
+   "intencao": "modo_revisao"
+  },
+  {
+   "frase": "testa-me a ciências",
+   "intencao": "modo_revisao"
+  },
+  {
+   "frase": "modo revisão",
+   "intencao": "modo_revisao"
+  },
+  {
+   "frase": "obrigado",
+   "intencao": "obrigado"
+  },
+  {
+   "frase": "porque é que o céu é azul?",
+   "intencao": "ajuda",
+   "nota": "vai para o Claude"
+  },
+  {
+   "frase": "explica-me a fotossíntese",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "abre o jarvis",
+   "intencao": "hud",
+   "campos": {
+    "abrir": true
+   }
+  },
+  {
+   "frase": "modo homem de ferro",
+   "intencao": "hud",
+   "campos": {
+    "modo": "ironman"
+   }
+  },
+  {
+   "frase": "protocolo stark",
+   "intencao": "hud",
+   "campos": {
+    "modo": "ironman"
+   }
+  },
+  {
+   "frase": "bom dia",
+   "intencao": "dia"
+  },
+  {
+   "frase": "boa noite",
+   "intencao": "dia"
+  },
+  {
+   "frase": "como está o meu dia?",
+   "intencao": "dia"
+  },
+  {
+   "frase": "o que tenho na segunda",
+   "intencao": "dia",
+   "campos": {
+    "data": "2026-11-23"
+   }
+  },
+  {
+   "frase": "o que tenho depois de amanhã",
+   "intencao": "dia",
+   "campos": {
+    "data": "2026-11-21"
+   }
+  },
+  {
+   "frase": "tenho teste de inglês amanhã",
+   "intencao": "novo_teste",
+   "campos": {
+    "data": "2026-11-20"
+   }
+  },
+  {
+   "frase": "tenho teste de português dia 3 de dezembro",
+   "intencao": "novo_teste",
+   "campos": {
+    "data": "2026-12-03"
+   }
+  },
+  {
+   "frase": "quais são os meus testes",
+   "intencao": "testes"
+  },
+  {
+   "frase": "marca ginásio amanhã às 18h",
+   "intencao": "evento",
+   "campos": {
+    "data": "2026-11-20",
+    "hora": "18:00"
+   }
+  },
+  {
+   "frase": "marca reunião sexta às 10 e meia",
+   "intencao": "evento",
+   "campos": {
+    "data": "2026-11-20",
+    "hora": "10:30"
+   }
+  },
+  {
+   "frase": "lembra-me de comprar pão",
+   "intencao": "tarefa"
+  },
+  {
+   "frase": "tenho de estudar para o teste de matemática",
+   "intencao": "tarefa"
+  },
+  {
+   "frase": "anota que o código do cacifo é 1234",
+   "intencao": "nota"
+  },
+  {
+   "frase": "acorda-me amanhã às 7",
+   "intencao": "alarme"
+  },
+  {
+   "frase": "põe um alarme para as 6 e meia",
+   "intencao": "alarme"
+  },
+  {
+   "frase": "tenho alarme amanhã?",
+   "intencao": "alarme_ver"
+  },
+  {
+   "frase": "sábado não me acordes",
+   "intencao": "alarme_sem"
+  },
+  {
+   "frase": "pausa",
+   "intencao": "musica",
+   "campos": {
+    "o": "pausar"
+   }
+  },
+  {
+   "frase": "para a música",
+   "intencao": "musica",
+   "campos": {
+    "o": "pausar"
+   }
+  },
+  {
+   "frase": "passa à frente",
+   "intencao": "musica",
+   "campos": {
+    "o": "seguinte"
+   }
+  },
+  {
+   "frase": "música anterior",
+   "intencao": "musica",
+   "campos": {
+    "o": "anterior"
+   }
+  },
+  {
+   "frase": "baixa o volume",
+   "intencao": "musica",
+   "campos": {
+    "o": "volume_menos"
+   }
+  },
+  {
+   "frase": "mais baixo",
+   "intencao": "musica",
+   "campos": {
+    "o": "volume_menos"
+   }
+  },
+  {
+   "frase": "mete a playlist treino",
+   "intencao": "musica",
+   "campos": {
+    "o": "tocar"
+   }
+  },
+  {
+   "frase": "põe música para dormir",
+   "intencao": "musica",
+   "campos": {
+    "o": "tocar"
+   }
+  },
+  {
+   "frase": "luz azul",
+   "intencao": "luz_cor"
+  },
+  {
+   "frase": "põe a luz vermelha",
+   "intencao": "luz_cor"
+  },
+  {
+   "frase": "faltam quantos dias para a viagem",
+   "intencao": "viagem"
+  },
+  {
+   "frase": "já fiz a mala?",
+   "intencao": "viagem"
+  },
+  {
+   "frase": "qual é o lucro do mês",
+   "intencao": "loja"
+  },
+  {
+   "frase": "quanto lucrei ontem",
+   "intencao": "loja"
+  },
+  {
+   "frase": "gastei 20 euros no shopify",
+   "intencao": "despesa",
+   "campos": {
+    "valor": 20.0,
+    "da_loja": true
+   }
+  },
+  {
+   "frase": "gastei 3,50 no bar",
+   "intencao": "despesa",
+   "campos": {
+    "valor": 3.5
+   }
+  },
+  {
+   "frase": "a internet foi abaixo?",
+   "intencao": "servicos"
+  },
+  {
+   "frase": "o instagram está em baixo?",
+   "intencao": "servicos"
+  },
+  {
+   "frase": "verifica a rede",
+   "intencao": "rede"
+  },
+  {
+   "frase": "quem está ligado ao wi-fi",
+   "intencao": "seguranca"
+  },
+  {
+   "frase": "há ataques informáticos novos?",
+   "intencao": "ciber"
+  },
+  {
+   "frase": "há luzes ligadas?",
+   "intencao": "casa"
+  },
+  {
+   "frase": "modo de emergência",
+   "intencao": "apagao",
+   "campos": {
+    "ligado": true
+   }
+  },
+  {
+   "frase": "há luz?",
+   "intencao": "energia"
+  },
+  {
+   "frase": "há avisos do ipma?",
+   "intencao": "desastres"
+  },
+  {
+   "frase": "houve algum terramoto?",
+   "intencao": "desastres"
+  },
+  {
+   "frase": "notícias de f1",
+   "intencao": "noticias"
+  },
+  {
+   "frase": "as notícias de hoje",
+   "intencao": "noticias"
+  },
+  {
+   "frase": "abre o mapa",
+   "intencao": "mapa"
+  },
+  {
+   "frase": "quando faz anos a avó?",
+   "intencao": "familia_anos"
+  },
+  {
+   "frase": "está tudo bem com a família?",
+   "intencao": "familia_estado"
+  },
+  {
+   "frase": "faz backup",
+   "intencao": "backup",
+   "campos": {
+    "fazer": true
+   }
+  },
+  {
+   "frase": "chegaram uns amigos",
+   "intencao": "modo_amigos"
+  },
+  {
+   "frase": "modo de amigos",
+   "intencao": "modo_amigos"
+  },
+  {
+   "frase": "acabou o modo treino",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "treino"
+   }
+  },
+  {
+   "frase": "termina o modo revisão",
+   "intencao": "modo_sair",
+   "campos": {
+    "tipo": "revisao"
+   }
+  },
+  {
+   "frase": "vamos treinar",
+   "intencao": "modo_treino"
+  },
+  {
+   "frase": "modo treino de 5 rondas",
+   "intencao": "modo_treino",
+   "campos": {
+    "rondas": 5
+   }
+  },
+  {
+   "frase": "quiz de história",
+   "intencao": "modo_revisao"
+  },
+  {
+   "frase": "ajuda-me a rever para o teste",
+   "intencao": "modo_revisao"
+  },
+  {
+   "frase": "obrigado jarvis",
+   "intencao": "obrigado"
+  },
+  {
+   "frase": "valeu",
+   "intencao": "obrigado"
+  },
+  {
+   "frase": "quem foi Vasco da Gama?",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "resolve x + 3 = 7",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "escreve um poema",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "este link é seguro? https://www.exemplo.pt/artigo",
+   "intencao": "link",
+   "nota": "verifica se um link e seguro"
+  },
+  {
+   "frase": "não era isso",
+   "intencao": "nota_mau"
+  },
+  {
+   "frase": "isso está errado",
+   "intencao": "nota_mau"
+  },
+  {
+   "frase": "percebeste mal",
+   "intencao": "nota_mau"
+  },
+  {
+   "frase": "boa",
+   "intencao": "nota_bom"
+  },
+  {
+   "frase": "isso mesmo!",
+   "intencao": "nota_bom"
+  },
+  {
+   "frase": "não, eu queria era o que tenho amanhã",
+   "intencao": "correcao",
+   "campos": {
+    "texto": "o que tenho amanhã"
+   }
+  },
+  {
+   "frase": "não, eu disse toca Travis Scott",
+   "intencao": "correcao",
+   "campos": {
+    "texto": "toca Travis Scott"
+   }
+  },
+  {
+   "frase": "o que é que não percebeste?",
+   "intencao": "aprender_ver"
+  },
+  {
+   "frase": "não tenho teste amanhã",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "não sei o que fazer",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "o teste correu bem",
+   "intencao": "ajuda"
+  }
+ ]
+}

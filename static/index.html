@@ -155,6 +155,8 @@
   .msg { max-width: 86%; padding: 10px 13px; border-radius: 18px; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
   .msg.eu { align-self: flex-end; background: var(--acento); color: #fff; border-bottom-right-radius: 6px; }
   .msg.ela { align-self: flex-start; background: var(--card); border-bottom-left-radius: 6px; }
+  .nota-jarvis { margin-top: 6px; display: flex; gap: 6px; font-size: 12px; color: var(--suave); }
+  .nota-jarvis button { background: none; border: 1px solid var(--linha); border-radius: 999px; padding: 2px 9px; font-size: 13px; cursor: pointer; }
   .msg ul { margin: 6px 0 0; padding-left: 18px; list-style: disc; } .msg li { display: list-item; border: 0; padding: 2px 0; font-size: 15px; }
   .msg.a-pensar { color: var(--suave); }
   .sugestoes { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 8px; }
@@ -962,6 +964,16 @@
 </dialog>
 <div id="modo" role="dialog" aria-label="Modo do Jarvis"><button class="m-sair" id="m-sair">Sair</button><div id="m-corpo" style="display:contents"></div></div>
 
+<dialog id="d-aprender">
+  <h3>O que o Jarvis anda a aprender</h3>
+  <div class="filtros" id="apr-dias"><button data-d="1">Hoje</button><button data-d="7" class="ativo">7 dias</button><button data-d="30">30 dias</button></div>
+  <div id="apr-resumo" class="vazio">A carregar…</div>
+  <label>Frases que as minhas regras não conhecem</label><ul id="apr-nao"></ul>
+  <label>Respostas que marcaste como erradas</label><ul id="apr-erradas"></ul>
+  <div class="vazio" style="font-size:13px">Fica só neste tablet e apaga-se ao fim de 90 dias. No modo amigos não se regista nada. Próximo passo: o Jarvis propõe-te regras novas a partir daqui, e tu aprovas.</div>
+  <div class="botoes"><button type="button" class="secundario" id="apr-apagar" style="color:var(--perigo)">Apagar o registo</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
+
 <dialog id="d-viagem">
   <h3 id="vg-titulo">Modo viagem</h3>
   <div id="vg-info"></div>
@@ -1237,6 +1249,20 @@ async function abrirServicos(agora) {
   } catch (e) { $("#sv-conclusao").textContent = "Não consegui falar com a central: " + e.message; }
 }
 $("#sv-outra").onclick = () => abrirServicos(true);
+
+// ---------- aprendizagem do jarvis (privado: so com PIN) ----------
+let aprDias = 7;
+async function abrirAprender() {
+  const d = $("#d-aprender"); if (!d.open) d.showModal();
+  let r; try { r = await api(`/api/aprender?dias=${aprDias}`); } catch (e) { $("#apr-resumo").textContent = e.message; return; }
+  const pc = r.total ? Math.round(100 * r.regras / r.total) : 0;
+  $("#apr-resumo").innerHTML = r.total ? `<b>${r.total}</b> pedidos · as regras perceberam <b>${pc}%</b> · ${r.claude} foram para o Claude${r.sem_resposta ? ` · ${r.sem_resposta} sem resposta` : ""} · 👍 ${r.bons} · 👎 ${r.maus}` : "Ainda não há pedidos neste período.";
+  $("#apr-nao").innerHTML = r.nao_percebi.map(e => `<li style="display:block">"${esc(e.frase)}" <span class="info">${e.vezes}× · ${e.origem === "claude" ? "respondeu o Claude" : "ficou sem resposta"}</span></li>`).join("") || '<li class="vazio">Nenhuma. 👌</li>';
+  $("#apr-erradas").innerHTML = r.errados.map(e => `<li style="display:block">"${esc(e.frase)}" <span class="info">→ ${esc(e.resposta || "")}</span>${e.correcao ? `<br><span class="info">querias: "${esc(e.correcao)}"</span>` : ""}</li>`).join("") || '<li class="vazio">Nenhuma.</li>';
+}
+$("#apr-dias").onclick = e => { const d = +e.target.dataset.d; if (!d) return; aprDias = d;
+  document.querySelectorAll("#apr-dias button").forEach(b => b.classList.toggle("ativo", b === e.target)); abrirAprender(); };
+$("#apr-apagar").onclick = async () => { if (!confirm("Apagar tudo o que o Jarvis registou?")) return; await api("/api/aprender", "DELETE").catch(e => aviso(e.message)); abrirAprender(); };
 
 // ---------- modo viagem (privado: so com PIN) ----------
 let vgPainel = null, vgAtual = null;
@@ -2038,6 +2064,16 @@ function msgAssist(quem, texto, itens) {
   $("#assist-msgs").appendChild(el); $("#assist-msgs").scrollTop = 1e9;
   return el;
 }
+// 👍/👎 numa resposta do Jarvis: fica no registo (aprender.py) para ele aprender onde falha
+function notaBotoes(el, id) {
+  if (!id || !el) return;
+  const b = document.createElement("div"); b.className = "nota-jarvis";
+  b.innerHTML = `<button type="button" data-n="1" title="Boa resposta">👍</button><button type="button" data-n="-1" title="Resposta errada">👎</button>`;
+  b.onclick = async e => { const n = +e.target.dataset.n; if (!n) return;
+    try { await api(`/api/jarvis-nota/${id}`, "POST", { nota: n });
+      b.innerHTML = n > 0 ? "👍 obrigado" : "👎 anotado: diz-me o que querias (\"não, eu queria era…\")"; } catch (err) { aviso(err.message); } };
+  el.appendChild(b);
+}
 function sugestoesAssist(lista) {
   $("#assist-sug").innerHTML = (lista || []).map(t => `<button type="button" data-sug="${esc(t)}">${esc(t)}</button>`).join("");
 }
@@ -2065,7 +2101,7 @@ async function perguntar(texto) {
     const r = await api("/api/assistente", "POST", { texto });
     espera.remove();
     if (r.privado) { msgAssist("ela", "🔒 É privado: respondi no modo Iron Man."); return respostaPrivada(texto, r); }
-    msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes);
+    notaBotoes(msgAssist("ela", r.resposta, r.itens), r.registo); sugestoesAssist(r.sugestoes);
     if (r.comandos) executarComandos(r.comandos);
     if (r.musica) setTimeout(carregarSpotify, 800);
     if ($("#d-loja").open && r.mudou) carregarLoja();
@@ -2344,7 +2380,7 @@ async function comandoVoz(texto, { noChat = false } = {}) {
   try {
     const r = await api("/api/assistente", "POST", { texto });
     if (r.privado) { if (noChat) msgAssist("ela", "🔒 É privado: respondi no modo Iron Man."); return respostaPrivada(texto, r); }
-    if (noChat) { msgAssist("ela", r.resposta, r.itens); sugestoesAssist(r.sugestoes); }
+    if (noChat) { notaBotoes(msgAssist("ela", r.resposta, r.itens), r.registo); sugestoesAssist(r.sugestoes); }
     else {
       // fica no historico do chat, sem o abrir
       guardar("assist", [...(ler("assist") || []), [texto, r.resposta, r.itens || []]].slice(-20));
@@ -2558,7 +2594,8 @@ async function paineisIronMan() {
     <div class="linha"><span>Servidor</span><span>${latencia !== null ? latencia + " ms" : "—"}</span></div>
     <div class="linha"><span>Rede</span><span>${navigator.onLine ? "online" : "offline"} <button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirServicos()">estado ›</button></span></div>
     <div class="linha"><span>Voz</span><span>${vozCfg.motor === "neural" ? "neural" : "tablet"}${aEscutar ? " · à escuta" : ""}</span></div>
-    <div class="linha"><span>Cérebro</span><span>${config.ia_ok ? "Claude" : "regras"}</span></div>`;
+    <div class="linha"><span>Cérebro</span><span>${config.ia_ok ? "Claude" : "regras"}</span></div>
+    <div class="linha"><span>Aprendizagem</span><span><button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirAprender()">ver ›</button></span></div>`;
   // agenda
   const agora = horaAgora(), aulas = (dados.horario || []).filter(b => b.dia === diaSemana() && b.fim > agora).slice(0, 4);
   const ev = (dados.eventos || []).filter(e => e.data === hojeISO());

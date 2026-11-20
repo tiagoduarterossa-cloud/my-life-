@@ -30,6 +30,8 @@ Funciona e está testado:
   - Amigos: "Jarvis, modo amigos". Esconde tarefas, testes e agenda; regras, rotinas e a ferramenta `central` do Claude não respondem a nada pessoal (`modos.PESSOAIS`) e o Claude esquece as conversas de antes. Tem relógio, música e jogo de cultura geral. Para sair, com PIN ativo, pede o PIN (`/api/modo`).
   - Treino: "Jarvis, modo treino de 10 rondas de 30 segundos com 15 de descanso". Conta em voz alta, apita nos últimos 3 s e regista em Desporto (só a partir de 1 minuto).
 - **Claude com internet e custos reais**: o Claude (plano B, Haiku 5.5 por defeito) tem a pesquisa na web da Anthropic (interruptor nas definições: desligada, até 1 por pergunta por defeito, ou até 3; localizada em Portugal) e diz a fonte. A central soma o `usage` de cada resposta (todas as voltas, incluindo fotos e resumos de notícias) com os preços oficiais e guarda por mês na tabela `ia_custos`. Aparece nas definições do Claude e por voz ("quanto gastei no Claude este mês?"). Os resumos de notícias passaram a contar para o limite diário. Precisa de `anthropic>=1.1.0` (o `atualizar.sh` atualiza).
+- **Testes automáticos** (`testes/frases.json` + `testes/correr.py`, só biblioteca padrão): ~170 frases com a intenção certa e campos (datas, valores), com data fixa (19/11/2026). Correr: `python testes/correr.py`. O `atualizar.sh` corre-os depois do `git pull`; se falharem, volta à versão que estava a funcionar (guarda o HEAD antes do pull). O `atualizar.sh` está todo dentro de `{ }` para o bash o ler inteiro antes de o pull o mudar. **Cada frase nova ou corrigida entra neste ficheiro.**
+- **Aprendizagem, passo 1** (`aprender.py`, tabela `jarvis_registo`): cada pedido fica registado (frase, intenção, origem regras/rotina/claude/sem_resposta, resposta). Notas: botões 👍/👎 nas respostas do chat, ou por voz ("não era isso", "boa", "não, eu queria era X", que marca a anterior como errada e responde a X). Ecrã "O que o Jarvis anda a aprender" no Iron Man > Sistemas > Aprendizagem, ou "Jarvis, o que é que não percebeste?". Privado (PIN), só no tablet, apaga-se aos 90 dias; no modo amigos não regista. O "Jarvis," no início de uma frase escrita ou da Siri já não estraga o pedido.
 - **Cópias de segurança do vida.db**: uma por dia, verificada e comprimida, em `backups/` (14 dias e 6 meses). Com `termux-setup-storage` vai também para Armazenamento interno/Central/backups, que sobrevive a desinstalar o Termux. Aparece em "O que está a funcionar" e por voz ("Jarvis, faz uma cópia de segurança", "quando foi a última cópia de segurança?"). Restaurar: parar a central, `gunzip -c backups/vida-AAAA-MM-DD.db.gz > vida.db`, iniciar.
 
 ## Custos
@@ -61,6 +63,8 @@ Falta configurar no tablet (não é código):
 - `avisos.py`: IPMA (distritos e ilhas, terra e mar), USGS, fogos.pt (chave), vento, energia e apagões (Termux:API).
 - `modos.py`: modos do Jarvis (estado do modo amigos guardado em config `modo_amigos`, o que fica escondido em `PESSOAIS`, contexto da revisão). As perguntas da revisão e do jogo são feitas em `ia.gerar_perguntas`.
 - `viagem.py`: modo viagem (viagens, mala, tempo, câmbio, casa em pausa). `alarmes.py` e `rotinas.py` perguntam-lhe se estás fora.
+- `aprender.py`: registo dos pedidos e das notas (passo 1 da aprendizagem).
+- `testes/`: frases de teste e o programa que as verifica.
 - `backups.py`: cópias diárias do vida.db (API de backup do SQLite e integrity_check).
 - `pin.py`, `radio.py`, `servicos.py`, `loja.py`, `seguranca.py`, `casa.py`, `noticias.py`, `rotinas.py`, `alarmes.py`, `voz.py`, `spotify.py`, `dispositivos.py`.
 - `static/index.html`: a interface toda (HTML, CSS e JS sem bibliotecas).
@@ -72,6 +76,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Testes automáticos das frases (ligados ao atualizar.sh, com volta atrás se falharem) e registo dos pedidos com 👍/👎 e correções por voz.
 - Iron Man sempre ligado até mandares desligar (voz ou botão "desligar"). Atenção: com o Iron Man aberto o trinco da escuta fica sempre aberto.
 - Shopify com app do Dev Dashboard (Client ID e secret) e versão da API 2026-10; Spotify com mensagens claras para as regras de 2026; README atualizado com os passos novos.
 - Segunda revisão a tudo o que mudou nesta sessão: "ia" (do verbo ir) já não é lido como IA ("gastei 5 euros quando ia ao cinema" regista a despesa); os dias da partida e da volta deixaram de estar em pausa; "viagem de estudo" e "mochila" já não vão para o modo viagem (nem pedem PIN); "desliga a luz e liga o modo estudo" liga o modo; os modos pedidos pela Siri vão para o tablet; "de 30 a 2 de março" dá 28 de fevereiro a 2 de março; a mudança para o Haiku só mexe em quem tinha o Opus; erros de chave no gerador de perguntas com mensagem certa; pedidos sem ligação não contam nos custos; "Outras perguntas" lembra-se da matéria.
@@ -112,5 +117,6 @@ Sessão anterior (resumo dos commits):
 2. Antes de 1 de dezembro: marcar a viagem no Iron Man ("+ viagem"), com o link do guia. Se o voo for cedo, marcar um alarme especial para o dia da partida (nesse dia os alarmes normais tocam, mas à hora da escola). Encher o separador Roupa a sério, senão a mala fica genérica.
 3. Daqui a duas semanas: dizer quais modos se usaram mesmo. O que não se usar, sai. Daqui a um mês: ver o contador de custos e decidir entre Haiku e Opus.
 4. Se alguma parte disser "sem dados" durante mais de um dia, tirar uma foto ao ecrã e ao Termux.
-5. Ideias por fazer, por ordem de utilidade: resumo da manhã com Gmail (IMAP com palavra-passe de aplicação) e Google Calendar (endereço iCal secreto), só leitura e no Iron Man (falta decidir que conta e se se quer); relatório semanal do estudo (agora há dados do modo estudo); trabalhos novos do Teams (pelas notificações do Android); Tailscale; ligação entre o quarto 3D e a roupa.
-6. Pensar em tornar o repositório privado (o código não tem dados pessoais, mas mostra como a central funciona).
+5. Aprendizagem, passo 2: à noite, a partir do registo, propor regras novas (ex.: "bota" = "põe"); de manhã ele aprova ou recusa; cada regra aprovada entra também em `testes/frases.json` e os testes têm de passar. Depois: memória (objetivos e preferências), encriptada com o PIN.
+6. Ideias por fazer, por ordem de utilidade: resumo da manhã com Gmail (IMAP com palavra-passe de aplicação) e Google Calendar (endereço iCal secreto), só leitura e no Iron Man (falta decidir que conta e se se quer); relatório semanal do estudo (agora há dados do modo estudo); trabalhos novos do Teams (pelas notificações do Android); Tailscale; ligação entre o quarto 3D e a roupa.
+7. Tornar o repositório privado (ele quer o projeto só para ele) e confirmar que o tablet tem bloqueio de ecrã (o código não tem dados pessoais, mas mostra como a central funciona).

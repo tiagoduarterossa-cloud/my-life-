@@ -17,6 +17,7 @@ import sqlite3
 import urllib.request
 
 import alarmes
+import aprender
 import assistente
 import avisos
 import backups
@@ -137,6 +138,7 @@ def init_db():
         con.executescript(pin.TABELAS)
         con.executescript(viagem.TABELAS)
         con.executescript(ia.TABELAS)
+        con.executescript(aprender.TABELAS)
         rotinas.criar_padrao(con)
         if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
             con.execute("DELETE FROM config WHERE chave = 'ia_modelo' AND valor = 'claude-opus-5-5'")   # o antigo padrao passa a Haiku
@@ -454,7 +456,7 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
 _servicos_cache = None
 
 # o que e privado: so com PIN (tambem no proprio tablet)
-PRIVADOS = ("/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+PRIVADOS = ("/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
 ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
 
@@ -556,17 +558,44 @@ class Handler(BaseHTTPRequestHandler):
                 corpo = self.corpo_json()
                 frase = str(corpo.get("texto") or "").strip()[:500]
                 do_telemovel = corpo.get("origem") == "telemovel"   # Atalho da Siri no iPhone
-                direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
                 privado_ok = not pin.ativo() or bool(self.sessao)
+                em_amigos, rotina_pessoal = modos.amigos(), False
+
                 def para_tablet(r):
                     """vindo do iPhone: o telemovel so fala; o que mexe no ecra (modos...) vai para o tablet"""
                     if do_telemovel and r.get("comandos"):
                         rotinas._por_na_fila([c for c in r["comandos"] if c.get("acao") != "falar"])
                         r = {k: v for k, v in r.items() if k != "comandos"}
                     return r
+
+                def fim(r, origem, intencao):
+                    """regista o pedido (aprender.py) e responde. No modo amigos nao se regista nada."""
+                    r = para_tablet(r)
+                    if not em_amigos:
+                        try:
+                            with db() as con:
+                                r = dict(r, registo=aprender.registar(con, frase, intencao, origem, r.get("resposta", ""),
+                                                                      privado=r.get("privado") or intencao in assistente.PRIVADAS))
+                        except Exception as e:
+                            print("registo do jarvis:", e)
+                    return self.enviar(200, r)
+
+                # notas a resposta anterior: "nao era isso", "boa", "nao, eu queria era ..."
+                nota_int, nota_d = assistente.entender(frase)
+                if nota_int in ("nota_mau", "nota_bom", "correcao") and not em_amigos:
+                    with db() as con:
+                        u = aprender.ultimo(con)
+                        if u:
+                            aprender.dar_nota(con, u["id"], 1 if nota_int == "nota_bom" else -1, nota_d.get("texto"))
+                    if nota_int != "correcao":
+                        f = ("Obrigado, fica registado." if nota_int == "nota_bom" else "Desculpa. Fica registado para eu aprender.") if u else \
+                            "Não sei a que resposta te referes."
+                        return self.enviar(200, {"resposta": f, "falado": f})
+                    frase = nota_d["texto"]          # a correcao: responde ao que querias de facto
+
+                direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
                 if direto and ia.disponivel():
-                    return self.enviar(200, para_tablet(responder_ia(direto, privado_ok)))
-                em_amigos, rotina_pessoal = modos.amigos(), False
+                    return fim(responder_ia(direto, privado_ok), "claude", "claude_direto")
                 if em_amigos:
                     with db() as con:
                         rotina_pessoal = bool(rotinas.por_voz(con, frase))   # "modo estudo" diria a proxima disciplina
@@ -583,18 +612,34 @@ class Handler(BaseHTTPRequestHandler):
                             # o iPhone diz o que a rotina fala; o resto (cronometro, ecra...) vai para o tablet
                             falas = " ".join(c["texto"] for c in cmds if c["acao"] == "falar")
                             rotinas._por_na_fila([c for c in cmds if c["acao"] != "falar"])
-                            return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": falas or f"Rotina {r['nome']} a correr."})
-                        return self.enviar(200, {"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds})
+                            return fim({"resposta": f"Rotina {r['nome']}.", "falado": falas or f"Rotina {r['nome']} a correr."}, "rotina", "rotina")
+                        return fim({"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds}, "rotina", "rotina")
+                    intencao = assistente.entender(frase)[0]
                     r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
-                    return self.enviar(200, para_tablet(responder_ia(frase, privado_ok)))
+                    return fim(responder_ia(frase, privado_ok), "claude", "ajuda")
                 if r.get("resumir") and ia.disponivel():  # noticias em ingles: o Claude resume em portugues
                     resumo = ia.resumir(r["resumir"], ler_config())
                     if resumo:
                         r = dict(r, falado=resumo)
                 if do_telemovel and r.get("mudou"):
                     rotinas._por_na_fila([{"acao": "aviso", "texto": f"Do telemóvel: {r.get('resposta', '')}"}])
-                return self.enviar(200, para_tablet(dict(r, falado=r.get("falado") or r.get("resposta", ""))))
+                return fim(dict(r, falado=r.get("falado") or r.get("resposta", "")), "sem_resposta" if r is assistente.AJUDA else "regras", intencao)
+
+            # ----- aprendizagem do jarvis (o que pediste e pessoal: so com PIN) -----
+            if caminho == "/api/aprender" and metodo == "GET":
+                with db() as con:
+                    r = aprender.resumo(con, max(1, min(int(query.get("dias", 7) or 7), 90)))
+                return self.enviar(200, dict(r, frase=aprender.frase(r)))
+            if caminho == "/api/aprender" and metodo == "DELETE":
+                with db() as con:
+                    aprender.apagar_tudo(con)
+                return self.enviar(200, {"ok": True})
+            m = re.fullmatch(r"/api/jarvis-nota/(\d+)", caminho)
+            if m and metodo == "POST":   # botoes 👍/👎 no chat (nao precisa de PIN: so muda a nota)
+                with db() as con:
+                    ok = aprender.dar_nota(con, int(m[1]), int(self.corpo_json().get("nota", 0)))
+                return self.enviar(200 if ok else 404, {"ok": ok})
             # ----- despertador -----
             if caminho == "/api/alarmes":
                 with db() as con:

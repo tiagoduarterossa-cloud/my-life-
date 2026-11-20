@@ -193,10 +193,22 @@ def adivinhar_area(t):
 
 def entender(texto, hoje=None):
     hoje = hoje or date.today()
-    t = texto.strip()
+    # "Jarvis, que horas sao?" escrito no chat ou vindo da Siri: o nome no inicio nao faz parte do pedido
+    t = re.sub(r"^\s*(?:(?:ei|hey|ok|ola)\s+)?jarvis\b[\s,!.:-]*", "", texto.strip(), flags=re.I).strip() or texto.strip()
     s = simples(t)
     if not s:
         return "ajuda", {}
+
+    # notas a resposta anterior (aprender.py): "nao era isso", "boa", "nao, eu queria era ..."
+    m = re.match(r"^nao,? (?:eu )?(?:queria|disse|pedi|perguntei)(?: era| foi)?:? (.{3,})$", s.strip(" .!"))
+    if m:
+        return "correcao", {"texto": t[len(t) - len(m[1]):].strip(" .!") if len(t) >= len(m[1]) else m[1]}
+    if re.fullmatch(r"(nao,? )?(nao era isso|nao e isso|isso esta errado|esta errado|percebeste mal|nao foi isso( que eu pedi)?|resposta errada|enganaste-te)", s.strip(" .!?")):
+        return "nota_mau", {}
+    if re.fullmatch(r"(boa|isso mesmo|e isso mesmo|perfeito|exatamente|bem visto|boa resposta|acertaste)( jarvis)?", s.strip(" .!?")):
+        return "nota_bom", {}
+    if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|aprendizagem do jarvis)\b", s):
+        return "aprender_ver", {}
 
     if re.search(r"\b(pausa|para|parar|pausar|stop)\b.*\b(musica|spotify|som)\b|^(pausa|stop)$", s):
         return "musica", {"o": "pausar"}
@@ -565,7 +577,7 @@ AJUDA = {
 }
 
 
-PRIVADAS = {"viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+PRIVADAS = {"aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
 
 
 def responder(texto, con, hoje=None, nome=""):
@@ -842,6 +854,13 @@ def _responder(texto, con, hoje=None, nome=""):
             f = "Modo desligado." if d["tipo"] != "amigos" else "Para sair do modo amigos, confirma no ecrã."
             cmd = {"acao": "modo", "tipo": "sair", "de": d["tipo"]}
         return {"resposta": f, "falado": f, "comandos": [cmd, {"acao": "falar", "texto": f}]}
+
+    if intencao in ("nota_mau", "nota_bom", "correcao"):   # o servidor liga-as ao pedido anterior; aqui so responde
+        return {"resposta": "Anotado.", "falado": "Anotado."}
+    if intencao == "aprender_ver":
+        import aprender
+        r = aprender.resumo(con)
+        return {"resposta": aprender.frase(r), "falado": aprender.frase(r), "itens": [f"\"{e['frase']}\" ({e['vezes']}×)" for e in r["nao_percebi"][:8]]}
 
     if intencao == "custo_ia":
         import ia
