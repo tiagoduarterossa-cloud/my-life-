@@ -883,6 +883,143 @@
   {
    "frase": "o teste correu bem",
    "intencao": "ajuda"
+  },
+  {
+   "frase": "o que me sugeres?",
+   "intencao": "sugestoes"
+  },
+  {
+   "frase": "tens alguma sugestão?",
+   "intencao": "sugestoes"
+  },
+  {
+   "frase": "o que devia fazer agora?",
+   "intencao": "sugestoes"
+  },
+  {
+   "frase": "estou em dia?",
+   "intencao": "sugestoes"
+  },
+  {
+   "frase": "o que tenho de fazer amanhã",
+   "intencao": "dia"
+  },
+  {
+   "frase": "lembra-te que quero ter 4 a Matemática",
+   "intencao": "memoria_add",
+   "campos": {
+    "texto": "quero ter 4 a Matemática"
+   }
+  },
+  {
+   "frase": "fica a saber que não gosto de música alta de manhã",
+   "intencao": "memoria_add",
+   "campos": {
+    "texto": "não gosto de música alta de manhã"
+   }
+  },
+  {
+   "frase": "lembra-me de comprar pão",
+   "intencao": "tarefa"
+  },
+  {
+   "frase": "o que sabes sobre mim?",
+   "intencao": "memoria_ver"
+  },
+  {
+   "frase": "esquece que quero ter 4 a Matemática",
+   "intencao": "memoria_apagar",
+   "campos": {
+    "texto": "quero ter 4 a matematica"
+   }
+  },
+  {
+   "frase": "esquece isso",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "o que é que aprendeste?",
+   "intencao": "aprender_ver"
+  },
+  {
+   "frase": "modo holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": true
+   }
+  },
+  {
+   "frase": "liga o holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": true
+   }
+  },
+  {
+   "frase": "sai do modo holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": false
+   }
+  },
+  {
+   "frase": "desliga o holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": false
+   }
+  },
+  {
+   "frase": "lembra-te que quero ter 4 a Matemática.",
+   "intencao": "memoria_add",
+   "campos": {
+    "texto": "quero ter 4 a Matemática"
+   }
+  },
+  {
+   "frase": "Jarvis, lembra-te que gosto de pizza!",
+   "intencao": "memoria_add",
+   "campos": {
+    "texto": "gosto de pizza"
+   }
+  },
+  {
+   "frase": "não, eu queria era o que tenho amanhã.",
+   "intencao": "correcao",
+   "campos": {
+    "texto": "o que tenho amanhã"
+   }
+  },
+  {
+   "frase": "não te esqueças de comprar pão",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "esquece o alarme de amanhã",
+   "intencao": "alarme_ver"
+  },
+  {
+   "frase": "o que devia fazer amanhã",
+   "intencao": "ajuda",
+   "nota": "outro dia: vai para o Claude, nao sao as sugestoes de hoje"
+  },
+  {
+   "frase": "estou em dia com as tarefas",
+   "intencao": "ajuda"
+  },
+  {
+   "frase": "desativa o modo holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": false
+   }
+  },
+  {
+   "frase": "cancela o holograma",
+   "intencao": "hud",
+   "campos": {
+    "holograma": false
+   }
   }
  ]
 }

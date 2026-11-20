@@ -229,6 +229,19 @@ def forcar(texto):
     return None
 
 
+def _memoria(db):
+    """o que ele pediu para o Jarvis se lembrar (memoria.py). No modo amigos, nada."""
+    try:
+        import memoria, modos
+        if modos.amigos():
+            return ""
+        with db() as con:
+            return memoria.para_o_claude(con)
+    except Exception as e:
+        print("memoria:", e)
+        return ""
+
+
 def perguntar(texto, db, cfg, privado_ok=True):
     """devolve {resposta, mudou} ou {erro}"""
     if not _contar(cfg):
@@ -274,7 +287,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
     sistema = SISTEMA.format(
         nome_assistente=cfg.get("palavra_ativacao") or "assistente",
         data=f"{dias[agora.weekday()]}, {agora.day}/{agora.month}/{agora.year}", hora=agora.strftime("%H:%M"),
-        sobre_ele=f" Ele chama-se {nome}." if nome else "",
+        sobre_ele=(f" Ele chama-se {nome}." if nome else "") + (_memoria(db) if privado_ok else ""),
         internet=INTERNET_LIGADA if cfg.get("ia_pesquisa", PESQUISA_PADRAO) in ("1", "3") else INTERNET_DESLIGADA,
         estilo=("- Fala como um mordomo britânico elegante, à maneira do Jarvis dos filmes do Homem de Ferro: educado, "
                 "seco e com humor subtil. Trata-o por \"senhor\". Português de Portugal na mesma."

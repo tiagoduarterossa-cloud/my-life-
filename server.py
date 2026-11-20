@@ -26,9 +26,11 @@ import dispositivos
 import familia
 import ia
 import loja
+import memoria
 import modos
 import noticias
 import pin
+import proativo
 import radio
 import servicos
 import time
@@ -139,7 +141,9 @@ def init_db():
         con.executescript(viagem.TABELAS)
         con.executescript(ia.TABELAS)
         con.executescript(aprender.TABELAS)
+        con.executescript(memoria.TABELAS)
         rotinas.criar_padrao(con)
+        tarefas_da_central(con)
         if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
             con.execute("DELETE FROM config WHERE chave = 'ia_modelo' AND valor = 'claude-opus-5-5'")   # o antigo padrao passa a Haiku
             con.execute("INSERT INTO config (chave, valor) VALUES ('ia_haiku_feito', '1')")
@@ -204,6 +208,38 @@ def listar_tarefas():
                ORDER BY feita, prazo IS NULL, prazo, prioridade, id"""
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# o que so ele pode fazer para a central ficar completa: entra na lista de tarefas UMA vez (config 'tarefas_central_1').
+# Sem dados pessoais (o codigo esta no GitHub).
+TAREFAS_CENTRAL = [
+    ("Central: atualizar o tablet (cd ~/central && ./atualizar.sh)", 2),
+    ("Central: tornar o repositório do GitHub privado", 2),
+    ("Central: confirmar que o tablet tem bloqueio de ecrã (PIN ou padrão)", 2),
+    ("Central: pôr o PIN no Iron Man", 2),
+    ("Central: escolher a cidade nas definições (para o tempo)", 2),
+    ("Central: com o pai, pôr um limite de gastos mensal na consola da Anthropic", 2),
+    ("Central: baixar o limite diário do Claude para 30 (definições do Claude)", 2),
+    ("Central: ligar o Spotify (a conta que cria a app precisa de Premium)", 3),
+    ("Central: ligar a loja com uma app do Dev Dashboard da Shopify (passos no README)", 3),
+    ("Central: pedir a chave do fogos.pt e guardá-la em fogos_token.txt", 3),
+    ("Central: correr termux-setup-storage (cópias de segurança no armazenamento do tablet)", 3),
+    ("Central: dar à Termux:API as autorizações de localização, notificações e brilho", 3),
+    ("Central: encher o separador Roupa com a roupa a sério", 2),
+    ("Central: marcar a viagem no Iron Man (+ viagem) e um alarme especial para a partida", 2),
+    ("Central: usar o Jarvis 2 semanas e dar 👍/👎 sempre que falhar", 2),
+    ("Central: dizer ao Jarvis 3 coisas para ele se lembrar (\"lembra-te que...\")", 3),
+    ("Central: ter um rádio a pilhas em casa, com as frequências FM num papel", 3),
+    ("Central: PCs para abate: confirmar a autorização e que os discos vêm apagados", 3),
+    ("Central: relógio: escolher a placa ESP32 com ecrã AMOLED (ver a ficha técnica)", 3),
+]
+
+
+def tarefas_da_central(con):
+    if con.execute("SELECT 1 FROM config WHERE chave = 'tarefas_central_1'").fetchone():
+        return
+    con.executemany("INSERT INTO tarefas (titulo, area, prioridade) VALUES (?, 'programar', ?)", TAREFAS_CENTRAL)
+    con.execute("INSERT INTO config (chave, valor) VALUES ('tarefas_central_1', '1')")
 
 
 def criar_tarefa(d):
@@ -380,7 +416,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "ia_pesquisa", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
+                 "ia_modelo", "ia_limite", "ia_pesquisa", "proativo", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -408,6 +444,8 @@ def gravar_config(d):
             raise Erro("o Client ID do Spotify tem 32 letras e numeros (0-9, a-f)")
         if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
             raise Erro("modelo desconhecido")
+        if k == "proativo" and v not in ("0", "1"):
+            raise Erro("o Jarvis proativo e 0 ou 1")
         if k == "ia_pesquisa" and v not in {p for p, _ in ia.PESQUISA}:
             raise Erro("opção de pesquisa desconhecida")
         if k == "ia_limite" and not (v.isdigit() and 1 <= int(v) <= 1000):
@@ -456,7 +494,7 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
 _servicos_cache = None
 
 # o que e privado: so com PIN (tambem no proprio tablet)
-PRIVADOS = ("/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+PRIVADOS = ("/api/memoria", "/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
 ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
 
@@ -631,9 +669,31 @@ class Handler(BaseHTTPRequestHandler):
                 with db() as con:
                     r = aprender.resumo(con, max(1, min(int(query.get("dias", 7) or 7), 90)))
                 return self.enviar(200, dict(r, frase=aprender.frase(r)))
+            m = re.fullmatch(r"/api/aprender/(\d+)", caminho)
+            if m and metodo == "POST":
+                with db() as con:
+                    ok, msg = aprender.decidir(con, int(m[1]), str(self.corpo_json().get("acao", "")))
+                if not ok:
+                    raise Erro(msg)
+                return self.enviar(200, {"ok": True})
             if caminho == "/api/aprender" and metodo == "DELETE":
                 with db() as con:
                     aprender.apagar_tudo(con)
+                return self.enviar(200, {"ok": True})
+            if caminho == "/api/memoria" and metodo == "GET":
+                with db() as con:
+                    return self.enviar(200, memoria.listar(con))
+            if caminho == "/api/memoria" and metodo == "POST":
+                try:
+                    with db() as con:
+                        memoria.guardar(con, texto(self.corpo_json(), "texto", maximo=200))
+                except ValueError as e:
+                    raise Erro(str(e))
+                return self.enviar(201, {"ok": True})
+            m = re.fullmatch(r"/api/memoria/(\d+)", caminho)
+            if m and metodo == "DELETE":
+                with db() as con:
+                    con.execute("DELETE FROM memoria WHERE id = ?", (int(m[1]),))
                 return self.enviar(200, {"ok": True})
             m = re.fullmatch(r"/api/jarvis-nota/(\d+)", caminho)
             if m and metodo == "POST":   # botoes 👍/👎 no chat (nao precisa de PIN: so muda a nota)
@@ -1253,10 +1313,13 @@ def falar_alarme(texto):
 if __name__ == "__main__":
     init_db()
     modos.ligar(db)    # le o modo amigos guardado
+    aprender.carregar(db)   # as frases que lhe ensinaste
     ia._db = db        # para a central guardar quanto o Claude gasta por mes
     alarmes.falar = falar_alarme
     alarmes.vigiar(db, bom_dia_falado)
     rotinas.vigiar(db, extras_rotina)
+    # o Jarvis fala primeiro (pouco e so com dados reais: testes perto, prazos, treino)
+    proativo.vigiar(db, rotinas.ecra_ativo, rotinas._por_na_fila)
     backups.vigiar(DB_PATH)   # uma copia verificada por dia em backups/ (e no armazenamento do tablet, se houver)
     # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
     familia.vigiar(db, aviso_familia)

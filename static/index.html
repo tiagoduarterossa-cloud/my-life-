@@ -292,6 +292,13 @@
   /* ---------- modo Iron Man ---------- */
   #hud.ironman { background: radial-gradient(60% 60% at 50% 48%, rgba(0, 90, 150, .35), #00060d 70%), #00060d; }
   #hud.ironman .hud-canto { display: none; }
+  /* modo holograma (fantasma de Pepper): monitor deitado + acrilico a 45 graus. Fundo preto puro (o preto nao reflete),
+     sem fundos nos paineis, linhas mais brilhantes e a imagem espelhada para o reflexo ficar direito */
+  #hud.holograma { background: #000 !important; transform: scaleX(-1); }
+  #hud.holograma.vertical { transform: scaleY(-1); }
+  #hud.holograma .im-painel, #hud.holograma .im-topo, #hud.holograma .im-faixa { background: none !important; }
+  #hud.holograma .im-painel { border-color: rgba(0, 220, 255, .7); text-shadow: 0 0 6px rgba(0, 200, 255, .9); }
+  #hud.holograma #hud-video { display: none; }
   #hud.ironman { --n1: 0, 120, 255; --n2: 0, 205, 255; --n3: 0, 90, 150; }   /* azul do reator, seja qual for o tema */
   @media (min-width: 901px) { #hud.ironman #hud-texto { width: calc(100% - 680px); } }
   .im { display: none; }
@@ -375,7 +382,12 @@
   #modo .m-nota { font-size: 13px; opacity: .6; max-width: 620px; }
   #modo form { display: grid; gap: 10px; width: min(520px, 100%); grid-template-columns: 1fr; }
   #modo input, #modo textarea, #modo select { background: rgba(255,255,255,.1); color: #fff; }
-  body.modo-amigos #hud-agenda, body.modo-amigos #i-tarefas, body.modo-amigos #i-teste { visibility: hidden; }
+  body.modo-amigos #hud-agenda, body.modo-amigos #i-tarefas, body.modo-amigos #i-teste, body.modo-amigos #i-dia, body.modo-amigos #i-semana { visibility: hidden; }
+  .linha-dia { display: grid; grid-template-columns: 54px 1fr; gap: 10px; padding: 5px 0; align-items: baseline; }
+  .linha-dia b { font-variant-numeric: tabular-nums; font-weight: 600; opacity: .8; }
+  .linha-dia.passou { opacity: .45; }
+  .barra-sem { height: 6px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; margin: 4px 0 10px; }
+  .barra-sem i { display: block; height: 100%; background: var(--escola, #0a84ff); border-radius: 3px; }
   #d-viagem .linha-sv { padding: 3px 0; }
   #d-viagem label.vg-item { text-transform: none; letter-spacing: 0; font-size: 15px; font-weight: 400; color: var(--txt); }
   #d-pessoa .sec { margin-top: 14px; } #d-pessoa .sec h5 { margin: 0 0 6px; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--suave); }
@@ -598,6 +610,8 @@
           </button>
         </div>
         <div id="meteo"></div>
+        <div class="vidro" id="i-dia"></div>
+        <div class="vidro" id="i-semana"></div>
       </div>
       <div class="lado-cartoes">
         <div class="vidro" id="i-agora"></div>
@@ -966,11 +980,14 @@
 
 <dialog id="d-aprender">
   <h3>O que o Jarvis anda a aprender</h3>
+  <div id="apr-propostas"></div>
   <div class="filtros" id="apr-dias"><button data-d="1">Hoje</button><button data-d="7" class="ativo">7 dias</button><button data-d="30">30 dias</button></div>
   <div id="apr-resumo" class="vazio">A carregar…</div>
   <label>Frases que as minhas regras não conhecem</label><ul id="apr-nao"></ul>
   <label>Respostas que marcaste como erradas</label><ul id="apr-erradas"></ul>
-  <div class="vazio" style="font-size:13px">Fica só neste tablet e apaga-se ao fim de 90 dias. No modo amigos não se regista nada. Próximo passo: o Jarvis propõe-te regras novas a partir daqui, e tu aprovas.</div>
+  <label>O que o Jarvis sabe sobre ti</label><ul id="apr-memoria"></ul>
+  <form id="f-memoria" style="grid-template-columns:1fr auto"><input name="texto" maxlength="200" placeholder="Ex.: quero ter 4 a Matemática" required><button class="secundario" style="grid-column:auto">Guardar</button></form>
+  <div class="vazio" style="font-size:13px">Fica só neste tablet; o registo apaga-se ao fim de 90 dias. No modo amigos não se regista nada. Quando corriges o Jarvis ("não, eu queria era…"), ele propõe aprender essa frase; só passa a valer quando aprovas, e só para essa frase exata.</div>
   <div class="botoes"><button type="button" class="secundario" id="apr-apagar" style="color:var(--perigo)">Apagar o registo</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
 </dialog>
 
@@ -1118,6 +1135,7 @@
     <div class="botoes"><button type="button" class="secundario" id="cfg-ensinar">Ensinar a palavra</button></div>
     <div class="vazio" id="cfg-alternativas" style="font-size:13px"></div>
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
+    <label class="interruptor"><input type="checkbox" id="cfg-proativo"> O Jarvis pode falar primeiro (testes perto, prazos, treino; no máximo 2 vezes por dia, das 17h às 20h30)</label>
     <label class="interruptor"><input type="checkbox" id="cfg-trinco"> Primeiro tenho de dizer «escuta» (só depois aceita a palavra, durante 15 s)</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
   </div>
@@ -1258,8 +1276,23 @@ async function abrirAprender() {
   const pc = r.total ? Math.round(100 * r.regras / r.total) : 0;
   $("#apr-resumo").innerHTML = r.total ? `<b>${r.total}</b> pedidos · as regras perceberam <b>${pc}%</b> · ${r.claude} foram para o Claude${r.sem_resposta ? ` · ${r.sem_resposta} sem resposta` : ""} · 👍 ${r.bons} · 👎 ${r.maus}` : "Ainda não há pedidos neste período.";
   $("#apr-nao").innerHTML = r.nao_percebi.map(e => `<li style="display:block">"${esc(e.frase)}" <span class="info">${e.vezes}× · ${e.origem === "claude" ? "respondeu o Claude" : "ficou sem resposta"}</span></li>`).join("") || '<li class="vazio">Nenhuma. 👌</li>';
+  desenharMemoria();
+  $("#apr-propostas").innerHTML = (r.propostas.length ? `<label>Posso aprender isto?</label><ul>${r.propostas.map(p => `<li style="display:block">Quando dizes "<b>${esc(p.original)}</b>" queres dizer "<b>${esc(p.significa)}</b>"
+      <div class="botoes" style="margin-top:6px"><button type="button" class="principal" data-apr="${p.id}" data-acao="aprovar" style="padding:8px">Aprovar</button><button type="button" class="secundario" data-apr="${p.id}" data-acao="recusar" style="padding:8px">Recusar</button></div></li>`).join("")}</ul>` : "")
+    + (r.aprendidas.length ? `<label>Já aprendi</label><ul>${r.aprendidas.map(p => `<li style="display:flex;justify-content:space-between;gap:8px"><span>"${esc(p.original)}" = "${esc(p.significa)}"</span><button type="button" class="secundario" data-apr="${p.id}" data-acao="esquecer" style="padding:2px 9px;width:auto">×</button></li>`).join("")}</ul>` : "");
+  $("#apr-propostas").querySelectorAll("[data-apr]").forEach(b => b.onclick = async () => {
+    try { await api(`/api/aprender/${b.dataset.apr}`, "POST", { acao: b.dataset.acao }); aviso(b.dataset.acao === "aprovar" ? "Aprendido." : "Feito.", false); } catch (e) { aviso(e.message); }
+    abrirAprender(); });
   $("#apr-erradas").innerHTML = r.errados.map(e => `<li style="display:block">"${esc(e.frase)}" <span class="info">→ ${esc(e.resposta || "")}</span>${e.correcao ? `<br><span class="info">querias: "${esc(e.correcao)}"</span>` : ""}</li>`).join("") || '<li class="vazio">Nenhuma.</li>';
 }
+async function desenharMemoria() {
+  let ms; try { ms = await api("/api/memoria"); } catch (e) { $("#apr-memoria").innerHTML = `<li class="vazio">${esc(e.message)}</li>`; return; }
+  $("#apr-memoria").innerHTML = ms.map(m => `<li style="display:flex;justify-content:space-between;gap:8px"><span>${esc(m.texto)}</span><button type="button" class="secundario" data-mem="${m.id}" style="padding:2px 9px;width:auto">×</button></li>`).join("")
+    || '<li class="vazio">Nada ainda. Diz "Jarvis, lembra-te que…" ou escreve em baixo.</li>';
+  $("#apr-memoria").querySelectorAll("[data-mem]").forEach(b => b.onclick = async () => { await api(`/api/memoria/${b.dataset.mem}`, "DELETE").catch(e => aviso(e.message)); desenharMemoria(); });
+}
+$("#f-memoria").onsubmit = async e => { e.preventDefault();
+  try { await api("/api/memoria", "POST", { texto: e.target.texto.value }); e.target.reset(); desenharMemoria(); } catch (err) { aviso(err.message); } };
 $("#apr-dias").onclick = e => { const d = +e.target.dataset.d; if (!d) return; aprDias = d;
   document.querySelectorAll("#apr-dias button").forEach(b => b.classList.toggle("ativo", b === e.target)); abrirAprender(); };
 $("#apr-apagar").onclick = async () => { if (!confirm("Apagar tudo o que o Jarvis registou?")) return; await api("/api/aprender", "DELETE").catch(e => aviso(e.message)); abrirAprender(); };
@@ -1732,6 +1765,41 @@ function desenharInicio() {
   const urgentes = tarefas.filter(t => !t.feita && ((t.prazo && t.prazo <= daquiA3) || t.prioridade === 1));
   $("#i-tarefas").innerHTML = urgentes.slice(0, 5).map(itemTarefa).join("") || vazio("Nada urgente.");
   $("#i-tempo").innerHTML = barrasAreas(reg1.totais);
+  desenharDiaSemana();
+}
+
+// "O teu dia" e "Esta semana": a metade de baixo do ecra inicial, so com dados que a central ja tem
+function desenharDiaSemana() {
+  const hoje = hojeISO(), agora = horaAgora(), amanha = isoDe(new Date(Date.now() + 864e5));
+  const itens = [
+    ...(dados.horario || []).filter(b => b.dia === diaSemana()).map(b => ({ h: b.inicio, fim: b.fim, t: b.titulo, tipo: "aula" })),
+    ...(dados.eventos || []).filter(e => e.data === hoje).map(e => ({ h: e.hora || "", t: e.titulo, tipo: "evento" })),
+    ...(dados.testes || []).filter(t => t.data === hoje).map(t => ({ h: "", t: `Teste de ${t.disciplina}`, tipo: "teste" })),
+  ].sort((a, b) => (a.h || "99").localeCompare(b.h || "99"));
+  const tAmanha = (dados.testes || []).filter(t => t.data === amanha);
+  const al = alarmesDados?.proximo;
+  let html = "<h2>O teu dia</h2>" + (itens.map(i => `<div class="linha-dia${i.fim && i.fim <= agora ? " passou" : ""}"><b>${i.h || "—"}</b><span>${i.tipo === "teste" ? "📝 " : i.tipo === "evento" ? "📌 " : ""}${esc(i.t)}${i.fim ? ` <span class="vazio">até ${i.fim}</span>` : ""}</span></div>`).join("")
+    || '<div class="vazio">Nada marcado para hoje. Dia livre.</div>');
+  if (tAmanha.length) html += `<div class="vazio" style="margin-top:8px">⚠️ Amanhã: teste de <b style="color:#fff">${tAmanha.map(t => esc(t.disciplina)).join(" e ")}</b></div>`;
+  if (al && diasAte(al.data) <= 1) html += `<div class="vazio" style="margin-top:6px">⏰ Próximo alarme ${al.data === hoje ? "hoje" : "amanhã"} às ${al.hora}</div>`;
+  $("#i-dia").innerHTML = html;
+
+  // semana: de segunda ate hoje
+  const seg = new Date(); seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7)); const desde = isoDe(seg);
+  const estudo = {}, nomes = {}, k = d => semAcentos(d).trim();   // "matemática" e "Matemática" sao a mesma
+  (dados.diario?.entradas || []).filter(e => e.data >= desde).forEach(e => { estudo[k(e.disciplina)] = (estudo[k(e.disciplina)] || 0) + e.minutos; nomes[k(e.disciplina)] ||= e.disciplina; });
+  const proximos = (dados.testes || []).filter(aindaNaoFoi).filter(t => diasAte(t.data) <= 14);
+  proximos.forEach(t => { if (!(k(t.disciplina) in estudo)) estudo[k(t.disciplina)] = 0; nomes[k(t.disciplina)] = t.disciplina; });
+  const max = Math.max(60, ...Object.values(estudo));
+  const treino = (dados.reg7?.entradas || []).filter(e => e.area === "desporto" && e.data >= desde).reduce((a, e) => a + e.minutos, 0);
+  const linhas = Object.entries(estudo).sort((a, b) => b[1] - a[1]).map(([kd, m]) => {
+    const d = nomes[kd], t = proximos.find(x => k(x.disciplina) === kd);
+    const alerta = t && diasAte(t.data) <= 5 && m < 60;
+    return `<div style="display:flex;justify-content:space-between;gap:8px"><span>${esc(d)}${t ? ` <span class="vazio">· teste ${textoDias(diasAte(t.data))}</span>` : ""}</span><span${alerta ? ' style="color:#ffd60a"' : ""}>${horas(m)}</span></div>
+      <div class="barra-sem"><i style="width:${Math.round(100 * m / max)}%${alerta ? ";background:#ffd60a" : ""}"></i></div>`;
+  }).join("");
+  $("#i-semana").innerHTML = "<h2>Esta semana</h2>" + (linhas || '<div class="vazio">Ainda não registaste estudo esta semana. Usa o modo estudo e fica registado sozinho.</div>') +
+    `<div class="vazio" style="margin-top:4px">💪 Treino: ${treino ? horas(treino) : "nenhum ainda"}</div>`;
 }
 
 // tempo (meteorologia) com Open-Meteo, sem chave
@@ -2110,6 +2178,7 @@ async function perguntar(texto) {
     if (r.hud === false) fecharHUD();
     if (r.escuta === false) { vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); }
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
+    if (r.holograma !== undefined) holograma(r.holograma);
     if (r.mapa) { $("#assist").classList.remove("aberto"); mostrarMapa(); }
     if (r.servicos) abrirServicos();
     if (r.pessoa) abrirPessoa(r.pessoa);
@@ -2227,6 +2296,7 @@ async function mostrarMotor() {
 }
 $("#cfg-motor").onclick = e => { const m = e.target.dataset.motor; if (!m) return; vozCfg.motor = m; guardarVoz(); mostrarMotor(); };
 $("#cfg-testar").onclick = () => { guardarVoz(); falar(`Ya, sou o ${vozCfg.palavra}. Pergunta-me o que tens amanhã.`); };
+$("#cfg-proativo").onchange = e => api("/api/config", "POST", { proativo: e.target.checked ? "1" : "0" }).then(() => { config.proativo = e.target.checked ? "1" : "0"; }).catch(err => aviso(err.message));
 $("#cfg-trinco").onchange = () => { vozCfg.trinco = $("#cfg-trinco").checked; guardar("voz", vozCfg); trincoAte = 0; retomarEscuta(); };
 $("#cfg-ouvir").onchange = () => { guardarVoz(); vozCfg.ouvir ? iniciarEscuta(true) : pararEscuta(true); mostrarBotEscuta(); };
 // ----- Spotify -----
@@ -2391,6 +2461,8 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     }
     if (r.escuta === false) { await falar(r.falado); fecharHUD(); vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); return; }
     if (r.hud === false) { hudLog("a encerrar"); await falar(r.falado); fecharHUD(); return; }
+    if (r.holograma !== undefined) holograma(r.holograma);
+    if (r.holograma === false) { await falar(r.falado); return; }
     if (r.hud === "ironman") { abrirHUD("espera"); arranqueIronMan(); await esperar(1700); hudEstado("falar"); hudTexto("", r.resposta);
       await falar(r.falado); hudEstado("ouvir"); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mapa) { mostrarMapa(); }
@@ -2917,9 +2989,17 @@ function abrirHUD(estado = "espera") {
   $("#hud").classList.add("ver"); hudEstado(estado); hudCantos();
   if (!hud.anim) hud.anim = requestAnimationFrame(desenharHUD);
 }
+// modo holograma: o Iron Man espelhado e com fundo preto, para um monitor deitado com um acrilico a 45 graus
+function holograma(ligar, vertical = false) {
+  const h = $("#hud"); h.classList.toggle("holograma", !!ligar); h.classList.toggle("vertical", !!ligar && vertical);
+  hudLog(ligar ? "projeção holográfica ativa" : "projeção holográfica desligada");
+}
+// num PC com um monitor deitado: abrir a central com ?holograma=1 (ou ?holograma=v para espelhar na vertical)
+{ const q = new URLSearchParams(location.search).get("holograma");
+  if (q) setTimeout(() => { abrirHUD("espera"); arranqueIronMan(); holograma(true, q === "v"); }, 1500); }
 function fecharHUD() {
   const eraIron = $("#hud").classList.contains("ironman");
-  $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa"); pararCamara(); hud.ate = 0;
+  $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa", "holograma", "vertical"); pararCamara(); hud.ate = 0;
   if (eraIron) corNaFita();   // a fita volta a cor do tema
   if (eraIron) trincoAte = Date.now() + 20000;
   if (eraIron && pinEstado.local) { trancar(); paineisIronMan.fam = paineisIronMan.loja = paineisIronMan.seg = null; }   // no tablet: sair do Iron Man tranca
@@ -3222,6 +3302,7 @@ async function executarComandos(cmds) {
       else if (c.acao === "aviso") { if (modoAtual === "estudo" && !c.urgente) avisosGuardados.push(c.texto); else aviso(c.texto, false); }   // o estudo nao e interrompido
       else if (c.acao === "apagao") c.ligado ? entrarApagao() : sairApagao();
       else if (c.acao === "modo") c.tipo === "sair" ? sairModo(c.de) : abrirModo(c);
+      else if (c.acao === "proativo") { if (modoAtual) avisosGuardados.push(c.texto); else { aviso(c.texto, false); await falar(c.texto); } }   // nos modos fica para o fim
       else if (c.acao === "abrir") abrirSeparador(c.separador);
       else if (c.acao === "cronometro") {
         const min = +c.minutos || 25;
@@ -3395,6 +3476,7 @@ function textoDiasAlarme(dias) {
 async function carregarAlarmes() {
   try { alarmesDados = await api("/api/alarmes"); } catch (e) { return; }
   const p = alarmesDados.proximo;
+  if (dados.tarefas) desenharDiaSemana();
   $("#i-alarme").innerHTML = p
     ? `<div class="grande">${p.hora}</div><div class="vazio">${p.data === hojeISO() ? "hoje" : textoDias(diasAte(p.data))}${p.nome ? " · " + esc(p.nome) : ""}</div>`
     : `<div class="vazio">Sem alarmes</div>`;
@@ -3603,7 +3685,7 @@ $("#abrir-config").onclick = () => {
   $("#cidade-atual").textContent = config.cidade ? `Cidade atual: ${config.cidade}` : "Ainda não escolheste a cidade.";
   $("#f-horas").ecra_inicio.value = config.ecra_inicio || ""; $("#f-horas").ecra_fim.value = config.ecra_fim || "";
   preencherVozes(); mostrarMotor(); $("#cfg-rate").value = vozCfg.rate; $("#cfg-pitch").value = vozCfg.pitch;
-  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-trinco").checked = vozCfg.trinco !== false; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
+  $("#cfg-palavra").value = vozCfg.palavra; $("#cfg-ouvir").checked = vozCfg.ouvir; $("#cfg-trinco").checked = vozCfg.trinco !== false; $("#cfg-proativo").checked = config.proativo !== "0"; mostrarAlternativas(); $("#cfg-nome").value = config.nome || "";
   $("#cfg-tomada").value = config.tomada_ip || ""; $("#cfg-wled").value = config.wled_ip || ""; $("#cfg-hud").checked = vozCfg.hud !== false; mostrarIA(); mostrarEstilo(); mostrarSpotifyCfg(); carregarSpotify();
   $("#config").showModal();
 };

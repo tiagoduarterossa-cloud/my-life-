@@ -191,23 +191,32 @@ def adivinhar_area(t):
 
 # ---------- perceber a intencao ----------
 
+def _fim(t, parte):
+    """o fim de t com o mesmo tamanho que 'parte' (parte vem de simples(t), que tem o mesmo comprimento),
+    depois de tirar a pontuacao do fim dos dois da mesma maneira"""
+    tt = t.strip(" .!?")
+    return tt[len(tt) - len(parte):].strip() if len(tt) >= len(parte) else parte
+
+
 def entender(texto, hoje=None):
     hoje = hoje or date.today()
     # "Jarvis, que horas sao?" escrito no chat ou vindo da Siri: o nome no inicio nao faz parte do pedido
     t = re.sub(r"^\s*(?:(?:ei|hey|ok|ola)\s+)?jarvis\b[\s,!.:-]*", "", texto.strip(), flags=re.I).strip() or texto.strip()
+    import aprender
+    t = aprender.traduzir(t) or t        # frases que lhe ensinaste e aprovaste (so a frase exata)
     s = simples(t)
     if not s:
         return "ajuda", {}
 
     # notas a resposta anterior (aprender.py): "nao era isso", "boa", "nao, eu queria era ..."
-    m = re.match(r"^nao,? (?:eu )?(?:queria|disse|pedi|perguntei)(?: era| foi)?:? (.{3,})$", s.strip(" .!"))
+    m = re.match(r"^nao,? (?:eu )?(?:queria|disse|pedi|perguntei)(?: era| foi)?:? (.{3,})$", s.strip(" .!?"))
     if m:
-        return "correcao", {"texto": t[len(t) - len(m[1]):].strip(" .!") if len(t) >= len(m[1]) else m[1]}
+        return "correcao", {"texto": _fim(t, m[1])}
     if re.fullmatch(r"(nao,? )?(nao era isso|nao e isso|isso esta errado|esta errado|percebeste mal|nao foi isso( que eu pedi)?|resposta errada|enganaste-te)", s.strip(" .!?")):
         return "nota_mau", {}
     if re.fullmatch(r"(boa|isso mesmo|e isso mesmo|perfeito|exatamente|bem visto|boa resposta|acertaste)( jarvis)?", s.strip(" .!?")):
         return "nota_bom", {}
-    if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|aprendizagem do jarvis)\b", s):
+    if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|o que (e que )?aprendeste|aprendizagem do jarvis)\b", s):
         return "aprender_ver", {}
 
     if re.search(r"\b(pausa|para|parar|pausar|stop)\b.*\b(musica|spotify|som)\b|^(pausa|stop)$", s):
@@ -272,6 +281,19 @@ def entender(texto, hoje=None):
         if re.search(r"por enviar|enviar|pendentes|preparar", s):
             p = "mes"
         return "loja", {"periodo": p, "enviar": bool(re.search(r"por enviar|enviar|pendentes|preparar", s))}
+
+    # memoria: "lembra-te que ..." (nao confundir com "lembra-me de ...", que e uma tarefa)
+    m = re.match(r"^(?:(?:lembra-te|lembra te|fica a saber) que|memoriza|guarda na memoria)[:,]? (.{3,})$", s.strip(" .!?"))
+    if m:
+        return "memoria_add", {"texto": _fim(t, m[1])}
+    if re.search(r"\b(o que (e que )?sabes (sobre|de) mim|o que te lembras (sobre|de) mim|o que tens na memoria|mostra a (tua )?memoria)\b", s):
+        return "memoria_ver", {}
+    m = re.match(r"^(?:esquece que|esquece o que te disse sobre|apaga da memoria(?: que)?|tira da memoria(?: que)?)[:,]? (.{3,})$", s.strip(" .!?"))
+    if m:
+        return "memoria_apagar", {"texto": m[1]}
+
+    if re.fullmatch(r"(o que (e que )?me sugeres( agora| hoje| fazer)?|tens (alguma )?sugest\w*( para mim| para hoje)?|o que (e que )?dev(ia|o) fazer( agora| hoje)?|estou em dia)", s.strip(" .!?")):
+        return "sugestoes", {}
 
     # modos do Jarvis: amigos, treino, revisao (o modo estudo e a rotina "Modo estudo")
     sair_modo = re.search(r"\b(?:sai|sair|saimos|acabou|acaba|termina|terminar|desliga|fecha)\s+(?:d?o\s+)?modo (de )?(estudo|amigos|treino|revisao)\b", s)
@@ -340,9 +362,13 @@ def entender(texto, hoje=None):
     # primeiro o que DESLIGA, para "desativa o modo jarvis" nao ser lido como "modo jarvis"
     if re.search(r"\b(para de ouvir|pára de ouvir|deixa de ouvir|nao oucas|modo silencio|silencio total|desliga a escuta|desliga o microfone|nao me oucas)\b", s):
         return "escuta", {"ligar": False}
+    if re.search(r"\b(desativa|desativar|desliga|desligar|sai|sair|fecha|fechar|termina|terminar|encerra|encerrar|cancela|acaba)\w*\s+(d?o\s+)?(modo )?(de )?holograma\b", s):
+        return "hud", {"abrir": None, "holograma": False}
     if re.search(r"\b(fecha-te|fecha te|fechate|fecha-se|podes fechar|fecha o ecra|fecha o jarvis|close yourself|sai do ecra|fecha isso|podes ir|modo normal|"
                  r"(desativa|desativar|desliga|desligar|sai|sair|fecha|fechar|termina|terminar|encerra|encerrar|cancela)\w*\b.*\b(modo|jarvis|iron ?man|ecra|protocolo|homem de ferro))\b", s):
         return "hud", {"abrir": False}
+    if re.search(r"\bmodo (de )?holograma\b|\b(liga|abre|mostra|ativa) o holograma\b", s):
+        return "hud", {"abrir": True, "modo": "ironman", "holograma": True}
     if re.search(r"\b(iron ?man|ironmen|airon ?man|modo homem de ferro|homem de ferro|protocolo stark|modo stark)\b", s):
         return "hud", {"abrir": True, "modo": "ironman"}
     if re.search(r"\b(modo jarvis|abre o jarvis|mostra o jarvis|acorda o jarvis|ecra jarvis|abre-te)\b", s):
@@ -577,7 +603,7 @@ AJUDA = {
 }
 
 
-PRIVADAS = {"aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+PRIVADAS = {"memoria_ver", "memoria_apagar", "aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
 
 
 def responder(texto, con, hoje=None, nome=""):
@@ -857,6 +883,31 @@ def _responder(texto, con, hoje=None, nome=""):
 
     if intencao in ("nota_mau", "nota_bom", "correcao"):   # o servidor liga-as ao pedido anterior; aqui so responde
         return {"resposta": "Anotado.", "falado": "Anotado."}
+    if intencao in ("memoria_add", "memoria_ver", "memoria_apagar"):
+        import memoria
+        if intencao == "memoria_add":
+            try:
+                nova = memoria.guardar(con, d["texto"])
+            except ValueError as e:
+                f = str(e)[:1].upper() + str(e)[1:] + "."
+                return {"resposta": f, "falado": f}
+            f = "Fica guardado. Vou ter isso em conta." if nova else "Já sabia disso."
+            return {"resposta": f, "falado": f, "mudou": True}
+        if intencao == "memoria_ver":
+            ms = memoria.listar(con)
+            f = f"Lembro-me de {len(ms)} coisa{'s' if len(ms) != 1 else ''} sobre ti." if ms else "Ainda não me pediste para me lembrar de nada. Diz por exemplo: lembra-te que quero ter 4 a Matemática."
+            return {"resposta": f, "falado": f, "itens": [m["texto"] for m in ms[:15]]}
+        apagadas = memoria.esquecer(con, d["texto"])
+        if len(apagadas) > 1:
+            f = f"Há {len(apagadas)} coisas parecidas na memória. Diz qual, com mais palavras, ou apaga no ecrã da aprendizagem."
+            return {"resposta": f, "falado": f, "itens": [m["texto"] for m in apagadas[:8]]}
+        f = f"Esqueci: {apagadas[0]['texto']}." if apagadas else "Não encontrei isso na minha memória."
+        return {"resposta": f, "falado": f, "mudou": bool(apagadas)}
+
+    if intencao == "sugestoes":
+        import proativo
+        f = proativo.frase(proativo.sugestoes(con, hoje))
+        return {"resposta": f, "falado": f}
     if intencao == "aprender_ver":
         import aprender
         r = aprender.resumo(con)
@@ -1043,6 +1094,11 @@ def _responder(texto, con, hoje=None, nome=""):
                 "falado": "Ok, deixo de ouvir. Quando precisares, toca no botão em cima.", "escuta": False, "hud": False}
 
     if intencao == "hud":
+        if d.get("holograma") is False:
+            return {"resposta": "Holograma desligado.", "falado": "Holograma desligado, senhor.", "holograma": False}
+        if d.get("holograma"):
+            return {"resposta": "Modo holograma.", "hud": "ironman", "holograma": True,
+                    "falado": "Projeção holográfica ativa, senhor."}
         if d.get("modo") == "ironman":
             return {"resposta": "Protocolo Iron Man.", "hud": "ironman",
                     "falado": ya(["Bem-vindo de volta, senhor. Todos os sistemas estão operacionais.",
