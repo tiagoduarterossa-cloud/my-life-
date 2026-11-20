@@ -185,6 +185,9 @@
   /* despertador */
   .desp { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .desp .grande { font-variant-numeric: tabular-nums; }
+  .m-atalhos button { border: 0; padding: 11px 12px; border-radius: 12px; background: rgba(255,255,255,.12); color: #fff;
+                     font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .m-atalhos button:active { opacity: .7; }
   .desp button { border: 0; padding: 9px 14px; border-radius: 999px; background: rgba(255,255,255,.16); color: #fff;
                  font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; }
   .dias-chips { display: flex; gap: 5px; grid-column: 1 / -1; }
@@ -315,7 +318,7 @@
   #im-familia .pessoa { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0, 200, 255, .1); }
   #im-familia .pessoa b { color: #fff; font-weight: 500; }
   #im-familia .alerta { color: #ff6b6b; }
-  #im-familia button, #im-mapa-caixa button, #im-loja button, #im-sistemas button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
+  #im-familia button, #im-mapa-caixa button, #im-loja button, #im-sistemas button, #im-missoes button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
     letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; margin: 8px 6px 0 0; cursor: pointer; }
   #im-mapa-caixa { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 46vw); height: min(78vh, 760px);
     display: none !important; border: 1px solid rgba(0, 200, 255, .35); background: rgba(0, 8, 20, .95); z-index: 3; }
