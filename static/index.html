@@ -318,6 +318,8 @@
   #im-familia .pessoa { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(0, 200, 255, .1); }
   #im-familia .pessoa b { color: #fff; font-weight: 500; }
   #im-familia .alerta { color: #ff6b6b; }
+  #im-desligar { margin-left: 14px; background: none; border: 1px solid rgba(255, 195, 90, .5); color: #ffc35a; font: inherit; font-size: 10px;
+                 letter-spacing: 2px; text-transform: uppercase; padding: 3px 9px; cursor: pointer; }
   #im-familia button, #im-mapa-caixa button, #im-loja button, #im-sistemas button, #im-missoes button { background: none; border: 1px solid rgba(0, 200, 255, .4); color: #9fe6ff; font: inherit; font-size: 11px;
     letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; margin: 8px 6px 0 0; cursor: pointer; }
   #im-mapa-caixa { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 46vw); height: min(78vh, 760px);
@@ -837,7 +839,7 @@
   <div class="hud-canto" id="hud-hora"></div>
   <div class="hud-canto" id="hud-tempo"></div>
   <div class="hud-canto" id="hud-agenda"></div>
-  <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span></div>
+  <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span><button id="im-desligar" onclick="fecharHUD()" title="Desligar o modo Iron Man">desligar</button></div>
   <div class="im im-faixa"><div id="im-faixa"></div></div>
   <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
   <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
@@ -2636,7 +2638,7 @@ async function paineisIronMan() {
 const mapa = { dados: null, ate: 0 };
 async function mostrarMapa() {
   if (!$("#hud").classList.contains("ironman")) { abrirHUD("espera"); arranqueIronMan(); }
-  $("#hud").classList.add("mapa"); mapa.ate = Date.now() + 90000; hud.ate = Math.max(hud.ate, mapa.ate);
+  $("#hud").classList.add("mapa"); mapa.ate = Date.now() + 90000;   // o mapa fecha ao fim de 90 s e volta ao Iron Man, que fica ligado
   hudLog("mapa aberto"); desenharMapa();
   try { mapa.dados = await api("/api/mapa"); } catch (e) { mapa.dados = { erro: e.message }; }
   desenharMapa();
@@ -2853,7 +2855,7 @@ $("#f-familia").onsubmit = async e => {
   catch (err) { alert(err.message); }
 };
 function arranqueIronMan() {
-  const h = $("#hud"); h.classList.add("ironman", "a-arrancar"); hudLog("protocolo iron man iniciado");
+  const h = $("#hud"); h.classList.add("ironman", "a-arrancar"); hud.ate = 0; hudLog("protocolo iron man iniciado");   // fica ligado ate mandares desligar
   precisaPIN().then(async ok => { if (!ok) return fecharHUD(); await estadoLoja(); paineisIronMan.famT = paineisIronMan.lojaT = 0;
     (livre() ? api("/api/seguranca") : Promise.reject()).then(x => { paineisIronMan.seg = x; }).catch(() => {}); paineisIronMan(); });
   // som de arranque: um varrimento a subir e tres bips
@@ -2887,7 +2889,7 @@ function fecharHUD() {
 }
 function hudEstado(e) {
   hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? "";
-  hud.ate = Date.now() + ($("#hud").classList.contains("ironman") ? 120000 : 25000);   // o Iron Man fica mais tempo
+  hud.ate = $("#hud").classList.contains("ironman") ? 0 : Date.now() + 25000;   // o Iron Man so fecha quando mandas (voz ou botao "desligar")
   if (e === "ouvir") hudLog("a ouvir"); if (e === "pensar") hudLog("a processar pedido"); if (e === "ver") hudLog("câmara ativa: a analisar");
 }
 function hudTexto(tu, ele) {
@@ -2976,7 +2978,8 @@ function desenharHUD(agora) {
   if (hud.ate && Date.now() > hud.ate && hud.estado !== "falar") return fecharHUD(); // fecha sozinho sem conversa
   hud.anim = requestAnimationFrame(desenharHUD);
 }
-$("#hud").onclick = e => { if (!e.target.closest("button, .im-painel, #im-mapa-caixa")) fecharHUD(); };   // tocar nos paineis nao fecha
+$("#hud").onclick = e => { if ($("#hud").classList.contains("ironman")) return;   // o Iron Man nao fecha com um toque
+  if (!e.target.closest("button, .im-painel, #im-mapa-caixa")) fecharHUD(); };
 setInterval(() => { if ($("#hud").classList.contains("ver")) hudCantos(); }, 15000);
 
 // camara: "o que e isto?" -> foto -> Claude

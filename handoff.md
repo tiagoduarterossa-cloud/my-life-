@@ -15,7 +15,7 @@ Regra de ouro: **tudo o que a central diz tem de ser verdade e ter fonte**. Se u
 Funciona e está testado:
 - **Ecrã inicial**: tarefas, estudo, horário, tempo, quarto 3D, roupa, despertador, rotinas.
 - **Voz**: o trinco "escuta" vem antes do "Jarvis". O trinco fica aberto enquanto o ecrã do Jarvis ou do Iron Man está visível, e mais 20 s depois de cada pedido ou de sair do Iron Man. Há limites de segurança para quando a voz do Android não avisa que acabou de falar, e uma vigia que volta a ligar o microfone se ele ficar desligado.
-- **Iron Man**: meteorologia, sistemas, agenda, missões, loja, família, áudio e faixa de notícias.
+- **Iron Man**: meteorologia, sistemas, agenda, missões, loja, família, áudio e faixa de notícias. Fica ligado até mandares desligar: "Jarvis, sai do modo Iron Man" ou o botão "desligar" na barra de cima (para quando o microfone falha). Não fecha com o tempo nem com um toque no fundo; o mapa fecha ao fim de 90 s e volta ao Iron Man. Só fecha sozinho quando entra o modo apagão ou o modo amigos.
 - **Mapa**: contorno do Natural Earth, Açores e Madeira em caixas, avisos do IPMA (o mar pinta só a costa), vento do Open-Meteo, incêndios, sismos e a casa a vermelho quando falta a luz. Tocar num ponto abre a ficha da pessoa.
 - **Ficha de cada familiar**: tempo, avisos do IPMA com texto, incêndios, sismos e notícias da terra (Google Notícias), cada parte com a fonte.
 - **PIN**: hash PBKDF2 em pin.json e sessões em cookie HttpOnly. No tablet, o ecrã normal fica livre e o Iron Man pede o PIN. Noutros aparelhos pede-se sempre. Há bloqueio contra quem tenta adivinhar e chaves para a Siri e os sensores.
@@ -72,6 +72,7 @@ Falta configurar no tablet (não é código):
 ## O que mudou
 
 Última sessão:
+- Iron Man sempre ligado até mandares desligar (voz ou botão "desligar"). Atenção: com o Iron Man aberto o trinco da escuta fica sempre aberto.
 - Shopify com app do Dev Dashboard (Client ID e secret) e versão da API 2026-10; Spotify com mensagens claras para as regras de 2026; README atualizado com os passos novos.
 - Segunda revisão a tudo o que mudou nesta sessão: "ia" (do verbo ir) já não é lido como IA ("gastei 5 euros quando ia ao cinema" regista a despesa); os dias da partida e da volta deixaram de estar em pausa; "viagem de estudo" e "mochila" já não vão para o modo viagem (nem pedem PIN); "desliga a luz e liga o modo estudo" liga o modo; os modos pedidos pela Siri vão para o tablet; "de 30 a 2 de março" dá 28 de fevereiro a 2 de março; a mudança para o Haiku só mexe em quem tinha o Opus; erros de chave no gerador de perguntas com mensagem certa; pedidos sem ligação não contam nos custos; "Outras perguntas" lembra-se da matéria.
 - Revisão: o limite diário do Claude deixou de voltar a zero quando a central reinicia, e o limite de pesquisas na web passou a valer para a pergunta inteira (antes valia por cada pedido à API, e uma pergunta podia fazer várias).
