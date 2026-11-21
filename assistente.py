@@ -297,6 +297,8 @@ def entender(texto, hoje=None):
     if re.fullmatch(r"(o que (e que )?me sugeres( agora| hoje| fazer)?|tens (alguma )?sugest\w*( para mim| para hoje)?|o que (e que )?dev(ia|o) fazer( agora| hoje)?|estou em dia)", s.strip(" .!?")):
         return "sugestoes", {}
 
+    if re.search(r"\b(vamos conversar|abre a conversa|modo conversa|quero conversar)\b", s):
+        return "conversa_abrir", {}
     if re.search(r"\b(plano de estudo|planeia(-me)? o estudo|organiza(-me)? o estudo)\b", s) and not re.search(r"\b(tenho|marca|vou ter) (um |o )?teste\b", s):
         return "plano_estudo", {"texto": t}
 
@@ -610,7 +612,7 @@ AJUDA = {
 }
 
 
-PRIVADAS = {"memoria_ver", "memoria_apagar", "aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+PRIVADAS = {"conversa_abrir", "memoria_ver", "memoria_apagar", "aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
 
 
 def responder(texto, con, hoje=None, nome=""):
@@ -910,6 +912,10 @@ def _responder(texto, con, hoje=None, nome=""):
             return {"resposta": f, "falado": f, "itens": [m["texto"] for m in apagadas[:8]]}
         f = f"Esqueci: {apagadas[0]['texto']}." if apagadas else "Não encontrei isso na minha memória."
         return {"resposta": f, "falado": f, "mudou": bool(apagadas)}
+
+    if intencao == "conversa_abrir":
+        f = "Abri a Conversa. Escreve à vontade."
+        return {"resposta": f, "falado": f, "comandos": [{"acao": "conversa"}, {"acao": "falar", "texto": f}]}
 
     if intencao == "plano_estudo":
         import modos, plano

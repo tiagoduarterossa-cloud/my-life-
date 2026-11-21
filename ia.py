@@ -29,6 +29,19 @@ MODELOS = [
     ("claude-opus-5-5", "Opus 5.5: o mais inteligente (~2 cêntimos por pergunta)"),
 ]
 MODELO_PADRAO = "claude-haiku-5-5"
+# cada servico com o seu modelo: o mais barato que chega para o trabalho
+SERVICOS = {
+    "voz":       ("ia_modelo", "claude-haiku-5-5", "Voz do Jarvis, fotos, resumos e jogo"),
+    "conversa":  ("ia_modelo_conversa", "claude-sonnet-5-5", "Conversa (o chat completo)"),
+    "revisao":   ("ia_modelo_revisao", "claude-sonnet-5-5", "Perguntas de revisão para os testes"),
+    "conteudos": ("ia_modelo_conteudos", "claude-sonnet-5-5", "Rascunhos da loja (em lote, metade do preço)"),
+}
+
+
+def modelo_(cfg, servico="voz"):
+    chave, padrao, _ = SERVICOS[servico]
+    m = cfg.get(chave) or padrao
+    return m if m in {x for x, _ in MODELOS} else padrao
 # pesquisa na web: "0" desligada, "1" ou "3" pesquisas no maximo por pergunta (cada uma custa 1 centimo)
 PESQUISA = [("0", "Pesquisa na web desligada (0 €)"), ("1", "Pesquisa na web: até 1 por pergunta (+1 cêntimo)"),
             ("3", "Pesquisa na web: até 3 por pergunta (até +3 cêntimos)")]
@@ -79,7 +92,7 @@ CREATE TABLE IF NOT EXISTS ia_custos (
 _db = None                 # o servidor liga aqui a base de dados (ia._db = db)
 
 
-def _custo(mensagens):
+def _custo(mensagens, fator=1.0):
     """soma o que a Anthropic disse que gastou (usage) em todas as voltas de um pedido. Devolve (entrada, saida, pesquisas, dolares)."""
     ent = sai = pesq = 0
     usd = 0.0
@@ -98,20 +111,26 @@ def _custo(mensagens):
         n = (getattr(st, "web_search_requests", 0) or 0) if st else 0
         ent += i + cr + cw; sai += o; pesq += n
         usd += (i * p_in + cw * p_in * 1.25 + cr * p_cache + o * p_out) / 1e6 + n * PRECO_PESQUISA
-    return ent, sai, pesq, usd
+    return ent, sai, pesq, usd * fator
 
 
-def registar(mensagens, pedidos=1):
-    if not _db:
+def registar(mensagens, pedidos=1, fator=1.0, con=None):
+    """soma ao mes o que estas respostas custaram. fator 0.5 para os lotes (Batch API: metade do preco).
+    con: se quem chama ja tem uma ligacao a escrever, usa-a (uma segunda ligacao ficava bloqueada a espera)."""
+    if not _db and con is None:
         return
-    ent, sai, pesq, usd = _custo(mensagens)
+    ent, sai, pesq, usd = _custo(mensagens, fator)
+    sql = """INSERT INTO ia_custos (mes, pedidos, pesquisas, entrada, saida, dolares) VALUES (?,?,?,?,?,?)
+             ON CONFLICT(mes) DO UPDATE SET pedidos = pedidos + excluded.pedidos, pesquisas = pesquisas + excluded.pesquisas,
+             entrada = entrada + excluded.entrada, saida = saida + excluded.saida, dolares = dolares + excluded.dolares"""
+    valores = (date.today().strftime("%Y-%m"), pedidos, pesq, ent, sai, usd)
     try:
-        with _db() as con:
-            con.executescript(TABELAS)
-            con.execute("""INSERT INTO ia_custos (mes, pedidos, pesquisas, entrada, saida, dolares) VALUES (?,?,?,?,?,?)
-                           ON CONFLICT(mes) DO UPDATE SET pedidos = pedidos + excluded.pedidos, pesquisas = pesquisas + excluded.pesquisas,
-                           entrada = entrada + excluded.entrada, saida = saida + excluded.saida, dolares = dolares + excluded.dolares""",
-                        (date.today().strftime("%Y-%m"), pedidos, pesq, ent, sai, usd))
+        if con is not None:
+            con.execute(sql, valores)
+        else:
+            with _db() as c:
+                c.executescript(TABELAS)
+                c.execute(sql, valores)
     except Exception as e:
         print("custos do claude:", e)
 
@@ -221,7 +240,8 @@ def apagar_chave():
 
 def estado(cfg):
     usadas = _usadas_hoje()
-    return {"sdk": sdk_instalado(), "chave": chave_configurada(), "modelo": cfg.get("ia_modelo", MODELO_PADRAO),
+    return {"sdk": sdk_instalado(), "chave": chave_configurada(), "modelo": modelo_(cfg, "voz"),
+            "servicos": [{"id": k, "chave": c, "nome": n, "modelo": modelo_(cfg, k)} for k, (c, _, n) in SERVICOS.items()],
             "modelos": MODELOS, "limite": int(cfg.get("ia_limite", 100)), "usadas_hoje": usadas, "custos": custos(),
             "pesquisa": cfg.get("ia_pesquisa", PESQUISA_PADRAO), "pesquisas": PESQUISA}
 
@@ -248,16 +268,55 @@ def _memoria(db):
         return ""
 
 
-def perguntar(texto, db, cfg, privado_ok=True):
-    """devolve {resposta, mudou} ou {erro}"""
-    if not _contar(cfg):
-        return {"erro": f"Hoje já fizeste {cfg.get('ia_limite', 100)} perguntas ao Claude, que é o limite diário. Amanhã há mais."}
-
+def _correr(params, pesq, timeout=40):
+    """corre o ciclo de ferramentas do Claude, com o limite de pesquisas na pergunta inteira e o registo dos custos.
+    Devolve (ultima_mensagem, None, custo_em_dolares) ou (None, mensagem_de_erro, custo)."""
     import anthropic
-    from anthropic import beta_tool
+    custo = 0.0
+    try:
+        client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=timeout)
+        voltas, feitas, orcamento = [], 0, int(pesq) if pesq in ("1", "3") else 0
+        runner = client.beta.messages.tool_runner(**params)
+        try:
+            for m in runner:
+                voltas.append(m)
+                st = getattr(getattr(m, "usage", None), "server_tool_use", None)
+                feitas += (getattr(st, "web_search_requests", 0) or 0) if st else 0
+                if orcamento and feitas >= orcamento and params.get("tool_choice") is None:
+                    # o max_uses so conta dentro de cada pedido; com varias voltas podia pesquisar mais.
+                    # Gasto o orcamento: as proximas voltas ja nao usam ferramentas e respondem com o que ha.
+                    # (mudar o tool_choice nao mexe nas ferramentas nem no historico)
+                    params["tool_choice"] = {"type": "none"}
+                    runner.set_messages_params(lambda p: {**p, "tool_choice": {"type": "none"}})
+        finally:
+            if voltas:
+                registar(voltas)      # paga-se mesmo quando corre mal a meio; sem respostas, nada chegou a Anthropic
+                custo = _custo(voltas)[3]
+        if not voltas:
+            return None, "O Claude não respondeu nada. Tenta outra vez.", 0.0
+        final = voltas[-1]
+    except anthropic.AuthenticationError:
+        return None, "A chave do Claude não é válida. Vê-a nas definições.", 0.0
+    except anthropic.PermissionDeniedError:
+        return None, "A chave não tem permissão para usar este modelo.", 0.0
+    except anthropic.RateLimitError:
+        return None, "Muitas perguntas seguidas. Espera um minuto.", 0.0
+    except anthropic.BadRequestError as e:
+        msg = str(getattr(e, "message", e))
+        if "credit" in msg.lower() or "billing" in msg.lower():
+            return None, "Acabou o saldo da conta do Claude. Fala com o teu pai.", 0.0
+        return None, "O Claude não aceitou o pedido.", 0.0
+    except anthropic.APIConnectionError:
+        return None, "Sem ligação à internet para falar com o Claude.", 0.0
+    except anthropic.APIStatusError:
+        return None, "O Claude está com problemas. Tenta daqui a pouco.", 0.0
 
-    nome = cfg.get("nome", "")
-    mudou = {"v": False, "privado": False, "comandos": []}
+    return final, None, custo
+
+
+def _ferramenta_central(db, nome, privado_ok, mudou):
+    """a ferramenta 'central' que o Claude usa para as coisas dele (agenda, testes, alarmes, musica...)"""
+    from anthropic import beta_tool
 
     @beta_tool
     def central(pedido: str) -> str:
@@ -288,6 +347,22 @@ def perguntar(texto, db, cfg, privado_ok=True):
         mudou["comandos"] += [c for c in r.get("comandos", []) if c.get("acao") != "falar"]
         return json.dumps({"resposta": r.get("resposta"), "itens": r.get("itens", [])}, ensure_ascii=False)
 
+    return central
+
+
+def perguntar(texto, db, cfg, privado_ok=True):
+    """devolve {resposta, mudou} ou {erro}"""
+    if not _contar(cfg):
+        return {"erro": f"Hoje já fizeste {cfg.get('ia_limite', 100)} perguntas ao Claude, que é o limite diário. Amanhã há mais."}
+
+    import anthropic
+    from anthropic import beta_tool
+
+    nome = cfg.get("nome", "")
+    mudou = {"v": False, "privado": False, "comandos": []}
+
+    central = _ferramenta_central(db, nome, privado_ok, mudou)
+
     agora = datetime.now()
     dias = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
     sistema = SISTEMA.format(
@@ -310,9 +385,7 @@ def perguntar(texto, db, cfg, privado_ok=True):
             mensagens += [{"role": "user", "content": p}, {"role": "assistant", "content": r}]
     mensagens.append({"role": "user", "content": texto})
 
-    modelo = cfg.get("ia_modelo", MODELO_PADRAO)
-    if modelo not in {m for m, _ in MODELOS}:
-        modelo = MODELO_PADRAO
+    modelo = modelo_(cfg, "voz")
     # pesquisa na web (servidor da Anthropic): para o que e de hoje ou o que ele nao sabe ao certo. Max. 3 por pergunta.
     ferramentas = [central]
     pesq = cfg.get("ia_pesquisa", PESQUISA_PADRAO)
@@ -325,43 +398,9 @@ def perguntar(texto, db, cfg, privado_ok=True):
         # se o modelo recusar por seguranca, o servidor tenta outro modelo sozinho
         params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
 
-    try:
-        client = anthropic.Anthropic(api_key=CHAVE.read_text().strip(), max_retries=1, timeout=40)
-        voltas, feitas, orcamento = [], 0, int(pesq) if pesq in ("1", "3") else 0
-        runner = client.beta.messages.tool_runner(**params)
-        try:
-            for m in runner:
-                voltas.append(m)
-                st = getattr(getattr(m, "usage", None), "server_tool_use", None)
-                feitas += (getattr(st, "web_search_requests", 0) or 0) if st else 0
-                if orcamento and feitas >= orcamento and params.get("tool_choice") is None:
-                    # o max_uses so conta dentro de cada pedido; com varias voltas podia pesquisar mais.
-                    # Gasto o orcamento: as proximas voltas ja nao usam ferramentas e respondem com o que ha.
-                    # (mudar o tool_choice nao mexe nas ferramentas nem no historico)
-                    params["tool_choice"] = {"type": "none"}
-                    runner.set_messages_params(lambda p: {**p, "tool_choice": {"type": "none"}})
-        finally:
-            if voltas:
-                registar(voltas)      # paga-se mesmo quando corre mal a meio; sem respostas, nada chegou a Anthropic
-        if not voltas:
-            return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
-        final = voltas[-1]
-    except anthropic.AuthenticationError:
-        return {"erro": "A chave do Claude não é válida. Vê-a nas definições."}
-    except anthropic.PermissionDeniedError:
-        return {"erro": "A chave não tem permissão para usar este modelo."}
-    except anthropic.RateLimitError:
-        return {"erro": "Muitas perguntas seguidas. Espera um minuto."}
-    except anthropic.BadRequestError as e:
-        msg = str(getattr(e, "message", e))
-        if "credit" in msg.lower() or "billing" in msg.lower():
-            return {"erro": "Acabou o saldo da conta do Claude. Fala com o teu pai."}
-        return {"erro": "O Claude não aceitou o pedido."}
-    except anthropic.APIConnectionError:
-        return {"erro": "Sem ligação à internet para falar com o Claude."}
-    except anthropic.APIStatusError:
-        return {"erro": "O Claude está com problemas. Tenta daqui a pouco."}
-
+    final, erro, _ = _correr(params, pesq, timeout=40)
+    if erro:
+        return {"erro": erro}
     if final.stop_reason == "refusal":
         return {"erro": "Com isso não te posso ajudar."}
     if final.stop_reason == "pause_turn":
@@ -382,9 +421,7 @@ def ver(pergunta, jpeg, cfg):
     if not _contar(cfg):
         return {"erro": "Hoje já chegaste ao limite de perguntas ao Claude."}
     import anthropic
-    modelo = cfg.get("ia_modelo", MODELO_PADRAO)
-    if modelo not in {m for m, _ in MODELOS}:
-        modelo = MODELO_PADRAO
+    modelo = modelo_(cfg, "voz")
     estilo = ("Fala como um mordomo britânico elegante (Jarvis dos filmes), trata-o por \"senhor\"."
               if cfg.get("estilo") == "mordomo" else "Estilo descontraído e jovem.")
     sistema = ("Estás a ver uma foto tirada agora pela câmara do tablet do quarto de um rapaz de 13 anos, em Portugal. "
@@ -441,8 +478,7 @@ def gerar_perguntas(cfg, tipo, disciplina="", materia_txt="", n=6):
                "uma só certa ('certa' é o índice 0 a 3, varia a posição), e uma explicação de uma frase. "
                "Pergunta só factos bem estabelecidos de que tens a certeza; nada que mude com o tempo (resultados, recordes recentes, "
                "quem é o atual...). Se a matéria for vaga, fica pelo que é básico e certo.")
-    modelo = cfg.get("ia_modelo", MODELO_PADRAO)
-    modelo = modelo if modelo in {m for m, _ in MODELOS} else MODELO_PADRAO
+    modelo = modelo_(cfg, "revisao" if tipo == "revisao" else "voz")
     params = dict(model=modelo, max_tokens=6000, system=sistema, output_config={"effort": "low", "format": {"type": "json_schema", "schema": ESQUEMA_PERGUNTAS}},
                   messages=[{"role": "user", "content": pedido}])
     if modelo != "claude-haiku-5-5":
@@ -474,6 +510,90 @@ def gerar_perguntas(cfg, tipo, disciplina="", materia_txt="", n=6):
     return {"perguntas": ok[:n]} if ok else {"erro": "As perguntas vieram mal feitas. Tenta outra vez."}
 
 
+CONVERSA_SISTEMA = """És o {nome_assistente}, o assistente pessoal de um rapaz de 13 anos em Portugal, no 8.º ano. Isto é a Conversa: um chat ESCRITO (não é voz), por isso podes dar respostas completas e organizadas, com títulos curtos, listas e passos em Markdown simples. Português de Portugal, sempre.
+{estilo}
+
+Escola:
+- Ajuda-o a PERCEBER. Explica passo a passo, com exemplos do dia a dia.
+- Num exercício ou TPC, mostra o raciocínio e confirma que ele percebeu; não entregues só a resposta final para copiar. No fim, propõe um exercício parecido para ele treinar.
+- Numa foto de um exercício, diz primeiro o que vês, para ele confirmar que leste bem.
+
+A loja dele (dropshipping, supervisionada pelos pais):
+- Ajuda com ideias de vídeos, legendas, descrições de produtos e a ler os números.
+- Sê honesto sobre o que não está a funcionar. Nada de promessas de dinheiro fácil; cumpre as regras das plataformas e a lei.
+
+Projetos e programação:
+- Ele está a aprender. Quando pedir código, explica o que cada parte faz e porquê. Se ele quiser aprender a fazer sozinho, dá pistas em vez da solução.
+
+A vida dele:
+- Para agenda, testes, tarefas, alarmes, notas e música usa a ferramenta `central`. Nunca inventes datas nem horários.
+
+{internet}
+
+Se não souberes ou não tiveres a certeza, diz. Em saúde, perigo ou algo que o preocupe a sério: um conselho simples e que fale com os pais ou outro adulto de confiança.{sobre_ele}"""
+
+
+def conversar(db, cfg, cid, texto, foto=None, privado_ok=True):
+    """uma mensagem na Conversa. foto = (tipo, base64) ou None. Devolve {resposta, custo, comandos} ou {erro}"""
+    import conversa
+    if not disponivel():
+        return {"erro": "Para a Conversa é preciso o Claude ligado (definições do Claude)."}
+    if not _contar(cfg):
+        return {"erro": f"Hoje já chegaste ao limite de {cfg.get('ia_limite', 100)} pedidos ao Claude. Amanhã há mais."}
+    with db() as con:
+        c = con.execute("SELECT * FROM conversas WHERE id = ?", (cid,)).fetchone()
+        if not c:
+            return {"erro": "Essa conversa já não existe."}
+        hist = conversa.historico(con, cid)
+    modelo = c["modelo"] if c["modelo"] in {m for m, _ in MODELOS} else modelo_(cfg, "conversa")
+    nome = cfg.get("nome", "")
+    mudou = {"v": False, "privado": False, "comandos": []}
+    sistema = CONVERSA_SISTEMA.format(
+        nome_assistente=cfg.get("palavra_ativacao") or "Jarvis",
+        sobre_ele=(f" Ele chama-se {nome}." if nome else "") + (_memoria(db) if privado_ok else ""),
+        internet=INTERNET_LIGADA if cfg.get("ia_pesquisa", PESQUISA_PADRAO) in ("1", "3") else INTERNET_DESLIGADA,
+        estilo=("Fala como um mordomo britânico elegante (o Jarvis dos filmes), trata-o por \"senhor\", com humor subtil."
+                if cfg.get("estilo") == "mordomo" else "Tom descontraído, como um amigo mais velho que sabe muito."))
+    # a hora vai na mensagem nova, nao nas instrucoes: assim as instrucoes e a conversa antiga ficam iguais e entram na cache
+    agora = datetime.now()
+    dias = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+    linha_agora = f"(Agora: {dias[agora.weekday()]}, {agora.strftime('%d/%m/%Y %H:%M')})"
+    blocos = [{"type": "text", "text": linha_agora}]
+    if foto:
+        blocos.append({"type": "image", "source": {"type": "base64", "media_type": foto[0], "data": foto[1]}})
+    blocos.append({"type": "text", "text": texto or "(foto)"})   # igual ao conversa.historico, para a cache servir
+    mensagens = hist + [{"role": "user", "content": blocos}]
+
+    ferramentas = [_ferramenta_central(db, nome, privado_ok, mudou)]
+    pesq = cfg.get("ia_pesquisa", PESQUISA_PADRAO)
+    if pesq in ("1", "3"):
+        ferramentas.append({"type": "web_search_20250305" if modelo == "claude-haiku-5-5" else "web_search_20260209", "name": "web_search",
+                            "max_uses": int(pesq), "user_location": {"type": "approximate", "country": "PT", "timezone": "Europe/Lisbon"}})
+    params = dict(model=modelo, max_tokens=8000, system=sistema, tools=ferramentas, messages=mensagens, max_iterations=6,
+                  output_config={"effort": "high" if c["pensar"] else "medium"},
+                  cache_control={"type": "ephemeral"})   # cache: o que ja foi lido ha pouco paga-se a ~10%
+    if modelo != "claude-haiku-5-5":
+        params.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+    final, erro, custo = _correr(params, pesq, timeout=180)
+    if erro:
+        return {"erro": erro}
+    if final.stop_reason == "refusal":
+        return {"erro": "Com isso não te posso ajudar."}
+    if final.stop_reason == "pause_turn":   # a pesquisa nao acabou: nao guarda meia resposta
+        return {"erro": "A pesquisa demorou demasiado. Pergunta de forma mais curta ou desliga a pesquisa."}
+    resposta = "\n\n".join(b.text for b in final.content if b.type == "text").strip()
+    if final.stop_reason == "max_tokens":
+        resposta += "\n\n_(A resposta ficou cortada por ser muito longa. Pede-me para continuar.)_"
+    if not resposta:
+        return {"erro": "O Claude não respondeu nada. Tenta outra vez."}
+    with db() as con:
+        conversa.juntar(con, cid, "user", texto or "", foto[0] if foto else None, foto[1] if foto else None, agora=linha_agora)
+        conversa.juntar(con, cid, "assistant", resposta, custo=custo)
+        if not c["titulo"]:
+            conversa.atualizar(con, cid, titulo=(texto or "Foto")[:60])
+    return {"resposta": resposta, "custo": round(custo, 4), "comandos": mudou["comandos"], "mudou": mudou["v"]}
+
+
 def resumir(texto, cfg):
     """resume/traduz um texto curto (ex.: titulos de noticias em ingles) para ser dito em voz alta. Devolve texto ou None."""
     if not _contar(cfg):          # os resumos tambem contam para o limite diario
@@ -481,8 +601,7 @@ def resumir(texto, cfg):
     try:
         import anthropic
         estilo = "como um mordomo britânico elegante, tratando-o por senhor" if cfg.get("estilo") == "mordomo" else "num tom descontraído e jovem"
-        modelo = cfg.get("ia_modelo", MODELO_PADRAO)
-        params = dict(model=modelo if modelo in {m for m, _ in MODELOS} else MODELO_PADRAO, max_tokens=3000, output_config={"effort": "low"},
+        params = dict(model=modelo_(cfg, "voz"), max_tokens=3000, output_config={"effort": "low"},
                       system=f"Resume em português de Portugal, {estilo}, em 2 a 4 frases curtas para ler em voz alta. Sem listas nem markdown. Usa SÓ a informação que está no texto: não acrescentes factos, números, nomes nem explicações que lá não estejam. Diz de que fonte vêm as notícias.",
                       messages=[{"role": "user", "content": texto[:4000]}])
         if params["model"] != "claude-haiku-5-5":

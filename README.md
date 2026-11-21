@@ -212,6 +212,22 @@ Para ligar (uma vez):
 
 A ligação fica em `spotify_token.json` (fora do GitHub). Não é preciso nenhum segredo: usa o método PKCE.
 
+## Que IA em cada serviço (para gastar pouco)
+
+| Serviço | Modelo | Como se paga |
+|---|---|---|
+| Voz do Jarvis, fotos pela câmara, resumos de notícias, jogo do modo amigos | Haiku 5.5 | Chave da API (cêntimos por mês) |
+| **Conversa** (o chat completo, no telemóvel, no PC e no tablet) | Sonnet 5.5, e Opus 5.5 num toque para coisas difíceis ou código | Chave da API, com cache: o que já foi lido há pouco paga ~10% |
+| Perguntas de revisão para os testes | Sonnet 5.5 | Chave da API |
+| Rascunhos para as redes da loja | Sonnet 5.5, em lote (Batch API) | Chave da API, a **metade do preço** (prontos em até 24 h) |
+| Claude Code (programar os teus projetos, no PC servidor) | o que escolheres no Claude Code | **Subscrição do Claude** (não a chave da API: programar gasta muitos tokens) |
+
+Os modelos mudam-se nas definições do Claude, um por serviço. Tudo o que as regras da central percebem é grátis.
+
+## A Conversa
+
+Um chat como a app do Claude, mas que conhece a tua central (agenda, testes, tarefas, memória) e pode marcar coisas. Conversas guardadas, fotos (por exemplo de um exercício), pesquisa na web e "pensar mais". Abre-se no botão **Conversa** do assistente, no Iron Man (Sistemas), por voz ("Jarvis, vamos conversar") ou com `#conversa` no fim do endereço. No telemóvel, adiciona a central ao ecrã principal: o ícone tem um atalho para a Conversa. Pede o PIN e fecha no modo amigos.
+
 ## Relógio do Jarvis (para a placa ESP32)
 
 `GET /api/relogio` devolve um resumo curto em JSON (hora, próximo teste, o que falta hoje, tarefas, alarme, estudo da semana, uma sugestão). Com o PIN ligado, o relógio entra com uma chave de aparelho no cabeçalho `X-Chave` (cria-a em Iron Man > Segurança). No modo amigos só devolve a hora.

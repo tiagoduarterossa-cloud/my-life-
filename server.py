@@ -22,6 +22,8 @@ import assistente
 import avisos
 import backups
 import casa
+import conteudos
+import conversa
 import dispositivos
 import familia
 import ia
@@ -146,6 +148,9 @@ def init_db():
         con.executescript(memoria.TABELAS)
         con.executescript(plano.TABELAS)
         con.executescript(teams.TABELAS)
+        con.executescript(conversa.TABELAS)
+        conversa.migrar(con)
+        con.executescript(conteudos.TABELAS)
         rotinas.criar_padrao(con)
         tarefas_da_central(con)
         if not con.execute("SELECT 1 FROM config WHERE chave = 'ia_haiku_feito'").fetchone():
@@ -451,7 +456,7 @@ def criar_teste(d):
 
 CHAVES_CONFIG = {"cidade", "lat", "lon", "ecra_inicio", "ecra_fim", "tema", "repouso", "nome",
                  "voz_motor", "voz_neural", "voz_rate", "voz_pitch", "tomada_ip",
-                 "ia_modelo", "ia_limite", "ia_pesquisa", "proativo", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
+                 "ia_modelo", "ia_modelo_conversa", "ia_modelo_revisao", "ia_modelo_conteudos", "conteudos", "ia_limite", "ia_pesquisa", "proativo", "palavra_ativacao", "spotify_client", "estilo", "wled_ip"}
 TEMAS = {"roxo", "azul", "ciano", "verde", "sol", "vermelho", "aurora", "ceu"}
 
 
@@ -477,8 +482,10 @@ def gravar_config(d):
             raise Erro("estilo desconhecido")
         if k == "spotify_client" and not re.fullmatch(r"[0-9a-f]{32}", v):
             raise Erro("o Client ID do Spotify tem 32 letras e numeros (0-9, a-f)")
-        if k == "ia_modelo" and v not in {m for m, _ in ia.MODELOS}:
+        if k.startswith("ia_modelo") and v not in {m for m, _ in ia.MODELOS}:
             raise Erro("modelo desconhecido")
+        if k == "conteudos" and v not in ("0", "1"):
+            raise Erro("os rascunhos automaticos sao 0 ou 1")
         if k == "proativo" and v not in ("0", "1"):
             raise Erro("o Jarvis proativo e 0 ou 1")
         if k == "ia_pesquisa" and v not in {p for p, _ in ia.PESQUISA}:
@@ -533,7 +540,7 @@ TIPOS = {".html": "text/html", ".js": "text/javascript", ".css": "text/css",
 _servicos_cache = None
 
 # o que e privado: so com PIN (tambem no proprio tablet)
-PRIVADOS = ("/api/teams", "/api/memoria", "/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
+PRIVADOS = ("/api/conteudos", "/api/conversas", "/api/teams", "/api/memoria", "/api/aprender", "/api/familia", "/api/viagens", "/api/mapa", "/api/loja", "/api/despesas", "/api/seguranca", "/api/rede", "/api/ia/chave",
             "/api/pin/sessoes", "/api/pin/chave", "/api/pin/remover")
 ABERTOS = ("/api/pin/estado", "/api/pin/entrar", "/api/pin/sair")
 
@@ -560,9 +567,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(dados)
 
-    def corpo_json(self):
+    def corpo_json(self, maximo=10_000):
         n = int(self.headers.get("Content-Length") or 0)
-        if n > 10_000:
+        if n > maximo:
             raise Erro("pedido demasiado grande")
         try:
             return json.loads(self.rfile.read(n) or b"{}")
@@ -719,6 +726,71 @@ class Handler(BaseHTTPRequestHandler):
                 with db() as con:
                     aprender.apagar_tudo(con)
                 return self.enviar(200, {"ok": True})
+            # ----- a Conversa (o chat completo; privado: PIN) -----
+            if caminho.startswith("/api/conversas") and modos.amigos():
+                raise Erro("no modo amigos a Conversa fica fechada")
+            if caminho == "/api/conversas":
+                with db() as con:
+                    if metodo == "GET":
+                        return self.enviar(200, conversa.listar(con))
+                    if metodo == "POST":
+                        mod = str(self.corpo_json().get("modelo") or "") or None
+                        if mod and mod not in {m for m, _ in ia.MODELOS}:
+                            raise Erro("modelo desconhecido")
+                        return self.enviar(201, {"id": conversa.criar(con, mod)})
+            m = re.fullmatch(r"/api/conversas/(\d+)(/mensagem)?", caminho)
+            if m:
+                cid = int(m[1])
+                with db() as con:
+                    if not con.execute("SELECT 1 FROM conversas WHERE id = ?", (cid,)).fetchone():
+                        return self.enviar(404, {"erro": "essa conversa já não existe"})
+                if m[2] and metodo == "POST":
+                    d = self.corpo_json(maximo=8_000_000)   # uma foto ja reduzida tem centenas de KB
+                    txt = str(d.get("texto") or "").strip()[:8000]
+                    foto = conversa.ler_foto(d.get("foto"))
+                    if not txt and not foto[0]:
+                        raise Erro("escreve uma mensagem ou junta uma foto")
+                    r = ia.conversar(db, ler_config(), cid, txt, foto if foto[0] else None, privado_ok=True)
+                    if r.get("comandos"):
+                        # o que mexe no ecra (modos, alarmes...) vai so pela fila do tablet; na resposta nao, senao corria duas vezes
+                        rotinas._por_na_fila(r.pop("comandos"))
+                    return self.enviar(200 if "resposta" in r else 502, r)
+                with db() as con:
+                    if metodo == "GET":
+                        c = conversa.obter(con, cid)
+                        return self.enviar(200, c) if c else self.enviar(404, {"erro": "essa conversa já não existe"})
+                    if metodo == "POST":
+                        d = self.corpo_json()
+                        mod = d.get("modelo")
+                        if mod and mod not in {x for x, _ in ia.MODELOS}:
+                            raise Erro("modelo desconhecido")
+                        conversa.atualizar(con, cid, **({"modelo": mod or None} if "modelo" in d else {}),
+                                           **({"pensar": 1 if d["pensar"] else 0} if "pensar" in d else {}),
+                                           **({"titulo": str(d["titulo"] or "").strip()[:80]} if "titulo" in d else {}))
+                        return self.enviar(200, {"ok": True})
+                    if metodo == "DELETE":
+                        conversa.apagar(con, cid)
+                        return self.enviar(200, {"ok": True})
+            m = re.fullmatch(r"/api/conversas/foto/(\d+)", caminho)
+            if m and metodo == "GET":
+                with db() as con:
+                    f = conversa.imagem(con, int(m[1]))
+                if not f:
+                    return self.enviar(404, {"erro": "sem foto"})
+                return self.enviar(200, f[1], f[0])
+
+            # ----- rascunhos da loja (Batch API, metade do preco) -----
+            if caminho == "/api/conteudos":
+                with db() as con:
+                    if metodo == "GET":
+                        return self.enviar(200, dict(conteudos.listar(con), automatico=ler_config().get("conteudos") != "0"))
+                    if metodo == "POST":
+                        try:
+                            lid = conteudos.pedir(con, ler_config(), str(self.corpo_json().get("tema") or ""))
+                        except ValueError as e:
+                            raise Erro(str(e))
+                        return self.enviar(201, {"id": lid})
+
             if caminho == "/api/relogio" and metodo == "GET":   # o relogio do Jarvis (entra com uma chave de aparelho: X-Chave)
                 return self.enviar(200, resumo_relogio())
             if caminho == "/api/teams" and metodo == "GET":   # as ultimas notificacoes do Teams, para ver o formato real
@@ -1368,6 +1440,8 @@ if __name__ == "__main__":
     proativo.vigiar(db, rotinas.ecra_ativo, rotinas._por_na_fila)
     # trabalhos do Teams: pelas notificacoes do Android (Termux:API), viram tarefas sozinhos
     teams.vigiar(db, lambda t: rotinas._por_na_fila([{"acao": "aviso", "texto": t}]) if rotinas.ecra_ativo() and not modos.amigos() else None)
+    # rascunhos da loja: ao domingo a noite, em lote (metade do preco)
+    conteudos.vigiar(db, ler_config, lambda t: rotinas._por_na_fila([{"acao": "aviso", "texto": t}]) if rotinas.ecra_ativo() and not modos.amigos() else None)
     backups.vigiar(DB_PATH)   # uma copia verificada por dia em backups/ (e no armazenamento do tablet, se houver)
     # perigos perto da casa da familia (incendios, avisos laranja/vermelho, sismos)
     familia.vigiar(db, aviso_familia)

@@ -1070,6 +1070,14 @@
    "campos": {
     "data": "2026-11-20"
    }
+  },
+  {
+   "frase": "vamos conversar",
+   "intencao": "conversa_abrir"
+  },
+  {
+   "frase": "abre a conversa",
+   "intencao": "conversa_abrir"
   }
  ]
 }
