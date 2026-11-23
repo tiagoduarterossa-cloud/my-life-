@@ -178,7 +178,8 @@
   .interruptor input { width: 24px; height: 24px; }
   #escuta { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 46;
             display: none; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
-            background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); pointer-events: none; }
+            background: rgba(0,0,0,.45); color: #fff; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); cursor: pointer; }
+  body:has(#hud.ver) #escuta { z-index: 49; top: calc(60px + env(safe-area-inset-top)); }   /* por cima do Jarvis e do Iron Man, sem tapar a barra */
   #escuta.ver { display: flex; }
   #escuta i { width: 9px; height: 9px; border-radius: 50%; background: var(--acento); animation: pulsar 1.6s ease-in-out infinite; }
   #escuta.ativo i { background: #ff375f; animation-duration: .6s; }
@@ -1049,6 +1050,15 @@
 
 <div id="modo" role="dialog" aria-label="Modo do Jarvis"><button class="m-sair" id="m-sair">Sair</button><div id="m-corpo" style="display:contents"></div></div>
 
+<dialog id="d-voz-diag">
+  <h3>Diagnóstico da voz</h3>
+  <div class="vazio" style="font-size:14px">Se o Jarvis não te ouvir, tira uma foto a este ecrã. Diz onde a escuta está presa.</div>
+  <ul id="vd-estado"></ul>
+  <label>Últimos acontecimentos do microfone</label>
+  <div id="vd-log" style="font:12px/1.5 ui-monospace,Menlo,monospace;max-height:220px;overflow:auto;background:var(--campo);padding:8px 10px;border-radius:10px"></div>
+  <div class="botoes"><button type="button" class="principal" id="vd-retomar">Voltar a ouvir</button><button type="button" class="secundario" onclick="this.closest('dialog').close()">Fechar</button></div>
+</dialog>
+
 <dialog id="d-aprender">
   <h3>O que o Jarvis anda a aprender</h3>
   <div id="apr-propostas"></div>
@@ -1206,6 +1216,7 @@
     <div class="botoes"><button type="button" class="secundario" id="cfg-ensinar">Ensinar a palavra</button></div>
     <div class="vazio" id="cfg-alternativas" style="font-size:13px"></div>
     <label class="interruptor"><input type="checkbox" id="cfg-ouvir"> Ficar à escuta da palavra de ativação</label>
+    <button type="button" class="secundario" id="cfg-voz-diag">Diagnóstico da voz</button>
     <label class="interruptor"><input type="checkbox" id="cfg-proativo"> O Jarvis pode falar primeiro (testes perto, prazos, treino; no máximo 2 vezes por dia, das 17h às 20h30)</label>
     <label class="interruptor"><input type="checkbox" id="cfg-trinco"> Primeiro tenho de dizer «escuta» (só depois aceita a palavra, durante 15 s)</label>
     <div class="vazio" style="font-size:13px">Só funciona no próprio tablet (em 127.0.0.1) e com o ecrã ligado. Enquanto estiver à escuta, o som do microfone vai para o reconhecimento de voz da Google.</div>
@@ -2608,6 +2619,23 @@ function acharUma(frase, alvo) {
   return null;
 }
 let escuta = null, aEscutar = false, aEsperarComando = 0, micOcupado = false, trincoAte = 0;
+// diagnostico: os ultimos acontecimentos do microfone (so em memoria, neste ecra)
+const vozLog = [];
+function vlog(t) { vozLog.push(`${new Date().toTimeString().slice(0, 8)}  ${t}`); vozLog.splice(0, vozLog.length - 30); if ($("#d-voz-diag")?.open) desenharVozDiag(); }
+// porque e que o microfone nao esta a ouvir agora (pela mesma ordem do retomarEscuta)
+function motivoSemEscuta() {
+  if (!Reconhecer) return "Este browser não tem reconhecimento de voz (usa o Chrome).";
+  if (!window.isSecureContext) return `A central está aberta em ${location.host}: o Chrome só deixa ouvir em http://127.0.0.1:8080, no próprio tablet.`;
+  if (!vozCfg.ouvir || !aEscutar) return "A escuta está desligada (botão da orelha no canto de cima, ou nas definições).";
+  if (aFalar) return "O Jarvis está a falar (ou ficou preso a falar).";
+  if (aEnsinar) return "Está a ensinar a palavra de ativação.";
+  if (micOcupado) return "O microfone está ocupado pelo botão de falar do chat.";
+  if (document.visibilityState !== "visible") return "O ecrã não está visível.";
+  if (Date.now() < pausaEscutaAte) return `Em pausa (não incomodar, da rotina Modo estudo) até às ${new Date(pausaEscutaAte).toTimeString().slice(0, 5)}.`;
+  if (dentroDoHorario() === false) return `Fora das horas do ecrã (${config.ecra_inicio}–${config.ecra_fim}, nas definições): não ouve.`;
+  if (!navigator.onLine) return "Sem internet: o reconhecimento de voz do Chrome precisa de internet.";
+  return null;
+}
 const armado = () => vozCfg.trinco === false || Date.now() < trincoAte || aEsperarComando > Date.now() || $("#hud")?.classList.contains("ver");
 const nomeEspera = () => armado() ? `Diz "${vozCfg.palavra}"` : `Diz "escuta"`;
 function bipTrinco() {
@@ -2728,6 +2756,7 @@ function tratarOuvido(alts) {
   }
 }
 function retomarEscuta() {
+  if (!escuta) { const m = motivoSemEscuta(); if (m !== retomarEscuta.ultimo) { retomarEscuta.ultimo = m; if (m) vlog("não ouve: " + m); } }
   if (!aEscutar || aFalar || aEnsinar || micOcupado || escuta || document.visibilityState !== "visible") return;
   if (Date.now() < pausaEscutaAte) { // modo estudo: nao incomodar
     estadoEscuta(`Em pausa até às ${new Date(pausaEscutaAte).toTimeString().slice(0, 5)}`); return; }
@@ -2750,19 +2779,49 @@ function retomarEscuta() {
       return;
     }
     r.parcial = null; r.viuNome = false;
+    vlog(`ouviu: "${alts[0].slice(0, 60)}"`);
     tratarOuvido(alts);
   };
   r.onerror = ev => {
+    if (ev.error !== "no-speech" && ev.error !== "aborted") vlog("erro do microfone: " + ev.error);
     if (ev.error && !["no-speech", "aborted"].includes(ev.error)) estadoEscuta(`Microfone: ${ev.error}`);
     if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
-    aviso("O tablet não deu acesso ao microfone."); vozCfg.ouvir = false; guardar("voz", vozCfg); $("#cfg-ouvir").checked = false; pararEscuta(true); } };
+    aviso("O Chrome não deu acesso ao microfone. Toca no cadeado ao lado do endereço > Permissões > Microfone > Permitir, e depois no Diagnóstico da voz > Voltar a ouvir."); vozCfg.ouvir = false; guardar("voz", vozCfg); $("#cfg-ouvir").checked = false; pararEscuta(true); } };
   r.onend = () => {
     if (escuta === r) escuta = null;
     if (r.parcial && !r.abortado && aEscutar && !aFalar) { const p = r.parcial; r.parcial = null; tratarOuvido(p); }   // o Android fechou sem resultado final
     setTimeout(retomarEscuta, 150);
   };
-  try { r.start(); } catch (e) { escuta = null; }
+  try { r.start(); r.vezes = (retomarEscuta.vezes = (retomarEscuta.vezes || 0) + 1); if (retomarEscuta.ultimo !== "a ouvir") { retomarEscuta.ultimo = "a ouvir"; vlog("microfone ligado"); } }
+  catch (e) { escuta = null; vlog("o microfone não arrancou: " + e.message); }
 }
+function desenharVozDiag() {
+  const ok = v => v ? "✅" : "❌", m = motivoSemEscuta();
+  const linhas = [
+    [ok(Reconhecer), "Reconhecimento de voz do Chrome"],
+    [ok(window.isSecureContext), `Endereço: ${location.host}${window.isSecureContext ? "" : " (tem de ser 127.0.0.1:8080)"}`],
+    [ok(vozCfg.ouvir && aEscutar), "Escuta ligada"],
+    [ok(!!escuta), escuta ? "Microfone a ouvir agora" : "Microfone parado"],
+    [ok(!(Date.now() < pausaEscutaAte)), Date.now() < pausaEscutaAte ? `Em pausa até às ${new Date(pausaEscutaAte).toTimeString().slice(0, 5)}` : "Sem pausa"],
+    [ok(dentroDoHorario() !== false), "Dentro das horas do ecrã"],
+    [ok(navigator.onLine), "Internet"],
+    [ok(!aFalar), aFalar ? "A falar" : "Não está a falar"],
+    ["ℹ️", `Trinco: ${vozCfg.trinco === false ? "desligado (basta dizer o nome)" : armado() ? "aberto" : 'fechado (diz "escuta" primeiro)'} · palavra: ${esc(vozCfg.palavra)} · voz: ${vozCfg.motor}`],
+    ["ℹ️", `O microfone arrancou ${retomarEscuta.vezes || 0} vezes desde que abriste a central`],
+  ];
+  $("#vd-estado").innerHTML = (m ? `<li style="display:block;color:var(--perigo)"><b>Porque não ouve:</b> ${esc(m)}</li>` : "") +
+    linhas.map(([e, t]) => `<li style="display:block">${e} ${t}</li>`).join("");
+  $("#vd-log").innerHTML = vozLog.slice().reverse().map(esc).join("<br>") || "Ainda nada.";
+}
+function abrirVozDiag() { $("#d-voz-diag").showModal(); desenharVozDiag(); clearInterval(abrirVozDiag.t); abrirVozDiag.t = setInterval(() => { if ($("#d-voz-diag").open) desenharVozDiag(); else clearInterval(abrirVozDiag.t); }, 1000); }
+$("#vd-retomar").onclick = () => {   // destrava tudo o que pode estar a prender a escuta
+  pausaEscutaAte = 0; aFalar = false; micOcupado = false; aEnsinar = false;
+  vozCfg.ouvir = true; guardar("voz", vozCfg); $("#cfg-ouvir").checked = true; mostrarBotEscuta();
+  pararEscuta(); vlog("voltar a ouvir (botão do diagnóstico)"); iniciarEscuta(true); desenharVozDiag();
+};
+$("#cfg-voz-diag").onclick = abrirVozDiag;
+$("#escuta").onclick = abrirVozDiag;
+if (location.hash === "#voz") setTimeout(abrirVozDiag, 800);
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" ? retomarEscuta() : pararEscuta());
 // vigia: se por algum motivo o microfone ficou desligado sem querer, volta a liga-lo
 let aFalarDesde = 0;
