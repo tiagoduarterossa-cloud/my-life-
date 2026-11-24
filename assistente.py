@@ -221,6 +221,11 @@ def entender(texto, hoje=None):
     if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|o que (e que )?aprendeste|aprendizagem do jarvis)\b", s):
         return "aprender_ver", {}
 
+    import organizar
+    if organizar.desfazer_pedido(s):
+        return "organizar_desfazer", {}
+    if organizar.pedido(s):
+        return "organizar_dia", {}
     # o PC (pc.py): reconhecimento da cara e abrir programas e sites
     if re.search(r"\b(aprende|aprender|regista|registar|guarda|grava|memoriza|conhece)\b.*\b(minha cara|meu rosto|minha face)\b", s):
         return "rosto", {"acao": "aprender"}
@@ -1160,6 +1165,10 @@ def _responder(texto, con, hoje=None, nome=""):
         if d["abrir"]:
             return {"resposta": "Ao teu dispor.", "falado": ya(["Ao teu dispor.", "Estou aqui."]), "hud": True}
         return {"resposta": "Até já.", "falado": ya(["Até já.", "Fui."]), "hud": False}
+
+    if intencao in ("organizar_dia", "organizar_desfazer"):
+        import organizar
+        return organizar.propor(con) if intencao == "organizar_dia" else organizar.desfazer(con)
 
     if intencao == "pc_abrir":
         # quem abre e o servidor (server.py), so se o pedido vier do proprio PC

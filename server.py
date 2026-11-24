@@ -33,6 +33,7 @@ import loja
 import memoria
 import modos
 import noticias
+import organizar
 import pc
 import pin
 import plano
@@ -680,6 +681,12 @@ class Handler(BaseHTTPRequestHandler):
                         return self.enviar(200, {"resposta": f, "falado": f})
                     frase = nota_d["texto"]          # a correcao: responde ao que querias de facto
 
+                # "sim" / "nao" a proposta do "organiza o meu dia" (so conta se houver uma a espera)
+                if not em_amigos:
+                    with db() as con:
+                        rp = organizar.responder_proposta(con, frase)
+                    if rp:
+                        return fim(rp, "regras", "organizar_resposta")
                 direto = ia.forcar(frase)  # "Claude, ..." vai direto para a IA
                 if direto and ia.disponivel():
                     return fim(responder_ia(direto, privado_ok), "claude", "claude_direto")

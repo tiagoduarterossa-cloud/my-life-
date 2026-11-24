@@ -1150,6 +1150,27 @@
    "campos": {
     "acao": "reconhecer"
    }
+  },
+  {
+   "frase": "Jarvis, organiza o meu dia",
+   "intencao": "organizar_dia"
+  },
+  {
+   "frase": "organiza-me a tarde",
+   "intencao": "organizar_dia"
+  },
+  {
+   "frase": "faz-me um plano para hoje",
+   "intencao": "organizar_dia"
+  },
+  {
+   "frase": "desfaz o plano do dia",
+   "intencao": "organizar_desfazer"
+  },
+  {
+   "frase": "faz-me um plano de estudo para matemática",
+   "intencao": "plano_estudo",
+   "nota": "o plano de estudo continua separado do organizar o dia"
   }
  ]
 }
