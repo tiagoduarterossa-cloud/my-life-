@@ -3470,6 +3470,14 @@ async function assinatura(v) {
   const d = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
   return d ? Array.from(d.descriptor) : null;
 }
+// a tampa da camara fechada (ou a camara as escuras) da imagens quase pretas: avisa em vez de dizer so "nao te vi"
+function camaraTapada(v) {
+  const c = document.createElement("canvas"); c.width = 32; c.height = 24;
+  const g = c.getContext("2d"); g.drawImage(v, 0, 0, 32, 24);
+  const d = g.getImageData(0, 0, 32, 24).data; let soma = 0;
+  for (let i = 0; i < d.length; i += 4) soma += d[i] + d[i + 1] + d[i + 2];
+  return soma / (d.length / 4) / 3 < 18;
+}
 const caraGuardada = () => ler("rosto");   // [[128 numeros], ...]
 async function aprenderCara() {
   abrirHUD("ver"); hudTexto("", "A carregar o reconhecimento…");
@@ -3482,7 +3490,9 @@ async function aprenderCara() {
     const a = await assinatura(v);
     if (a) { amostras.push(a); hudLog(`amostra ${amostras.length} da cara`); await esperar(700); } else await esperar(250);
   }
+  const tapada = amostras.length < 3 && camaraTapada(v);
   pararCamara();
+  if (tapada) { const f = "A câmara está tapada ou às escuras. Abre a tampa da câmara e tenta outra vez."; hudTexto("", f); hudEstado("espera"); return falar(f); }
   if (amostras.length < 3) { hudTexto("", "Não te vi bem. Põe mais luz na cara e tenta outra vez."); hudEstado("espera"); return falar("Não te vi bem. Põe mais luz na cara e tenta outra vez."); }
   guardar("rosto", amostras);
   const f = `Pronto${config.nome ? ", " + config.nome : ""}. Já te conheço. Quando abrires o Jarvis neste PC, eu reconheço-te.`;
@@ -3504,6 +3514,7 @@ async function reconhecerCara(tempo = 10000, avisar = true) {
     }
     await esperar(200);
   }
+  if (melhor === 9 && camaraTapada(v)) hudLog("a câmara parece tapada");
   pararCamara();
   const ok = melhor < 0.45;
   hudLog(ok ? `identidade confirmada (distância ${melhor.toFixed(2)})` : "identidade não confirmada");
