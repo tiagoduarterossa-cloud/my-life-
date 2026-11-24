@@ -221,6 +221,31 @@ def entender(texto, hoje=None):
     if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|o que (e que )?aprendeste|aprendizagem do jarvis)\b", s):
         return "aprender_ver", {}
 
+    # o PC (pc.py): reconhecimento da cara e abrir programas e sites
+    if re.search(r"\b(aprende|aprender|regista|registar|guarda|grava|memoriza|conhece)\b.*\b(minha cara|meu rosto|minha face)\b", s):
+        return "rosto", {"acao": "aprender"}
+    if re.search(r"\b(esquece|apaga|apagar|esquecer|tira)\b.*\b(minha cara|meu rosto|minha face)\b", s):
+        return "rosto", {"acao": "esquecer"}
+    if re.search(r"\b(reconhece-me|reconhece me|reconhecimento facial|ve se sou eu|faz o scan|scan facial)\b", s):
+        return "rosto", {"acao": "reconhecer"}
+    import pc
+    ss = s.strip(" .!?")
+    orig = t.strip(" .!?") if len(t.strip(" .!?")) == len(ss) else ss      # o mesmo texto com acentos, para pesquisar
+    lugares = "youtube|google maps|google|spotify|wikipedia|maps|amazon"
+    m = re.fullmatch(rf"(?:pesquisa|procura|pesquisar|procurar|mete|poe|busca)(?: me| -me)? (.+?) (?:no|na|em) ({lugares})", ss) \
+        or re.fullmatch(rf"(?:pesquisa|procura|pesquisar|procurar|busca)(?: me| -me)? (?:no|na|em) ({lugares}) (?:por )?(.+)", ss)
+    if m:
+        termo, onde = (m[1], m[2]) if m.re.pattern.startswith("(?:pesquisa|procura|pesquisar|procurar|mete") else (m[2], m[1])
+        i = ss.find(termo)
+        alvo = pc.pesquisa_de(onde, orig[i:i + len(termo)] if i >= 0 else termo)
+        if alvo:
+            return "pc_abrir", {"nome": alvo[0], "url": alvo[1], "pesquisa": True}
+    m = re.fullmatch(r"(?:abre|abrir|abre-me|abre me|abra|abres|lanca|inicia|arranca)\s+(.+)", ss)
+    if m:
+        alvo = pc.alvo_de(m[1])
+        if alvo:
+            return "pc_abrir", {"nome": alvo[0], "url": alvo[1]}
+
     if re.search(r"\b(pausa|para|parar|pausar|stop)\b.*\b(musica|spotify|som)\b|^(pausa|stop)$", s):
         return "musica", {"o": "pausar"}
     if re.search(r"\b(proxima|seguinte|passa a frente|salta|skip)\b.*\b(musica|cancao|faixa)?|^(proxima|skip)$", s) and re.search(r"musica|cancao|faixa|^proxima$|^skip$|passa a frente|salta", s):
@@ -1135,6 +1160,16 @@ def _responder(texto, con, hoje=None, nome=""):
         if d["abrir"]:
             return {"resposta": "Ao teu dispor.", "falado": ya(["Ao teu dispor.", "Estou aqui."]), "hud": True}
         return {"resposta": "Até já.", "falado": ya(["Até já.", "Fui."]), "hud": False}
+
+    if intencao == "pc_abrir":
+        # quem abre e o servidor (server.py), so se o pedido vier do proprio PC
+        o = "Vou procurar no " if d.get("pesquisa") else "A abrir "
+        return {"resposta": f"{o}{d['nome']}.", "falado": ya([f"{o}{d['nome']}.", "Feito.", "Já está."]), "pc_abrir": d["url"]}
+
+    if intencao == "rosto":
+        f = {"aprender": "Olha para a câmara. Vou aprender a tua cara.", "esquecer": "Esqueci a tua cara neste PC.",
+             "reconhecer": "A analisar."}[d["acao"]]
+        return {"resposta": f, "falado": f, "rosto": d["acao"]}
 
     if intencao == "ver":
         # a central nao tem olhos: o ecra tira a foto e pergunta ao Claude

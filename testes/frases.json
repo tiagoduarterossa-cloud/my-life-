@@ -1078,6 +1078,78 @@
   {
    "frase": "abre a conversa",
    "intencao": "conversa_abrir"
+  },
+  {
+   "frase": "Jarvis, abre o YouTube",
+   "intencao": "pc_abrir",
+   "campos": {
+    "url": "https://www.youtube.com"
+   }
+  },
+  {
+   "frase": "abre o spotify",
+   "intencao": "pc_abrir",
+   "campos": {
+    "url": "spotify:"
+   }
+  },
+  {
+   "frase": "abre a calculadora",
+   "intencao": "pc_abrir"
+  },
+  {
+   "frase": "abre o site wikipedia.org",
+   "intencao": "pc_abrir",
+   "campos": {
+    "url": "https://wikipedia.org"
+   }
+  },
+  {
+   "frase": "pesquisa receitas de bolo no YouTube",
+   "intencao": "pc_abrir",
+   "campos": {
+    "url": "https://www.youtube.com/results?search_query=receitas%20de%20bolo"
+   }
+  },
+  {
+   "frase": "procura no google por preço do iPhone",
+   "intencao": "pc_abrir",
+   "nota": "o termo guarda os acentos"
+  },
+  {
+   "frase": "abre o mapa",
+   "intencao": "mapa",
+   "nota": "os ecras da central continuam primeiro que os programas do PC"
+  },
+  {
+   "frase": "abre a conversa",
+   "intencao": "conversa_abrir"
+  },
+  {
+   "frase": "liga a luz",
+   "intencao": "tomada",
+   "nota": "'liga' nao abre programas"
+  },
+  {
+   "frase": "Jarvis, aprende a minha cara",
+   "intencao": "rosto",
+   "campos": {
+    "acao": "aprender"
+   }
+  },
+  {
+   "frase": "esquece a minha cara",
+   "intencao": "rosto",
+   "campos": {
+    "acao": "esquecer"
+   }
+  },
+  {
+   "frase": "reconhece-me",
+   "intencao": "rosto",
+   "campos": {
+    "acao": "reconhecer"
+   }
   }
  ]
 }

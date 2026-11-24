@@ -33,6 +33,7 @@ import loja
 import memoria
 import modos
 import noticias
+import pc
 import pin
 import plano
 import proativo
@@ -718,6 +719,11 @@ class Handler(BaseHTTPRequestHandler):
                     resumo = ia.resumir(r["resumir"], ler_config())
                     if resumo:
                         r = dict(r, falado=resumo)
+                if r.get("pc_abrir"):   # "abre o YouTube": so no PC com Windows e so pedido do proprio PC
+                    url = r["pc_abrir"]; r = {k: v for k, v in r.items() if k != "pc_abrir"}
+                    ok, erro = pc.abrir(url) if local and not do_telemovel else (False, "Só abro coisas no PC quando o pedido é feito no próprio PC.")
+                    if not ok:
+                        r = {"resposta": erro, "falado": erro}
                 if do_telemovel and r.get("mudou"):
                     rotinas._por_na_fila([{"acao": "aviso", "texto": f"Do telemóvel: {r.get('resposta', '')}"}])
                 return fim(dict(r, falado=r.get("falado") or r.get("resposta", "")), "sem_resposta" if r is assistente.AJUDA else "regras", intencao)

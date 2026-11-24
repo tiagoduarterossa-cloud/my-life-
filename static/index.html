@@ -2711,6 +2711,14 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (r.servicos) abrirServicos();
     if (r.pessoa) abrirPessoa(r.pessoa);
     if (r.mudou) paineisIronMan.famT = 0;
+    if (r.rosto) {
+      if (r.rosto === "aprender") { await falar(r.falado); await aprenderCara(); }
+      else if (r.rosto === "esquecer") { guardar("rosto", null); hudTexto(texto, r.resposta); await falar(r.falado); }
+      else { const ok = await reconhecerCara(10000, true);
+        const f = ok ? `És tu${config.nome ? ", " + config.nome : ""}. Identidade confirmada.` : (caraGuardada()?.length ? "Não te reconheci." : "");
+        if (f) { hudEstado("falar"); hudTexto(texto, f); await falar(f); } hudEstado("ouvir"); }
+      return;
+    }
     if (r.ver) { await verComCamara(r.ver); if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); } return; }
     if (r.mudou) atualizar();
     if (r.musica) setTimeout(carregarSpotify, 800);
@@ -3280,7 +3288,7 @@ function holograma(ligar, vertical = false) {
 // no PC so com o Jarvis (?jarvis=1): o anel fica sempre aberto; "fechar" volta ao anel a espera
 const SO_JARVIS = new URLSearchParams(location.search).has("jarvis");
 if (SO_JARVIS) {
-  document.title = "Jarvis"; setTimeout(() => abrirHUD("espera"), 900);
+  document.title = "Jarvis"; setTimeout(() => { abrirHUD("espera"); if (caraGuardada()?.length && ler("rosto_auto") !== false) setTimeout(boasVindasRosto, 600); }, 900);
   // no PC tambem se escreve: qualquer letra abre a caixa; Enter manda; Esc fecha a caixa
   const cx = $("#hud-escrever");
   cx.onclick = e => e.stopPropagation();
@@ -3433,6 +3441,80 @@ async function verComCamara(pergunta) {
     const r = await api("/api/ia/ver", "POST", { pergunta, imagem: c.toDataURL("image/jpeg", 0.8) });
     hudEstado("falar"); hudTexto(pergunta, r.resposta); await falar(r.falado || r.resposta); hudEstado("espera");
   } catch (err) { hudTexto(pergunta, "Não consegui analisar."); }
+}
+
+// ---------- RECONHECIMENTO DA CARA (so no PC, so neste browser) ----------
+// A biblioteca face-api corre toda no browser. A "assinatura" da tua cara (128 numeros, nao e uma foto) fica so no
+// localStorage deste PC: nao vai para o servidor, nem para o GitHub, nem para a Anthropic. "Esquece a minha cara" apaga-a.
+// Uma foto tua engana isto: serve para te dar as boas-vindas e abrir o Iron Man, NAO substitui o PIN.
+const FACE = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15";
+let faceOk = null;
+async function carregarFace() {
+  if (faceOk) return faceOk;
+  faceOk = (async () => {
+    if (!window.faceapi) await new Promise((ok, falha) => { const sc = document.createElement("script"); sc.src = FACE + "/dist/face-api.js"; sc.onload = ok; sc.onerror = falha; document.head.appendChild(sc); });
+    await faceapi.nets.tinyFaceDetector.loadFromUri(FACE + "/model");
+    await faceapi.nets.faceLandmark68Net.loadFromUri(FACE + "/model");
+    await faceapi.nets.faceRecognitionNet.loadFromUri(FACE + "/model");
+    return true;
+  })().catch(e => { faceOk = null; throw e; });
+  return faceOk;
+}
+async function ligarCamaraRosto() {
+  fluxoCamara = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 } }, audio: false });
+  const v = $("#hud-video"); v.srcObject = fluxoCamara; await v.play().catch(() => {});
+  $("#hud").classList.add("camara");
+  return v;
+}
+async function assinatura(v) {
+  const d = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+  return d ? Array.from(d.descriptor) : null;
+}
+const caraGuardada = () => ler("rosto");   // [[128 numeros], ...]
+async function aprenderCara() {
+  abrirHUD("ver"); hudTexto("", "A carregar o reconhecimento…");
+  try { await carregarFace(); } catch (e) { hudTexto("", "Não consegui carregar o reconhecimento (precisa de internet na primeira vez)."); return; }
+  let v; try { v = await ligarCamaraRosto(); } catch (e) { hudTexto("", "Não tenho acesso à câmara."); return falar("Não tenho acesso à câmara. Dá autorização ao browser."); }
+  const amostras = [], fim = Date.now() + 15000;
+  const dicas = ["Olha de frente para a câmara.", "Vira um bocadinho a cabeça para a esquerda.", "Agora para a direita.", "Levanta um pouco o queixo.", "De frente outra vez."];
+  while (amostras.length < 5 && Date.now() < fim) {
+    hudTexto("", `${dicas[amostras.length]} (${amostras.length}/5)`);
+    const a = await assinatura(v);
+    if (a) { amostras.push(a); hudLog(`amostra ${amostras.length} da cara`); await esperar(700); } else await esperar(250);
+  }
+  pararCamara();
+  if (amostras.length < 3) { hudTexto("", "Não te vi bem. Põe mais luz na cara e tenta outra vez."); hudEstado("espera"); return falar("Não te vi bem. Põe mais luz na cara e tenta outra vez."); }
+  guardar("rosto", amostras);
+  const f = `Pronto${config.nome ? ", " + config.nome : ""}. Já te conheço. Quando abrires o Jarvis neste PC, eu reconheço-te.`;
+  hudEstado("falar"); hudTexto("", f); await falar(f); hudEstado("espera");
+}
+// devolve true se for a cara guardada. Para em "tempo" ms.
+async function reconhecerCara(tempo = 10000, avisar = true) {
+  const guardada = caraGuardada();
+  if (!guardada?.length) { if (avisar) { hudTexto("", 'Ainda não conheço a tua cara. Diz "Jarvis, aprende a minha cara".'); await falar("Ainda não conheço a tua cara. Diz: Jarvis, aprende a minha cara."); } return false; }
+  try { await carregarFace(); } catch (e) { hudLog("reconhecimento indisponível (sem internet?)"); return false; }
+  let v; try { v = await ligarCamaraRosto(); } catch (e) { hudLog("sem acesso à câmara"); return false; }
+  hudEstado("ver"); $("#hud-estado").textContent = "a analisar"; hudLog("reconhecimento facial: a analisar");
+  const fim = Date.now() + tempo; let melhor = 9;
+  while (Date.now() < fim && $("#hud").classList.contains("ver")) {
+    const a = await assinatura(v);
+    if (a) {
+      melhor = Math.min(melhor, ...guardada.map(g => faceapi.euclideanDistance(a, g)));
+      if (melhor < 0.45) break;          // 0.6 e o limite habitual; 0.45 e mais exigente (menos enganos)
+    }
+    await esperar(200);
+  }
+  pararCamara();
+  const ok = melhor < 0.45;
+  hudLog(ok ? `identidade confirmada (distância ${melhor.toFixed(2)})` : "identidade não confirmada");
+  return ok;
+}
+async function boasVindasRosto() {
+  if (await reconhecerCara(10000, false)) {
+    arranqueIronMan(); await esperar(1700);
+    const f = `Bem-vindo de volta${config.nome ? ", " + config.nome : ", senhor"}. Todos os sistemas estão operacionais.`;
+    hudEstado("falar"); hudTexto("", f); await falar(f); hudEstado("ouvir");
+  } else { hudEstado("espera"); hudTexto("", ""); }
 }
 
 // ---------- LOJA (Shopify) ----------
