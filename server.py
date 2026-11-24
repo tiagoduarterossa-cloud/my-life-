@@ -10,6 +10,7 @@ Abrir:   http://<ip-do-tablet>:8080
 """
 
 import json
+import threading
 import os
 import re
 import socket
@@ -1361,6 +1362,22 @@ def ip_local():
         s.close()
 
 
+def abrir_no_pc(o_que):
+    """abre o Chrome numa janela so dele, sem barra de endereco ("app"), em ecra inteiro.
+    o_que = "jarvis" abre so o ecra do Jarvis; outra coisa abre a central toda."""
+    import subprocess, webbrowser
+    url = f"http://127.0.0.1:{PORT}/" + ("?jarvis=1" if o_que == "jarvis" else "")
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+        chrome = os.path.join(base or "", "Google", "Chrome", "Application", "chrome.exe")
+        if base and os.path.exists(chrome):
+            try:
+                subprocess.Popen([chrome, f"--app={url}", "--start-fullscreen"])
+                return
+            except OSError:
+                pass
+    webbrowser.open(url)
+
+
 def bom_dia_falado():
     """o que o Rosserini diz enquanto o alarme toca. Se a rotina Bom dia estiver ligada, o resumo fica para
     quando parares o alarme; senao diz logo tudo."""
@@ -1465,4 +1482,7 @@ if __name__ == "__main__":
                                  None if rotinas.ecra_ativo() else falar_alarme(t)), ao_mudar=modo_apagao)
     print(f"A central esta a correr. Abre no telemovel: http://{ip_local()}:{PORT}")
     print("Para parar: Ctrl+C")
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    srv = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    if os.environ.get("VIDA_ABRIR"):   # no PC (iniciar_pc.bat): abre o Chrome so quando o servidor ja responde
+        threading.Timer(1.0, abrir_no_pc, args=(os.environ["VIDA_ABRIR"],)).start()
+    srv.serve_forever()

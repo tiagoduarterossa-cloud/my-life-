@@ -291,6 +291,8 @@
                opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; padding: 16px 20px 12px; border-radius: 14px;
                background: rgba(4, 22, 44, .82); border: 1px solid rgba(0, 200, 255, .45); box-shadow: 0 0 40px rgba(0, 160, 255, .25), inset 0 0 24px rgba(0, 160, 255, .12);
                backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-family: ui-monospace, Menlo, monospace; }
+  #hud-escrever { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: min(520px, calc(100% - 40px)); z-index: 4;
+                  background: rgba(4, 22, 44, .8); color: #e8f6ff; border: 1px solid rgba(0, 200, 255, .4); border-radius: 10px; padding: 10px 14px; font: 15px ui-monospace, Menlo, monospace; }
   #hud-brief.ver { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   #hud-brief .bt { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: rgb(var(--n2, 0, 200, 255)); text-align: center; margin-bottom: 8px; }
   #hud-brief ul { list-style: none; margin: 0; padding: 0; font-size: 15px; line-height: 1.45; }
@@ -914,6 +916,7 @@
   <div class="hud-canto" id="hud-tempo"></div>
   <div class="hud-canto" id="hud-agenda"></div>
   <div id="hud-brief" aria-live="polite"></div>
+  <input id="hud-escrever" type="text" autocomplete="off" placeholder="Escreve ao Jarvis e carrega Enter" hidden>
   <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span><button id="im-desligar" onclick="fecharHUD()" title="Desligar o modo Iron Man">desligar</button></div>
   <div class="im im-faixa"><div id="im-faixa"></div></div>
   <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
@@ -3252,7 +3255,7 @@ setInterval(() => { if ($("#hud").classList.contains("ironman")) { medirServidor
 const hud = { estado: "espera", ate: 0, nivel: 0, t0: performance.now() };
 const ESTADOS_HUD = { espera: "online", ouvir: "a ouvir", pensar: "a processar", falar: "", ver: "a analisar" };
 function abrirHUD(estado = "espera") {
-  if (vozCfg.hud === false) return;
+  if (vozCfg.hud === false && !SO_JARVIS) return;
   $("#hud").classList.add("ver"); hudEstado(estado); hudCantos();
   if (!hud.anim) hud.anim = requestAnimationFrame(desenharHUD);
 }
@@ -3264,7 +3267,24 @@ function holograma(ligar, vertical = false) {
 // num PC com um monitor deitado: abrir a central com ?holograma=1 (ou ?holograma=v para espelhar na vertical)
 { const q = new URLSearchParams(location.search).get("holograma");
   if (q) setTimeout(() => { abrirHUD("espera"); arranqueIronMan(); holograma(true, q === "v"); }, 1500); }
+// no PC so com o Jarvis (?jarvis=1): o anel fica sempre aberto; "fechar" volta ao anel a espera
+const SO_JARVIS = new URLSearchParams(location.search).has("jarvis");
+if (SO_JARVIS) {
+  document.title = "Jarvis"; setTimeout(() => abrirHUD("espera"), 900);
+  // no PC tambem se escreve: qualquer letra abre a caixa; Enter manda; Esc fecha a caixa
+  const cx = $("#hud-escrever");
+  cx.onclick = e => e.stopPropagation();
+  document.addEventListener("keydown", e => {
+    if (document.activeElement === cx || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || document.querySelector("dialog[open]")) return;
+    cx.hidden = false; cx.focus();
+  });
+  cx.onkeydown = e => {
+    if (e.key === "Escape") { cx.value = ""; cx.hidden = true; cx.blur(); }
+    if (e.key === "Enter" && cx.value.trim()) { const t = cx.value.trim(); cx.value = ""; cx.hidden = true; cx.blur(); comandoVoz(t); }
+  };
+}
 function fecharHUD() {
+  if (SO_JARVIS) setTimeout(() => { if (!$("#hud").classList.contains("ver")) abrirHUD("espera"); }, 60);
   const eraIron = $("#hud").classList.contains("ironman");
   $("#hud-brief").classList.remove("ver");
   $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa", "holograma", "vertical"); pararCamara(); hud.ate = 0;
@@ -3291,7 +3311,7 @@ async function mostrarBriefing(cartoes) {
 }
 function hudEstado(e) {
   hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? "";
-  hud.ate = $("#hud").classList.contains("ironman") ? 0 : Date.now() + 25000;   // o Iron Man so fecha quando mandas (voz ou botao "desligar")
+  hud.ate = SO_JARVIS || $("#hud").classList.contains("ironman") ? 0 : Date.now() + 25000;   // o Iron Man so fecha quando mandas (voz ou botao "desligar")
   if (e === "ouvir") hudLog("a ouvir"); if (e === "pensar") hudLog("a processar pedido"); if (e === "ver") hudLog("câmara ativa: a analisar");
 }
 function hudTexto(tu, ele) {

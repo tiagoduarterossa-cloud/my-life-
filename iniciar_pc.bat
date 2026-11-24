@@ -19,7 +19,9 @@ if not defined PY (
 %PY% -c "import anthropic" 2>nul || %PY% -m pip install --quiet "anthropic>=1.1.0"
 %PY% -c "import edge_tts" 2>nul || %PY% -m pip install --quiet edge-tts
 
-echo A abrir a central no Chrome em http://127.0.0.1:8080
-start "" "http://127.0.0.1:8080"
+rem so o ecra do Jarvis, em ecra inteiro (Esc ou F11 para sair do ecra inteiro).
+rem Para abrir a central toda: muda "jarvis" para "central" na linha de baixo.
+set VIDA_ABRIR=jarvis
+echo A abrir o Jarvis no Chrome (http://127.0.0.1:8080/?jarvis=1)
 %PY% server.py
 pause
