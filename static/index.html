@@ -302,7 +302,8 @@
   #hud-brief .abas span { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(0, 200, 255, .3); opacity: .55; }
   #hud-brief .abas span.on { opacity: 1; background: rgba(0, 200, 255, .2); border-color: rgb(var(--n2, 0, 200, 255)); }
   #hud-texto .tu { font-size: 14px; opacity: .6; margin-bottom: 6px; }
-  #hud-texto .ele { font-size: 21px; line-height: 1.35; }
+  #hud-texto .ele { font-size: 21px; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+  #hud-texto .ele.longo { font-size: 16px; }
   @media (max-width: 600px) { .hud-canto b { font-size: 30px; } #hud-agenda { display: none; } #hud-tempo { bottom: 150px; } }
 
   /* ---------- modo Iron Man ---------- */
@@ -2955,6 +2956,7 @@ async function paineisIronMan() {
     <div class="linha"><span>Voz</span><span>${vozCfg.motor === "neural" ? "neural" : "tablet"}${aEscutar ? " · à escuta" : ""}</span></div>
     <div class="linha"><span>Cérebro</span><span>${config.ia_ok ? "Claude" : "regras"}</span></div>
     <div class="linha"><span>Aprendizagem</span><span><button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirAprender()">ver ›</button></span></div>
+    <div class="linha"><span>Rosto</span><span>${caraGuardada()?.length ? "conhecido" : "por aprender"}<button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="event.stopPropagation(); ${caraGuardada()?.length ? "botaoReconhecer()" : "aprenderCara()"}">${caraGuardada()?.length ? "testar" : "aprender"} ›</button></span></div>
     <div class="linha"><span>Conversa</span><span><button style="margin:0 0 0 6px;padding:1px 7px;font-size:10px" onclick="abrirConversa()">abrir ›</button></span></div>`;
   // agenda
   const agora = horaAgora(), aulas = (dados.horario || []).filter(b => b.dia === diaSemana() && b.fim > agora).slice(0, 4);
@@ -3333,7 +3335,7 @@ function hudEstado(e) {
   if (e === "ouvir") hudLog("a ouvir"); if (e === "pensar") hudLog("a processar pedido"); if (e === "ver") hudLog("câmara ativa: a analisar");
 }
 function hudTexto(tu, ele) {
-  $("#hud-tu").textContent = tu ? `"${tu}"` : ""; $("#hud-ele").textContent = ele || "";
+  $("#hud-tu").textContent = tu ? `"${tu}"` : ""; $("#hud-ele").textContent = ele || ""; $("#hud-ele").classList.toggle("longo", (ele || "").length > 140);
   if (tu && !ele) hudLog(`pedido: ${tu}`); if (ele && ele !== "…") hudLog(`resposta: ${ele.slice(0, 60)}`);
 }
 function hudCantos() {
@@ -3519,6 +3521,10 @@ async function reconhecerCara(tempo = 10000, avisar = true) {
   const ok = melhor < 0.45;
   hudLog(ok ? `identidade confirmada (distância ${melhor.toFixed(2)})` : "identidade não confirmada");
   return ok;
+}
+async function botaoReconhecer() {
+  const ok = await reconhecerCara(10000, true), f = ok ? `És tu${config.nome ? ", " + config.nome : ""}. Identidade confirmada.` : "Não te reconheci.";
+  hudEstado("falar"); hudTexto("", f); await falar(f); hudEstado("ouvir");
 }
 async function boasVindasRosto() {
   if (await reconhecerCara(10000, false)) {
