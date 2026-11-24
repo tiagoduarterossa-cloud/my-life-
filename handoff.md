@@ -142,3 +142,6 @@ Sessão anterior (resumo dos commits):
 5. Aprendizagem, passo 3: propostas que generalizam (palavras, não só frases exatas, ex.: "bota" = "põe") com o Claude a sugerir, e cada regra aprovada a entrar nos testes. Encriptar a memória e o diário com uma chave que só o PIN abre (precisa do pacote `cryptography` no Termux).
 6. Ideias por fazer, por ordem de utilidade: resumo da manhã com Gmail (IMAP com palavra-passe de aplicação) e Google Calendar (endereço iCal secreto), só leitura e no Iron Man (falta decidir que conta e se se quer); relatório semanal do estudo (agora há dados do modo estudo); trabalhos novos do Teams (pelas notificações do Android); Tailscale; ligação entre o quarto 3D e a roupa.
 7. Tornar o repositório privado (ele quer o projeto só para ele) e confirmar que o tablet tem bloqueio de ecrã (o código não tem dados pessoais, mas mostra como a central funciona).
+
+## Teste no PC (antes do PC velho)
+`iniciar_pc.bat` arranca a central num PC com Windows (Python 3 do python.org no PATH; instala o `anthropic` e o `edge-tts` se faltarem, liga o modo UTF-8 e abre http://127.0.0.1:8080). As partes do Termux (Teams pelas notificações, bateria, brilho, wifi, som dos alarmes no servidor) desligam-se sozinhas quando não há Termux. Começa com uma base de dados vazia; o tablet continua a ser a central principal até à mudança para o PC velho.
