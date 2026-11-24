@@ -19,6 +19,7 @@ import urllib.request
 import alarmes
 import aprender
 import assistente
+import briefing
 import avisos
 import backups
 import casa
@@ -698,8 +699,18 @@ class Handler(BaseHTTPRequestHandler):
                             rotinas._por_na_fila([c for c in cmds if c["acao"] != "falar"])
                             return fim({"resposta": f"Rotina {r['nome']}.", "falado": falas or f"Rotina {r['nome']} a correr."}, "rotina", "rotina")
                         return fim({"resposta": f"Rotina {r['nome']}.", "falado": "", "comandos": cmds}, "rotina", "rotina")
-                    intencao = assistente.entender(frase)[0]
-                    r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
+                    quer_briefing = briefing.pedido(frase)
+                    if not quer_briefing:
+                        intencao = assistente.entender(frase)[0]
+                        r = assistente.responder(frase, con, nome=ler_config().get("nome", ""))
+                if quer_briefing:   # "bom dia" / "briefing": cartoes no ecra do Jarvis (tempo e noticias primeiro, fora da base de dados)
+                    cfg = ler_config()
+                    da_rede = briefing.rede(cfg)
+                    with db() as con:
+                        r = briefing.montar(con, cfg, amigos=em_amigos, da_rede=da_rede)
+                    if do_telemovel:
+                        r.pop("briefing", None)
+                    return fim(r, "regras", "briefing")
                 if r is assistente.AJUDA and ia.disponivel():  # as regras nao perceberam: pergunta ao Claude
                     return fim(responder_ia(frase, privado_ok), "claude", "ajuda")
                 if r.get("resumir") and ia.disponivel():  # noticias em ingles: o Claude resume em portugues

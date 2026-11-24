@@ -286,6 +286,19 @@
   #hud-estado { position: absolute; left: 50%; top: calc(46% + min(25vmin, 210px)); transform: translateX(-50%); font-size: 13px; letter-spacing: 5px;
                 text-transform: uppercase; color: rgb(var(--n2, 0, 200, 255)); white-space: nowrap; }
   #hud-texto { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); width: min(760px, calc(100% - 48px)); text-align: center; }
+  /* briefing da manha: um cartao de cada vez dentro do anel, com as abas por baixo */
+  #hud-brief { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.96); width: min(560px, calc(100% - 40px)); z-index: 3;
+               opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; padding: 16px 20px 12px; border-radius: 14px;
+               background: rgba(4, 22, 44, .82); border: 1px solid rgba(0, 200, 255, .45); box-shadow: 0 0 40px rgba(0, 160, 255, .25), inset 0 0 24px rgba(0, 160, 255, .12);
+               backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-family: ui-monospace, Menlo, monospace; }
+  #hud-brief.ver { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #hud-brief .bt { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: rgb(var(--n2, 0, 200, 255)); text-align: center; margin-bottom: 8px; }
+  #hud-brief ul { list-style: none; margin: 0; padding: 0; font-size: 15px; line-height: 1.45; }
+  #hud-brief li { padding: 3px 0; border-bottom: 1px solid rgba(0, 200, 255, .12); }
+  #hud-brief .graus { font-size: 46px; font-weight: 700; text-align: center; line-height: 1.1; }
+  #hud-brief .abas { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  #hud-brief .abas span { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(0, 200, 255, .3); opacity: .55; }
+  #hud-brief .abas span.on { opacity: 1; background: rgba(0, 200, 255, .2); border-color: rgb(var(--n2, 0, 200, 255)); }
   #hud-texto .tu { font-size: 14px; opacity: .6; margin-bottom: 6px; }
   #hud-texto .ele { font-size: 21px; line-height: 1.35; }
   @media (max-width: 600px) { .hud-canto b { font-size: 30px; } #hud-agenda { display: none; } #hud-tempo { bottom: 150px; } }
@@ -900,6 +913,7 @@
   <div class="hud-canto" id="hud-hora"></div>
   <div class="hud-canto" id="hud-tempo"></div>
   <div class="hud-canto" id="hud-agenda"></div>
+  <div id="hud-brief" aria-live="polite"></div>
   <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span><button id="im-desligar" onclick="fecharHUD()" title="Desligar o modo Iron Man">desligar</button></div>
   <div class="im im-faixa"><div id="im-faixa"></div></div>
   <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
@@ -2688,6 +2702,12 @@ async function comandoVoz(texto, { noChat = false } = {}) {
     if (r.mudou) atualizar();
     if (r.musica) setTimeout(carregarSpotify, 800);
     if (r.comandos) { await executarComandos(r.comandos); return; }
+    if (r.briefing?.length && comHUD) {
+      await mostrarBriefing(r.briefing);
+      if ($("#hud").classList.contains("ver")) hudEstado("ouvir");
+      if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); }
+      return;
+    }
     if (comHUD) hudEstado("falar");
     await falar(r.falado || r.resposta);
     if (comHUD) hudEstado("ouvir");
@@ -3246,10 +3266,28 @@ function holograma(ligar, vertical = false) {
   if (q) setTimeout(() => { abrirHUD("espera"); arranqueIronMan(); holograma(true, q === "v"); }, 1500); }
 function fecharHUD() {
   const eraIron = $("#hud").classList.contains("ironman");
+  $("#hud-brief").classList.remove("ver");
   $("#hud").classList.remove("ver", "camara", "ironman", "a-arrancar", "mapa", "holograma", "vertical"); pararCamara(); hud.ate = 0;
   if (eraIron) corNaFita();   // a fita volta a cor do tema
   if (eraIron) trincoAte = Date.now() + 20000;
   if (eraIron && pinEstado.local) { trancar(); paineisIronMan.fam = paineisIronMan.loja = paineisIronMan.seg = null; }   // no tablet: sair do Iron Man tranca
+}
+// o briefing da manha ("bom dia"): mostra cada cartao enquanto o Jarvis o diz
+async function mostrarBriefing(cartoes) {
+  const el = $("#hud-brief"), abas = cartoes.map(c => c.aba);
+  for (let i = 0; i < cartoes.length; i++) {
+    if (!$("#hud").classList.contains("ver")) break;      // fechaste o ecra: para o briefing
+    const c = cartoes[i], t = c.tempo;
+    el.innerHTML = `<div class="bt">${esc(c.titulo)}</div>` +
+      (t ? `<div class="graus">${t.agora}°</div>` : "") +
+      `<ul>${c.linhas.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` +
+      `<div class="abas">${abas.map((a, j) => `<span class="${j === i ? "on" : ""}">${esc(a)}</span>`).join("")}</div>`;
+    el.classList.add("ver"); hudEstado("falar"); $("#hud-estado").textContent = "a falar";
+    hudTexto("", c.falado); hudLog(`briefing: ${c.aba.toLowerCase()}`);
+    await falar(c.falado);
+    await esperar(350);
+  }
+  el.classList.remove("ver");
 }
 function hudEstado(e) {
   hud.estado = e; $("#hud-estado").textContent = ESTADOS_HUD[e] ?? "";
