@@ -4,6 +4,9 @@ rem Precisa do Python 3 (python.org, com "Add python.exe to PATH" marcado na ins
 chcp 65001 >nul
 cd /d "%~dp0"
 set PYTHONUTF8=1
+
+rem vai buscar a versao mais recente antes de arrancar (se nao houver internet, arranca com a que tem)
+where git >nul 2>nul && git pull --quiet
 set VIDA_PORT=8080
 
 rem usa o "py" (o lancador do python.org) se o "python" nao estiver no PATH
