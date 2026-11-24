@@ -498,7 +498,13 @@
   .im-faixa div { position: absolute; white-space: nowrap; top: 5px; animation: faixa 90s linear infinite; padding-left: 100%; }
   .im-faixa b { color: #ffc35a; margin: 0 6px 0 22px; }
   @keyframes faixa { to { transform: translateX(-100%); } }
-  #hud.ironman .im-painel[style*="top:72px"] { top: 92px !important; }
+  /* as colunas do Iron Man: os paineis empilham-se uns por baixo dos outros e nunca se tapam, seja qual for o ecra (tablet ou PC) */
+  .im-col { position: absolute; top: 92px; bottom: 24px; width: 285px; gap: 12px; flex-direction: column; overflow: hidden; pointer-events: none; }
+  #hud.ironman .im-col { display: flex; }
+  .im-col.esq { left: 24px; } .im-col.dir { right: 24px; }
+  .im-col .im-painel { position: relative; flex: 0 1 auto; min-height: 0; overflow: hidden; pointer-events: auto; }
+  .im-col .im-painel[hidden] { display: none !important; }
+  .im-col #im-registo, .im-col #im-familia, .im-col #im-musica { margin-top: auto; }
 
   /* loja */
   .loja-grelha { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 10px 0; }
@@ -919,18 +925,22 @@
   <input id="hud-escrever" type="text" autocomplete="off" placeholder="Escreve ao Jarvis e carrega Enter" hidden>
   <div class="im im-topo"><span><b>J.A.R.V.I.S.</b> &nbsp;// interface stark</span><span id="im-relogio"></span><span class="ouro" id="im-status">todos os sistemas online</span><button id="im-desligar" onclick="fecharHUD()" title="Desligar o modo Iron Man">desligar</button></div>
   <div class="im im-faixa"><div id="im-faixa"></div></div>
-  <div class="im im-painel" id="im-meteo" style="top:72px;left:24px;animation-delay:.15s"></div>
-  <div class="im im-painel" id="im-sistemas" style="top:316px;left:24px;animation-delay:.3s"></div>
-  <div class="im im-painel" id="im-registo" style="bottom:24px;left:24px;animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
-  <div class="im im-painel" id="im-familia" style="bottom:24px;left:24px;animation-delay:.45s" hidden></div>
+  <div class="im im-col esq">
+  <div class="im im-painel" id="im-meteo" style="animation-delay:.15s"></div>
+  <div class="im im-painel" id="im-sistemas" style="animation-delay:.3s"></div>
+  <div class="im im-painel" id="im-registo" style="animation-delay:.45s"><h4>registo</h4><div id="im-term"></div></div>
+  <div class="im im-painel" id="im-familia" style="animation-delay:.45s" hidden></div>
+  </div>
   <div class="im" id="im-mapa-caixa"><h4>mapa · família e perigos</h4><button class="fechar" onclick="fecharMapa()">fechar</button><button class="fechar" style="right:84px" onclick="abrirFamilia()">+ família</button>
     <canvas id="im-mapa"></canvas>
     <div class="legenda"><i style="background:#ffc35a"></i>casa<i style="background:#38e1ff"></i>família<i style="background:#ff4d4d"></i>incêndio<i style="background:#ff9a3c"></i>sismo<i style="background:none;width:auto;height:auto;border-radius:0;margin-left:10px">➜</i>vento<i style="background:rgba(255,214,10,.8);border-radius:2px"></i>aviso amarelo<i style="background:rgba(255,140,0,.9);border-radius:2px"></i>laranja<i style="background:rgba(255,45,45,.9);border-radius:2px"></i>vermelho
       <div id="im-mapa-fonte" style="opacity:.7;margin-top:3px"></div></div></div>
-  <div class="im im-painel" id="im-agenda" style="top:72px;right:24px;animation-delay:.2s"></div>
-  <div class="im im-painel" id="im-missoes" style="top:300px;right:24px;animation-delay:.35s"></div>
-  <div class="im im-painel" id="im-loja" style="top:500px;right:24px;animation-delay:.42s" hidden></div>
-  <div class="im im-painel" id="im-musica" style="bottom:24px;right:24px;animation-delay:.5s"></div>
+  <div class="im im-col dir">
+  <div class="im im-painel" id="im-agenda" style="animation-delay:.2s"></div>
+  <div class="im im-painel" id="im-missoes" style="animation-delay:.35s"></div>
+  <div class="im im-painel" id="im-loja" style="animation-delay:.42s" hidden></div>
+  <div class="im im-painel" id="im-musica" style="animation-delay:.5s"></div>
+  </div>
   <div id="im-boot">a inicializar sistemas<div class="im-barra"><i id="im-boot-barra" style="width:0"></i></div></div>
   <div id="hud-estado"></div>
   <div id="hud-texto"><div class="tu" id="hud-tu"></div><div class="ele" id="hud-ele"></div></div>
