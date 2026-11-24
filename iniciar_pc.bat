@@ -6,17 +6,20 @@ cd /d "%~dp0"
 set PYTHONUTF8=1
 set VIDA_PORT=8080
 
-where python >nul 2>nul
-if errorlevel 1 (
-  echo Falta o Python. Instala de python.org e marca "Add python.exe to PATH".
+rem usa o "py" (o lancador do python.org) se o "python" nao estiver no PATH
+set PY=
+py -3 --version >nul 2>nul && set PY=py -3
+if not defined PY python --version >nul 2>nul && set PY=python
+if not defined PY (
+  echo Nao encontrei o Python. Instala de python.org e marca "Add python.exe to PATH".
   pause
   exit /b 1
 )
 
-python -c "import anthropic" 2>nul || python -m pip install --quiet "anthropic>=1.1.0"
-python -c "import edge_tts" 2>nul || python -m pip install --quiet edge-tts
+%PY% -c "import anthropic" 2>nul || %PY% -m pip install --quiet "anthropic>=1.1.0"
+%PY% -c "import edge_tts" 2>nul || %PY% -m pip install --quiet edge-tts
 
 echo A abrir a central no Chrome em http://127.0.0.1:8080
 start "" "http://127.0.0.1:8080"
-python server.py
+%PY% server.py
 pause
