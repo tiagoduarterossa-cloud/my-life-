@@ -1171,6 +1171,58 @@
    "frase": "faz-me um plano de estudo para matemática",
    "intencao": "plano_estudo",
    "nota": "o plano de estudo continua separado do organizar o dia"
+  },
+  {
+   "frase": "Jarvis, abrir rede",
+   "intencao": "ecra_privado",
+   "campos": {
+    "alvo": "rede"
+   }
+  },
+  {
+   "frase": "abrir tarefas",
+   "intencao": "ecra_pessoal",
+   "campos": {
+    "alvo": "tarefas"
+   }
+  },
+  {
+   "frase": "abre os testes",
+   "intencao": "ecra_pessoal",
+   "campos": {
+    "alvo": "estudo"
+   }
+  },
+  {
+   "frase": "mostra o horário",
+   "intencao": "ecra_pessoal",
+   "campos": {
+    "alvo": "horario"
+   }
+  },
+  {
+   "frase": "abre as definições",
+   "intencao": "ecra",
+   "campos": {
+    "alvo": "definicoes"
+   }
+  },
+  {
+   "frase": "fecha as tarefas",
+   "intencao": "ecra_fechar"
+  },
+  {
+   "frase": "fecha isso",
+   "intencao": "ecra_fechar"
+  },
+  {
+   "frase": "volta ao jarvis",
+   "intencao": "ecra_fechar"
+  },
+  {
+   "frase": "como está a loja hoje",
+   "intencao": "loja",
+   "nota": "so 'abre a loja' abre o ecra; perguntar pela loja continua a responder"
   }
  ]
 }

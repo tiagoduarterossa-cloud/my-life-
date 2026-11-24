@@ -221,6 +221,22 @@ def entender(texto, hoje=None):
     if re.search(r"\b(o que (e que )?nao percebeste|o que falhaste|onde falhaste|o que andas a aprender|o que (e que )?aprendeste|aprendizagem do jarvis)\b", s):
         return "aprender_ver", {}
 
+    # abrir e fechar partes da central pela voz ("abre as tarefas", "abre a rede", "fecha as tarefas")
+    ECRAS = [("tarefas", r"tarefas|trabalhos de casa|trabalhos"), ("estudo", r"estudo|testes|os testes|cronometro de estudo"),
+             ("horario", r"horario|aulas|as aulas"), ("tempo", r"tempo|meteorologia|previsao"), ("quarto", r"quarto|modelo do quarto"),
+             ("roupa", r"roupa|roupeiro|armario"), ("inicio", r"inicio|pagina inicial|ecra inicial|central"),
+             ("rede", r"rede|internet|wi-?fi|wifi|servicos|estado da rede"), ("definicoes", r"definicoes|configuracoes|settings|opcoes"),
+             ("aprendizagem", r"aprendizagem"), ("loja", r"loja"), ("seguranca", r"seguranca"), ("familia", r"familia")]
+    alvos = "|".join(f"(?P<{k}>{v})" for k, v in ECRAS)
+    m = re.fullmatch(rf"(?:abre|abrir|abre-me|abre me|mostra|mostra-me|mostra me|vai para|vai a|vai ao|vai as|ver)(?: (?:o|a|os|as|as minhas|os meus|a minha|o meu|ai))? (?:{alvos})(?: por favor)?", s.strip(" .!?"))
+    if m:
+        alvo = next(k for k, _ in ECRAS if m.group(k))
+        tipo = "ecra_privado" if alvo in ("loja", "seguranca", "familia", "aprendizagem", "rede") else "ecra_pessoal" if alvo in ("tarefas", "estudo", "horario", "roupa", "inicio") else "ecra"
+        return tipo, {"alvo": alvo}
+    if re.fullmatch(rf"(?:fecha|fechar|fecha-me|sai|sair|sai d[aeo]s?)(?: (?:o|a|os|as|as minhas|os meus|a minha|o meu))? (?:{alvos}|isso|isto|isto tudo|a pagina|o separador)(?: por favor)?", s.strip(" .!?")) \
+            or re.fullmatch(r"(volta|voltar|volta ao|volta para o|volta para) (o )?jarvis|fecha|fechar", s.strip(" .!?")):
+        return "ecra_fechar", {}
+
     import organizar
     if organizar.desfazer_pedido(s):
         return "organizar_desfazer", {}
@@ -642,7 +658,7 @@ AJUDA = {
 }
 
 
-PRIVADAS = {"conversa_abrir", "memoria_ver", "memoria_apagar", "aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
+PRIVADAS = {"ecra_privado", "conversa_abrir", "memoria_ver", "memoria_apagar", "aprender_ver", "viagem", "viagem_criar", "loja", "despesa", "seguranca", "rede", "mapa", "familia_estado", "familia_anos", "familia_tempo", "familia_contacto"}
 
 
 def responder(texto, con, hoje=None, nome=""):
@@ -1165,6 +1181,15 @@ def _responder(texto, con, hoje=None, nome=""):
         if d["abrir"]:
             return {"resposta": "Ao teu dispor.", "falado": ya(["Ao teu dispor.", "Estou aqui."]), "hud": True}
         return {"resposta": "Até já.", "falado": ya(["Até já.", "Fui."]), "hud": False}
+
+    if intencao in ("ecra", "ecra_pessoal", "ecra_privado"):
+        nomes = {"tarefas": "as tuas tarefas", "estudo": "o estudo e os testes", "horario": "o horário", "tempo": "o tempo",
+                 "quarto": "o quarto", "roupa": "a roupa", "inicio": "a página inicial", "rede": "o estado da rede",
+                 "definicoes": "as definições", "aprendizagem": "a aprendizagem", "loja": "a loja", "seguranca": "a segurança", "familia": "a família"}
+        n = nomes[d["alvo"]]
+        return {"resposta": f"A abrir {n}.", "falado": ya([f"Aqui tens {n}.", f"A abrir {n}."]), "ecra": d["alvo"]}
+    if intencao == "ecra_fechar":
+        return {"resposta": "Fechado.", "falado": ya(["Fechado.", "Feito."]), "ecra": False}
 
     if intencao in ("organizar_dia", "organizar_desfazer"):
         import organizar

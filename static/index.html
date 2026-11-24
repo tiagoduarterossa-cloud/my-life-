@@ -291,6 +291,9 @@
                opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; padding: 16px 20px 12px; border-radius: 14px;
                background: rgba(4, 22, 44, .82); border: 1px solid rgba(0, 200, 255, .45); box-shadow: 0 0 40px rgba(0, 160, 255, .25), inset 0 0 24px rgba(0, 160, 255, .12);
                backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-family: ui-monospace, Menlo, monospace; }
+  #voltar-jarvis { position: fixed; right: 18px; top: calc(14px + env(safe-area-inset-top)); z-index: 60; padding: 12px 18px; border-radius: 999px;
+                  border: 1px solid rgba(0, 200, 255, .5); background: rgba(4, 22, 44, .92); color: #9fe6ff; font: 600 14px -apple-system, "Inter", sans-serif; cursor: pointer;
+                  box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
   #hud-escrever { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); width: min(520px, calc(100% - 40px)); z-index: 4;
                   background: rgba(4, 22, 44, .8); color: #e8f6ff; border: 1px solid rgba(0, 200, 255, .4); border-radius: 10px; padding: 10px 14px; font: 15px ui-monospace, Menlo, monospace; }
   #hud-brief.ver { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -916,6 +919,7 @@
   </div>
   <div style="margin-top:16px"><button id="ap-sair">Sair do modo apagão</button><span class="peq" id="ap-estado"></span></div>
 </div>
+<button id="voltar-jarvis" hidden onclick="fecharEcraVoz()">◉ Voltar ao Jarvis</button>
 <div id="hud" aria-label="Jarvis">
   <canvas id="hud-canvas"></canvas>
   <video id="hud-video" playsinline muted></video>
@@ -2377,6 +2381,7 @@ async function respostaPrivada(texto, r) {
   }
   if (r.mapa) mostrarMapa();
   if (r.viagem) abrirViagem();
+  if (r.ecra) { abrirEcraVoz(r.ecra); await falar(r.falado || r.resposta); return; }   // "abre a rede/loja/familia" (depois do PIN)
   if (r.mudou) { paineisIronMan.famT = 0; paineisIronMan.lojaT = 0; paineisIronMan.vgT = 0; atualizar(); }
   const n = (r.itens || []).length;
   hudEstado("falar"); hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
@@ -2398,6 +2403,7 @@ async function perguntar(texto) {
     if (r.ver) { $("#assist").classList.remove("aberto"); verComCamara(r.ver); }
     if (r.hud === true) { $("#assist").classList.remove("aberto"); abrirHUD("espera"); }
     if (r.hud === false) fecharHUD();
+    if (r.ecra) abrirEcraVoz(r.ecra); else if (r.ecra === false) { if (ecraVoz) fecharEcraVoz(); else fecharHUD(); }
     if (r.escuta === false) { vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); }
     if (r.hud === "ironman") { $("#assist").classList.remove("aberto"); abrirHUD("espera"); arranqueIronMan(); setTimeout(() => falar(r.falado), 1700); }
     if (r.holograma !== undefined) holograma(r.holograma);
@@ -2686,7 +2692,7 @@ $("#bolha-voz").onclick = () => $("#bolha-voz").classList.remove("ver");
 // pedido por voz: responde so com a voz e a bolha. O chat so abre se o pedido veio de dentro do chat.
 async function comandoVoz(texto, { noChat = false } = {}) {
   estadoEscuta("A pensar…", true);
-  const comHUD = !noChat && vozCfg.hud !== false;
+  const comHUD = !noChat && vozCfg.hud !== false && !ecraVoz;   // com uma parte da central aberta, a resposta aparece por cima dela
   if (noChat) { abrirAssist(); msgAssist("eu", texto); sugestoesAssist([]); }
   else if (comHUD) { abrirHUD("pensar"); hudTexto(texto, ""); }
   else bolha(texto, "A pensar…", null, 0);
@@ -2701,6 +2707,15 @@ async function comandoVoz(texto, { noChat = false } = {}) {
       const n = (r.itens || []).length;
       if (comHUD) hudTexto(texto, r.resposta + (n ? " " + r.itens.slice(0, 4).join(" · ") : ""));
       else bolha(texto, r.resposta, r.itens, Math.min(25, 7 + n * 1.5));
+    }
+    if (r.ecra !== undefined || (r.hud === false && ecraVoz)) {
+      if (r.ecra) abrirEcraVoz(r.ecra);
+      else if (ecraVoz) fecharEcraVoz();
+      else { await falar(r.falado); fecharHUD(); return; }        // "fecha isso" sem nada aberto: fecha o ecra do Jarvis
+      await falar(r.falado);
+      if ($("#hud").classList.contains("ver")) hudEstado("ouvir");
+      if (aEscutar) { aEsperarComando = Date.now() + 8000; pararEscuta(); setTimeout(retomarEscuta, 300); }
+      return;
     }
     if (r.escuta === false) { await falar(r.falado); fecharHUD(); vozCfg.ouvir = false; guardar("voz", vozCfg); pararEscuta(true); mostrarBotEscuta(); return; }
     if (r.hud === false) { hudLog("a encerrar"); await falar(r.falado); fecharHUD(); return; }
@@ -3287,6 +3302,29 @@ function holograma(ligar, vertical = false) {
 // num PC com um monitor deitado: abrir a central com ?holograma=1 (ou ?holograma=v para espelhar na vertical)
 { const q = new URLSearchParams(location.search).get("holograma");
   if (q) setTimeout(() => { abrirHUD("espera"); arranqueIronMan(); holograma(true, q === "v"); }, 1500); }
+// abrir e fechar partes da central pela voz: "Jarvis, abre as tarefas" / "abre a rede" / "fecha isso"
+let ecraVoz = null;   // {alvo, iron} enquanto uma parte da central esta aberta pela voz
+const DIALOGOS_VOZ = { rede: () => abrirServicos(), definicoes: () => $("#abrir-config").click(), aprendizagem: () => abrirAprender(),
+                       loja: () => abrirLoja(), seguranca: () => abrirSeguranca(), familia: () => abrirFamilia() };
+function abrirEcraVoz(alvo) {
+  const h = $("#hud"), iron = ecraVoz?.iron ?? h.classList.contains("ironman");
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  $("#assist")?.classList.remove("aberto");
+  if (h.classList.contains("ver")) { h.classList.remove("ver"); pararCamara(); }   // esconde o anel sem o "fechar"
+  ecraVoz = { alvo, iron };
+  if (DIALOGOS_VOZ[alvo]) {
+    DIALOGOS_VOZ[alvo]();
+    const d = document.querySelector("dialog[open]");
+    if (d) d.addEventListener("close", () => { if (ecraVoz?.alvo === alvo) fecharEcraVoz(); }, { once: true });
+  } else abrirSeparador(alvo);
+  $("#voltar-jarvis").hidden = false;
+}
+function fecharEcraVoz() {
+  const e = ecraVoz; ecraVoz = null; $("#voltar-jarvis").hidden = true;
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  if (!e) return;
+  if (SO_JARVIS || e.iron) { abrirHUD("espera"); if (e.iron) $("#hud").classList.add("ironman"); }
+}
 // no PC so com o Jarvis (?jarvis=1): o anel fica sempre aberto; "fechar" volta ao anel a espera
 const SO_JARVIS = new URLSearchParams(location.search).has("jarvis");
 if (SO_JARVIS) {
@@ -3295,6 +3333,7 @@ if (SO_JARVIS) {
   const cx = $("#hud-escrever");
   cx.onclick = e => e.stopPropagation();
   document.addEventListener("keydown", e => {
+    if (!$("#hud").classList.contains("ver") || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) return;   // a escrever num formulario da central
     if (document.activeElement === cx || e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1 || document.querySelector("dialog[open]")) return;
     cx.hidden = false; cx.focus();
   });
